@@ -61,14 +61,14 @@ func (s Scanner) ScanTarget(ctx context.Context, target config.Target) core.Targ
 	conn, err := tlsDialer.DialContext(ctx, "tcp", address)
 	if err != nil {
 		result.Errors = []string{fmt.Sprintf("tls connection failed: %v", err)}
-		return result
+		return classifyResult(result)
 	}
 	defer conn.Close()
 
 	tlsConn, ok := conn.(*tls.Conn)
 	if !ok {
 		result.Errors = []string{"tls connection failed: expected *tls.Conn"}
-		return result
+		return classifyResult(result)
 	}
 
 	state := tlsConn.ConnectionState()
@@ -80,7 +80,7 @@ func (s Scanner) ScanTarget(ctx context.Context, target config.Target) core.Targ
 
 	if len(state.PeerCertificates) == 0 {
 		result.Warnings = append(result.Warnings, "no peer certificates were presented")
-		return result
+		return classifyResult(result)
 	}
 
 	leaf := state.PeerCertificates[0]
@@ -88,7 +88,7 @@ func (s Scanner) ScanTarget(ctx context.Context, target config.Target) core.Targ
 	result.LeafKeySize = publicKeySize(leaf)
 	result.LeafSignatureAlgorithm = signatureAlgorithmName(leaf.SignatureAlgorithm)
 
-	return result
+	return classifyResult(result)
 }
 
 func serverName(host string) string {
