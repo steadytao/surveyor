@@ -1,0 +1,14 @@
+targets:
+  - name: primary-site
+    host: example.com
+    port: 443
+    tags:
+      - external
+      - prod
+
+  - name: api
+    host: api.example.com
+    port: 443
+    tags:
+      - external
+      - api
