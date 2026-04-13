@@ -75,6 +75,9 @@ func TestScanTargetSuccess(t *testing.T) {
 	if result.CipherSuite != "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256" {
 		t.Fatalf("result.CipherSuite = %q, want %q", result.CipherSuite, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256")
 	}
+	if result.Classification != classificationModernTLSClassicalID {
+		t.Fatalf("result.Classification = %q, want %q", result.Classification, classificationModernTLSClassicalID)
+	}
 	if result.LeafKeyAlgorithm != "rsa" {
 		t.Fatalf("result.LeafKeyAlgorithm = %q, want %q", result.LeafKeyAlgorithm, "rsa")
 	}
@@ -125,6 +128,12 @@ func TestScanTargetSuccess(t *testing.T) {
 	if len(result.Errors) != 0 {
 		t.Fatalf("len(result.Errors) = %d, want 0; errors = %v", len(result.Errors), result.Errors)
 	}
+	if got, want := len(result.Findings), 1; got != want {
+		t.Fatalf("len(result.Findings) = %d, want %d; findings = %#v", got, want, result.Findings)
+	}
+	if result.Findings[0].Code != "classical-certificate-identity" {
+		t.Fatalf("result.Findings[0].Code = %q, want %q", result.Findings[0].Code, "classical-certificate-identity")
+	}
 	if len(result.Warnings) != 0 {
 		t.Fatalf("len(result.Warnings) = %d, want 0; warnings = %v", len(result.Warnings), result.Warnings)
 	}
@@ -167,6 +176,9 @@ func TestScanTargetFailure(t *testing.T) {
 	if result.Reachable {
 		t.Fatal("result.Reachable = true, want false")
 	}
+	if result.Classification != classificationUnreachable {
+		t.Fatalf("result.Classification = %q, want %q", result.Classification, classificationUnreachable)
+	}
 	if result.TLSVersion != "" {
 		t.Fatalf("result.TLSVersion = %q, want empty", result.TLSVersion)
 	}
@@ -187,6 +199,12 @@ func TestScanTargetFailure(t *testing.T) {
 	}
 	if len(result.Errors) != 1 {
 		t.Fatalf("len(result.Errors) = %d, want 1; errors = %v", len(result.Errors), result.Errors)
+	}
+	if got, want := len(result.Findings), 1; got != want {
+		t.Fatalf("len(result.Findings) = %d, want %d; findings = %#v", got, want, result.Findings)
+	}
+	if result.Findings[0].Code != "target-unreachable" {
+		t.Fatalf("result.Findings[0].Code = %q, want %q", result.Findings[0].Code, "target-unreachable")
 	}
 	if !strings.Contains(result.Errors[0], "tls connection failed:") {
 		t.Fatalf("result.Errors[0] = %q, want tls connection failure prefix", result.Errors[0])
