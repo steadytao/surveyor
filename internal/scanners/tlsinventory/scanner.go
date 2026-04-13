@@ -2,10 +2,16 @@ package tlsinventory
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/steadytao/surveyor/internal/config"
@@ -13,6 +19,8 @@ import (
 )
 
 const DefaultTimeout = 10 * time.Second
+
+var repeatedDashPattern = regexp.MustCompile(`-+`)
 
 type Scanner struct {
 	Timeout time.Duration
@@ -68,6 +76,17 @@ func (s Scanner) ScanTarget(ctx context.Context, target config.Target) core.Targ
 	result.Address = conn.RemoteAddr().String()
 	result.TLSVersion = tls.VersionName(state.Version)
 	result.CipherSuite = tls.CipherSuiteName(state.CipherSuite)
+	result.CertificateChain = certificateRefs(state.PeerCertificates)
+
+	if len(state.PeerCertificates) == 0 {
+		result.Warnings = append(result.Warnings, "no peer certificates were presented")
+		return result
+	}
+
+	leaf := state.PeerCertificates[0]
+	result.LeafKeyAlgorithm = publicKeyAlgorithmName(leaf.PublicKeyAlgorithm)
+	result.LeafKeySize = publicKeySize(leaf)
+	result.LeafSignatureAlgorithm = signatureAlgorithmName(leaf.SignatureAlgorithm)
 
 	return result
 }
@@ -78,4 +97,73 @@ func serverName(host string) string {
 	}
 
 	return host
+}
+
+func certificateRefs(peerCertificates []*x509.Certificate) []core.CertificateRef {
+	if len(peerCertificates) == 0 {
+		return nil
+	}
+
+	refs := make([]core.CertificateRef, 0, len(peerCertificates))
+
+	for _, certificate := range peerCertificates {
+		if certificate == nil {
+			continue
+		}
+
+		refs = append(refs, core.CertificateRef{
+			Subject:            certificate.Subject.String(),
+			Issuer:             certificate.Issuer.String(),
+			SerialNumber:       certificate.SerialNumber.String(),
+			NotBefore:          certificate.NotBefore.UTC(),
+			NotAfter:           certificate.NotAfter.UTC(),
+			DNSNames:           append([]string(nil), certificate.DNSNames...),
+			PublicKeyAlgorithm: publicKeyAlgorithmName(certificate.PublicKeyAlgorithm),
+			PublicKeySize:      publicKeySize(certificate),
+			SignatureAlgorithm: signatureAlgorithmName(certificate.SignatureAlgorithm),
+			IsCA:               certificate.IsCA,
+		})
+	}
+
+	if len(refs) == 0 {
+		return nil
+	}
+
+	return refs
+}
+
+func publicKeyAlgorithmName(algorithm x509.PublicKeyAlgorithm) string {
+	if algorithm == x509.UnknownPublicKeyAlgorithm {
+		return ""
+	}
+
+	return strings.ToLower(algorithm.String())
+}
+
+func signatureAlgorithmName(algorithm x509.SignatureAlgorithm) string {
+	if algorithm == x509.UnknownSignatureAlgorithm {
+		return ""
+	}
+
+	name := strings.ToLower(algorithm.String())
+	name = strings.ReplaceAll(name, " ", "-")
+
+	return repeatedDashPattern.ReplaceAllString(name, "-")
+}
+
+func publicKeySize(certificate *x509.Certificate) int {
+	if certificate == nil {
+		return 0
+	}
+
+	switch publicKey := certificate.PublicKey.(type) {
+	case *rsa.PublicKey:
+		return publicKey.N.BitLen()
+	case *ecdsa.PublicKey:
+		return publicKey.Params().BitSize
+	case ed25519.PublicKey:
+		return len(publicKey) * 8
+	default:
+		return 0
+	}
 }
