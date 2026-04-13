@@ -49,6 +49,8 @@ func TestScanTargetSuccess(t *testing.T) {
 		Port: portNumber,
 	})
 
+	serverCert := server.Certificate()
+
 	if !result.Reachable {
 		t.Fatalf("result.Reachable = false, want true; errors = %v", result.Errors)
 	}
@@ -73,8 +75,58 @@ func TestScanTargetSuccess(t *testing.T) {
 	if result.CipherSuite != "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256" {
 		t.Fatalf("result.CipherSuite = %q, want %q", result.CipherSuite, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256")
 	}
+	if result.LeafKeyAlgorithm != "rsa" {
+		t.Fatalf("result.LeafKeyAlgorithm = %q, want %q", result.LeafKeyAlgorithm, "rsa")
+	}
+	if result.LeafKeySize != 2048 {
+		t.Fatalf("result.LeafKeySize = %d, want %d", result.LeafKeySize, 2048)
+	}
+	if result.LeafSignatureAlgorithm != "sha256-rsa" {
+		t.Fatalf("result.LeafSignatureAlgorithm = %q, want %q", result.LeafSignatureAlgorithm, "sha256-rsa")
+	}
+	if got, want := len(result.CertificateChain), 1; got != want {
+		t.Fatalf("len(result.CertificateChain) = %d, want %d", got, want)
+	}
+	if result.CertificateChain[0].Subject != serverCert.Subject.String() {
+		t.Fatalf("result.CertificateChain[0].Subject = %q, want %q", result.CertificateChain[0].Subject, serverCert.Subject.String())
+	}
+	if result.CertificateChain[0].Issuer != serverCert.Issuer.String() {
+		t.Fatalf("result.CertificateChain[0].Issuer = %q, want %q", result.CertificateChain[0].Issuer, serverCert.Issuer.String())
+	}
+	if result.CertificateChain[0].SerialNumber != serverCert.SerialNumber.String() {
+		t.Fatalf("result.CertificateChain[0].SerialNumber = %q, want %q", result.CertificateChain[0].SerialNumber, serverCert.SerialNumber.String())
+	}
+	if !result.CertificateChain[0].NotBefore.Equal(serverCert.NotBefore.UTC()) {
+		t.Fatalf("result.CertificateChain[0].NotBefore = %v, want %v", result.CertificateChain[0].NotBefore, serverCert.NotBefore.UTC())
+	}
+	if !result.CertificateChain[0].NotAfter.Equal(serverCert.NotAfter.UTC()) {
+		t.Fatalf("result.CertificateChain[0].NotAfter = %v, want %v", result.CertificateChain[0].NotAfter, serverCert.NotAfter.UTC())
+	}
+	if got, want := len(result.CertificateChain[0].DNSNames), len(serverCert.DNSNames); got != want {
+		t.Fatalf("len(result.CertificateChain[0].DNSNames) = %d, want %d", got, want)
+	}
+	for index, dnsName := range serverCert.DNSNames {
+		if result.CertificateChain[0].DNSNames[index] != dnsName {
+			t.Fatalf("result.CertificateChain[0].DNSNames[%d] = %q, want %q", index, result.CertificateChain[0].DNSNames[index], dnsName)
+		}
+	}
+	if result.CertificateChain[0].PublicKeyAlgorithm != "rsa" {
+		t.Fatalf("result.CertificateChain[0].PublicKeyAlgorithm = %q, want %q", result.CertificateChain[0].PublicKeyAlgorithm, "rsa")
+	}
+	if result.CertificateChain[0].PublicKeySize != 2048 {
+		t.Fatalf("result.CertificateChain[0].PublicKeySize = %d, want %d", result.CertificateChain[0].PublicKeySize, 2048)
+	}
+	if result.CertificateChain[0].SignatureAlgorithm != "sha256-rsa" {
+		t.Fatalf("result.CertificateChain[0].SignatureAlgorithm = %q, want %q", result.CertificateChain[0].SignatureAlgorithm, "sha256-rsa")
+	}
+	if result.CertificateChain[0].IsCA != serverCert.IsCA {
+		t.Fatalf("result.CertificateChain[0].IsCA = %t, want %t", result.CertificateChain[0].IsCA, serverCert.IsCA)
+	}
 	if len(result.Errors) != 0 {
 		t.Fatalf("len(result.Errors) = %d, want 0; errors = %v", len(result.Errors), result.Errors)
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("len(result.Warnings) = %d, want 0; warnings = %v", len(result.Warnings), result.Warnings)
 	}
 }
 
@@ -120,6 +172,18 @@ func TestScanTargetFailure(t *testing.T) {
 	}
 	if result.CipherSuite != "" {
 		t.Fatalf("result.CipherSuite = %q, want empty", result.CipherSuite)
+	}
+	if result.LeafKeyAlgorithm != "" {
+		t.Fatalf("result.LeafKeyAlgorithm = %q, want empty", result.LeafKeyAlgorithm)
+	}
+	if result.LeafKeySize != 0 {
+		t.Fatalf("result.LeafKeySize = %d, want 0", result.LeafKeySize)
+	}
+	if result.LeafSignatureAlgorithm != "" {
+		t.Fatalf("result.LeafSignatureAlgorithm = %q, want empty", result.LeafSignatureAlgorithm)
+	}
+	if len(result.CertificateChain) != 0 {
+		t.Fatalf("len(result.CertificateChain) = %d, want 0", len(result.CertificateChain))
 	}
 	if len(result.Errors) != 1 {
 		t.Fatalf("len(result.Errors) = %d, want 1; errors = %v", len(result.Errors), result.Errors)
