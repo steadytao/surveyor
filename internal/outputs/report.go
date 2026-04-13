@@ -8,6 +8,8 @@ import (
 )
 
 func BuildReport(results []core.TargetResult, generatedAt time.Time) core.Report {
+	// Copy the slice so report assembly does not retain caller-owned backing
+	// storage. Rendering should be a pure step over stable result data.
 	reportResults := append([]core.TargetResult(nil), results...)
 
 	report := core.Report{
@@ -49,6 +51,8 @@ func sortedClassificationKeys(summary core.Summary) []string {
 		return nil
 	}
 
+	// Stable ordering keeps Markdown deterministic and makes test fixtures and
+	// future diffs easier to reason about.
 	keys := make([]string, 0, len(summary.ClassificationBreakdown))
 	for key := range summary.ClassificationBreakdown {
 		keys = append(keys, key)

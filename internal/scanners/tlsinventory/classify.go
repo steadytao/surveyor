@@ -15,6 +15,9 @@ const (
 )
 
 func classifyResult(result core.TargetResult) core.TargetResult {
+	// Classification is intentionally conservative. When the evidence is missing
+	// or outside the current rule set, fall back to manual review instead of
+	// silently treating uncertainty as a stronger posture statement.
 	switch {
 	case !result.Reachable:
 		result.Classification = classificationUnreachable
@@ -94,6 +97,8 @@ func classicalCertificateFinding(result core.TargetResult) core.Finding {
 }
 
 func certificateObservationEvidence(result core.TargetResult) []string {
+	// Use only facts already present on the result. Findings should explain the
+	// current observation, not add a second layer of hidden inference.
 	evidence := []string{}
 
 	if result.TLSVersion != "" {
@@ -139,6 +144,8 @@ func isClassicalIdentityAlgorithm(name string) bool {
 }
 
 func isClassicalSignatureAlgorithm(name string) bool {
+	// This stays broad on purpose for the MVP. The classifier needs a cautious
+	// "recognised classical" gate, not a finely modelled signature taxonomy yet.
 	normalized := strings.ToLower(name)
 
 	return strings.Contains(normalized, "rsa") ||

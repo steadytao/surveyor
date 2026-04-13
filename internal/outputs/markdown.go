@@ -66,6 +66,8 @@ func RenderMarkdown(report core.Report) string {
 		}
 
 		if len(result.Findings) > 0 {
+			// Markdown is intentionally derived from the canonical result model.
+			// If a fact matters here, it should already exist in JSON.
 			builder.WriteString("\n#### Findings\n\n")
 			for _, finding := range result.Findings {
 				builder.WriteString(fmt.Sprintf("- `%s` (%s): %s\n", finding.Code, finding.Severity, finding.Summary))
