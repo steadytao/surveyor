@@ -92,6 +92,9 @@ func (s Scanner) ScanTarget(ctx context.Context, target config.Target) core.Targ
 }
 
 func serverName(host string) string {
+	// IP literals are scanned as literal connection targets. Injecting them into
+	// ServerName would blur what the handshake actually observed and can trigger
+	// different virtual-host routing behaviour from hostname-based SNI.
 	if net.ParseIP(host) != nil {
 		return ""
 	}
@@ -104,6 +107,9 @@ func certificateRefs(peerCertificates []*x509.Certificate) []core.CertificateRef
 		return nil
 	}
 
+	// Preserve the presented order. The collector should report what the peer
+	// actually sent, not a reconstructed or verified chain that implies trust
+	// work Surveyor does not yet perform.
 	refs := make([]core.CertificateRef, 0, len(peerCertificates))
 
 	for _, certificate := range peerCertificates {
@@ -145,6 +151,8 @@ func signatureAlgorithmName(algorithm x509.SignatureAlgorithm) string {
 		return ""
 	}
 
+	// Keep the stored form simple and stable so examples, tests, and future
+	// output tooling are not coupled to Go's spacing and capitalisation.
 	name := strings.ToLower(algorithm.String())
 	name = strings.ReplaceAll(name, " ", "-")
 
