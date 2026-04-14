@@ -1,0 +1,18 @@
+*.log
+*.prof
+*.test
+*.out
+
+# build artifacts
+surveyor
+surveyor.exe
+cmd/surveyor/surveyor
+cmd/surveyor/surveyor.exe
+dist/
+
+# MAC
+.DS_Store
+
+# IDE files
+.idea/
+.vscode/
