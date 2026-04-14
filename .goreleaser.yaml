@@ -37,9 +37,7 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
-changelog:
-  disable: true
-
 release:
   name_template: '{{ envOrDefault "RELEASE_NAME" (printf "Surveyor %s" .Tag) }}'
   prerelease: auto
+  mode: replace
