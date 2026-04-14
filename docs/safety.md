@@ -22,9 +22,13 @@ The current config format requires explicit targets:
 - `host`
 - `port`
 
+The current CLI also supports explicit command-line targets through `--targets`, but it keeps the same rule:
+- every target must be explicit `host:port`
+
 That means Surveyor currently supports:
 - public hostnames with explicit ports, for example `google.com:443`
 - internal IPs with explicit ports, for example `10.0.0.5:443`
+- ad hoc command-line target lists such as `127.0.0.1:443,127.0.0.1:8443`
 
 It does not currently support:
 - host-only config entries with an implied default port
