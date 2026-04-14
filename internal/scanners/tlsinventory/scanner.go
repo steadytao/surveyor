@@ -53,6 +53,7 @@ func (s Scanner) ScanTarget(ctx context.Context, target config.Target) core.Targ
 			// The collection layer needs to observe the presented service even when
 			// certificate validation would fail. Trust and hostname analysis belong
 			// in later certificate and classification steps.
+			// codeql[go/disabled-certificate-check]: intentional for defensive TLS inventory collection; Surveyor records presented certificates and does not treat this path as trust validation.
 			InsecureSkipVerify: true, //nolint:gosec
 			ServerName:         serverName(target.Host),
 		},
