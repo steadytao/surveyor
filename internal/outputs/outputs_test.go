@@ -1,7 +1,8 @@
 package outputs
 
 import (
-	"strings"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -56,25 +57,9 @@ func TestMarshalJSON(t *testing.T) {
 		t.Fatalf("MarshalJSON() error = %v", err)
 	}
 
-	jsonText := string(data)
-
-	wantSubstrings := []string{
-		"\"generated_at\": \"2026-04-14T01:30:00Z\"",
-		"\"classification\": \"modern_tls_classical_identity\"",
-		"\"classification\": \"unreachable\"",
-		"\"classification_breakdown\": {",
-		"\"modern_tls_classical_identity\": 1",
-		"\"unreachable\": 1",
-	}
-
-	for _, substring := range wantSubstrings {
-		if !strings.Contains(jsonText, substring) {
-			t.Fatalf("json output missing substring %q\nfull output:\n%s", substring, jsonText)
-		}
-	}
-
-	if !strings.HasSuffix(jsonText, "\n") {
-		t.Fatal("json output must end with a trailing newline")
+	want := readGoldenFile(t, "report.golden.json")
+	if string(data) != want {
+		t.Fatalf("json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
 	}
 }
 
@@ -84,27 +69,22 @@ func TestRenderMarkdown(t *testing.T) {
 	report := sampleReport()
 
 	markdown := RenderMarkdown(report)
+	want := readGoldenFile(t, "report.golden.md")
+	if markdown != want {
+		t.Fatalf("markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
 
-	wantSubstrings := []string{
-		"# Surveyor TLS Inventory Report",
-		"- Generated: 2026-04-14T01:30:00Z",
-		"## Classification summary",
-		"- `modern_tls_classical_identity`: 1",
-		"- `unreachable`: 1",
-		"### primary-site",
-		"- Host: `example.com`",
-		"- Classification: `modern_tls_classical_identity`",
-		"#### Findings",
-		"- `classical-certificate-identity` (medium): The observed certificate identity remains classical.",
-		"#### Errors",
-		"- tls connection failed: dial tcp 127.0.0.1:443: connect: connection refused",
+func readGoldenFile(t *testing.T, name string) string {
+	t.Helper()
+
+	path := filepath.Join("..", "..", "testdata", "outputs", name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}
 
-	for _, substring := range wantSubstrings {
-		if !strings.Contains(markdown, substring) {
-			t.Fatalf("markdown output missing substring %q\nfull output:\n%s", substring, markdown)
-		}
-	}
+	return string(data)
 }
 
 func sampleReport() core.Report {

@@ -2,7 +2,12 @@ package tlsinventory
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -208,5 +213,193 @@ func TestScanTargetFailure(t *testing.T) {
 	}
 	if !strings.Contains(result.Errors[0], "tls connection failed:") {
 		t.Fatalf("result.Errors[0] = %q, want tls connection failure prefix", result.Errors[0])
+	}
+}
+
+func TestScanTargetSelfSignedCertificate(t *testing.T) {
+	t.Parallel()
+
+	server := newFixtureTLSServer(t, certificateFixture{
+		commonName: "localhost",
+		dnsNames:   []string{"localhost"},
+		notBefore:  time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC),
+		notAfter:   time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC),
+		serial:     42,
+	})
+	defer server.Close()
+
+	_, port, err := net.SplitHostPort(server.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("SplitHostPort() error = %v", err)
+	}
+
+	portNumber, err := strconv.Atoi(port)
+	if err != nil {
+		t.Fatalf("Atoi() error = %v", err)
+	}
+
+	result := Scanner{
+		Now: func() time.Time { return time.Date(2026, time.April, 14, 9, 0, 0, 0, time.UTC) },
+	}.ScanTarget(context.Background(), config.Target{
+		Host: "localhost",
+		Port: portNumber,
+	})
+
+	if !result.Reachable {
+		t.Fatalf("result.Reachable = false, want true; errors = %v", result.Errors)
+	}
+	if result.Classification != classificationModernTLSClassicalID {
+		t.Fatalf("result.Classification = %q, want %q", result.Classification, classificationModernTLSClassicalID)
+	}
+	if got, want := len(result.CertificateChain), 1; got != want {
+		t.Fatalf("len(result.CertificateChain) = %d, want %d", got, want)
+	}
+	if result.CertificateChain[0].Subject != result.CertificateChain[0].Issuer {
+		t.Fatalf("subject/issuer mismatch for self-signed cert: subject=%q issuer=%q", result.CertificateChain[0].Subject, result.CertificateChain[0].Issuer)
+	}
+	if result.CertificateChain[0].DNSNames[0] != "localhost" {
+		t.Fatalf("result.CertificateChain[0].DNSNames[0] = %q, want %q", result.CertificateChain[0].DNSNames[0], "localhost")
+	}
+}
+
+func TestScanTargetExpiredCertificate(t *testing.T) {
+	t.Parallel()
+
+	server := newFixtureTLSServer(t, certificateFixture{
+		commonName: "localhost",
+		dnsNames:   []string{"localhost"},
+		notBefore:  time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC),
+		notAfter:   time.Date(2025, time.February, 1, 0, 0, 0, 0, time.UTC),
+		serial:     43,
+	})
+	defer server.Close()
+
+	_, port, err := net.SplitHostPort(server.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("SplitHostPort() error = %v", err)
+	}
+
+	portNumber, err := strconv.Atoi(port)
+	if err != nil {
+		t.Fatalf("Atoi() error = %v", err)
+	}
+
+	scannedAt := time.Date(2026, time.April, 14, 9, 30, 0, 0, time.UTC)
+	result := Scanner{
+		Now: func() time.Time { return scannedAt },
+	}.ScanTarget(context.Background(), config.Target{
+		Host: "localhost",
+		Port: portNumber,
+	})
+
+	if !result.Reachable {
+		t.Fatalf("result.Reachable = false, want true; errors = %v", result.Errors)
+	}
+	if result.Classification != classificationModernTLSClassicalID {
+		t.Fatalf("result.Classification = %q, want %q", result.Classification, classificationModernTLSClassicalID)
+	}
+	if !result.CertificateChain[0].NotAfter.Before(scannedAt) {
+		t.Fatalf("result.CertificateChain[0].NotAfter = %v, want date before %v", result.CertificateChain[0].NotAfter, scannedAt)
+	}
+}
+
+func TestScanTargetHostnameMismatchCertificate(t *testing.T) {
+	t.Parallel()
+
+	server := newFixtureTLSServer(t, certificateFixture{
+		commonName: "example.com",
+		dnsNames:   []string{"example.com"},
+		notBefore:  time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC),
+		notAfter:   time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC),
+		serial:     44,
+	})
+	defer server.Close()
+
+	_, port, err := net.SplitHostPort(server.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("SplitHostPort() error = %v", err)
+	}
+
+	portNumber, err := strconv.Atoi(port)
+	if err != nil {
+		t.Fatalf("Atoi() error = %v", err)
+	}
+
+	result := Scanner{
+		Now: func() time.Time { return time.Date(2026, time.April, 14, 10, 0, 0, 0, time.UTC) },
+	}.ScanTarget(context.Background(), config.Target{
+		Host: "localhost",
+		Port: portNumber,
+	})
+
+	if !result.Reachable {
+		t.Fatalf("result.Reachable = false, want true; errors = %v", result.Errors)
+	}
+	if result.Classification != classificationModernTLSClassicalID {
+		t.Fatalf("result.Classification = %q, want %q", result.Classification, classificationModernTLSClassicalID)
+	}
+	if result.CertificateChain[0].DNSNames[0] != "example.com" {
+		t.Fatalf("result.CertificateChain[0].DNSNames[0] = %q, want %q", result.CertificateChain[0].DNSNames[0], "example.com")
+	}
+}
+
+type certificateFixture struct {
+	commonName string
+	dnsNames   []string
+	notBefore  time.Time
+	notAfter   time.Time
+	serial     int64
+}
+
+func newFixtureTLSServer(t *testing.T, fixture certificateFixture) *httptest.Server {
+	t.Helper()
+
+	certificate := newSelfSignedCertificate(t, fixture)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	server.TLS = &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   tls.VersionTLS12,
+		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
+		Certificates: []tls.Certificate{certificate},
+	}
+	server.StartTLS()
+
+	return server
+}
+
+func newSelfSignedCertificate(t *testing.T, fixture certificateFixture) tls.Certificate {
+	t.Helper()
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey() error = %v", err)
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(fixture.serial),
+		Subject: pkix.Name{
+			CommonName: fixture.commonName,
+		},
+		Issuer: pkix.Name{
+			CommonName: fixture.commonName,
+		},
+		NotBefore:             fixture.notBefore,
+		NotAfter:              fixture.notAfter,
+		DNSNames:              append([]string(nil), fixture.dnsNames...),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+
+	certificateDER, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		t.Fatalf("CreateCertificate() error = %v", err)
+	}
+
+	return tls.Certificate{
+		Certificate: [][]byte{certificateDER},
+		PrivateKey:  privateKey,
 	}
 }
