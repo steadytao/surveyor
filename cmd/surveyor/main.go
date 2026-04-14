@@ -63,6 +63,9 @@ func runScan(args []string, stdout io.Writer, stderr io.Writer, now func() time.
 func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
 	fs := flag.NewFlagSet("surveyor scan tls", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		printScanTLSUsage(stderr)
+	}
 
 	configPath := fs.String("config", "", "Path to a YAML config file with explicit TLS targets")
 	fs.StringVar(configPath, "c", "", "Path to a YAML config file with explicit TLS targets")
@@ -77,6 +80,10 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
 
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+
 		return 2
 	}
 
@@ -109,7 +116,7 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 			return 1
 		}
 
-		if err := os.WriteFile(*jsonPath, jsonData, 0o644); err != nil {
+		if err := writeOutputFile(*jsonPath, jsonData); err != nil {
 			fmt.Fprintf(stderr, "write JSON output %q: %v\n", *jsonPath, err)
 			return 1
 		}
@@ -118,7 +125,7 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 	markdown := outputs.RenderMarkdown(report)
 
 	if *markdownPath != "" {
-		if err := os.WriteFile(*markdownPath, []byte(markdown), 0o644); err != nil {
+		if err := writeOutputFile(*markdownPath, []byte(markdown)); err != nil {
 			fmt.Fprintf(stderr, "write Markdown output %q: %v\n", *markdownPath, err)
 			return 1
 		}
@@ -193,12 +200,49 @@ func parseTargetsArg(value string) ([]config.Target, error) {
 	return targets, nil
 }
 
+func writeOutputFile(path string, data []byte) error {
+	if strings.TrimSpace(path) == "" {
+		return errors.New("output path must not be empty")
+	}
+
+	return os.WriteFile(path, data, 0o644)
+}
+
 func printUsage(w io.Writer) {
+	fmt.Fprintln(w, "Surveyor")
+	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Commands:")
+	fmt.Fprintln(w, "  scan tls    Scan explicit TLS targets and emit Markdown and optional JSON output")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for command-specific help.")
 }
 
 func printScanUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for flags and examples.")
+}
+
+func printScanTLSUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Input:")
+	fmt.Fprintln(w, "  Exactly one of --config or --targets is required.")
+	fmt.Fprintln(w, "  --targets requires explicit host:port entries.")
+	fmt.Fprintln(w, "  IPv6 targets must use bracket form, for example [::1]:443.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Examples:")
+	fmt.Fprintln(w, "  surveyor scan tls --config examples/targets.yaml -o report.md -j report.json")
+	fmt.Fprintln(w, "  surveyor scan tls --targets 127.0.0.1:443,[::1]:8443")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  -c, --config   Path to a YAML config file with explicit TLS targets")
+	fmt.Fprintln(w, "  -t, --targets  Comma-separated explicit host:port targets")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
 }

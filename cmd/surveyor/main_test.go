@@ -52,6 +52,89 @@ func TestRunScanTLSRejectsConfigAndTargetsTogether(t *testing.T) {
 	}
 }
 
+func TestRunHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "Commands:") {
+		t.Fatalf("stdout = %q, want top-level help text", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunScanTLSHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"scan", "tls", "--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "Examples:") {
+		t.Fatalf("stderr = %q, want command-specific help", stderr.String())
+	}
+}
+
+func TestRunRejectsUnknownCommand(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"nonesuch"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "unknown command") {
+		t.Fatalf("stderr = %q, want unknown command error", stderr.String())
+	}
+}
+
+func TestRunScanTLSRequiresInput(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"scan", "tls"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "one of --config or --targets is required") {
+		t.Fatalf("stderr = %q, want missing input error", stderr.String())
+	}
+}
+
+func TestRunScanTLSRejectsInvalidTargets(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"scan", "tls", "--targets", "127.0.0.1"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "must be in host:port form") {
+		t.Fatalf("stderr = %q, want invalid target format error", stderr.String())
+	}
+}
+
 func TestRunScanTLSWritesOutputs(t *testing.T) {
 	t.Parallel()
 
@@ -95,6 +178,32 @@ func TestRunScanTLSWritesOutputs(t *testing.T) {
 	}
 	if !strings.Contains(string(jsonData), "\"classification\": \"modern_tls_classical_identity\"") {
 		t.Fatalf("json output missing classification\n%s", string(jsonData))
+	}
+}
+
+func TestRunScanTLSFailsOnInvalidOutputPath(t *testing.T) {
+	t.Parallel()
+
+	server := testTLSServer(t)
+	defer server.Close()
+
+	host, port := splitServerAddress(t, server.Listener.Addr().String())
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"scan",
+		"tls",
+		"--targets", net.JoinHostPort(host, port),
+		"--output", filepath.Join(t.TempDir(), "missing", "report.md"),
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "write Markdown output") {
+		t.Fatalf("stderr = %q, want write failure", stderr.String())
 	}
 }
 
