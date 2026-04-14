@@ -3,6 +3,7 @@ package outputs
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,7 +85,9 @@ func readGoldenFile(t *testing.T, name string) string {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}
 
-	return string(data)
+	// Golden text files may be checked out with CRLF on some runners. Normalize
+	// here so the tests assert content, not Git line-ending policy.
+	return strings.ReplaceAll(string(data), "\r\n", "\n")
 }
 
 func sampleReport() core.Report {
