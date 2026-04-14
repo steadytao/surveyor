@@ -68,15 +68,13 @@ The current code and docs are organised around JSON as the canonical result cont
 ## CLI
 
 The current CLI supports the TLS inventory path:
-
 ```bash
 surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 
 For ad hoc local or one-off scans, explicit command-line targets are also supported:
-
 ```bash
-surveyor scan tls -t 127.0.0.1:443,127.0.0.1:8443
+surveyor scan tls -t example.com:443,127.0.0.1:8000,[::1]:443
 ```
 
 Rules:
