@@ -1,0 +1,45 @@
+version: 2
+
+project_name: surveyor
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: surveyor
+    main: ./cmd/surveyor
+    binary: surveyor
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: default
+    ids:
+      - surveyor
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  disable: true
+
+release:
+  name_template: '{{ envOrDefault "RELEASE_NAME" (printf "Surveyor %s" .Tag) }}'
+  prerelease: auto

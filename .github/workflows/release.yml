@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, for example v0.1.0"
+        required: true
+        type: string
+      commit_hash:
+        description: "Commit hash to release from"
+        required: true
+        type: string
+      release_name:
+        description: "Release name shown on GitHub"
+        required: false
+        default: ""
+        type: string
+      release_notes_file:
+        description: "Path to a checked-in Markdown file for the release body"
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  release:
+    name: Build and Publish Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Harden the runner (Audit outbound calls)
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        with:
+          egress-policy: audit
+
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Print Go version
+        run: go version
+
+      - name: Trim and validate inputs
+        id: inputs
+        shell: bash
+        run: |
+          VERSION="$(echo "${{ inputs.version }}" | xargs)"
+          COMMIT_HASH="$(echo "${{ inputs.commit_hash }}" | xargs)"
+          RELEASE_NAME="$(echo "${{ inputs.release_name }}" | xargs)"
+          RELEASE_NOTES_FILE="$(echo "${{ inputs.release_notes_file }}" | xargs)"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
+          echo "release_notes_file=$RELEASE_NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$RELEASE_NAME" ]; then
+            echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_name=Surveyor $VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "Error: version must follow semver form such as v0.1.0 or v0.1.0-rc.1"
+            exit 1
+          fi
+
+          if [[ ! "$COMMIT_HASH" =~ ^[a-f0-9]{7,40}$ ]]; then
+            echo "Error: commit_hash must be a valid SHA"
+            exit 1
+          fi
+
+          if ! git cat-file -e "$COMMIT_HASH^{commit}" 2>/dev/null; then
+            echo "Error: commit $COMMIT_HASH does not exist"
+            exit 1
+          fi
+
+          if [ -z "$RELEASE_NOTES_FILE" ]; then
+            echo "Error: release_notes_file is required"
+            exit 1
+          fi
+
+      - name: Check release tag does not already exist
+        shell: bash
+        run: |
+          VERSION="${{ steps.inputs.outputs.version }}"
+
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Error: tag $VERSION already exists locally"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Error: tag $VERSION already exists on origin"
+            exit 1
+          fi
+
+      - name: Check out target commit
+        shell: bash
+        run: git checkout "${{ steps.inputs.outputs.commit_hash }}"
+
+      - name: Configure git identity for release tag
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check release notes file exists
+        shell: bash
+        run: |
+          RELEASE_NOTES_FILE="${{ steps.inputs.outputs.release_notes_file }}"
+
+          if [ ! -f "$RELEASE_NOTES_FILE" ]; then
+            echo "Error: release notes file '$RELEASE_NOTES_FILE' does not exist"
+            exit 1
+          fi
+
+      - name: Create annotated release tag
+        shell: bash
+        run: |
+          VERSION="${{ steps.inputs.outputs.version }}"
+          git tag -a "$VERSION" -m "Release $VERSION"
+
+      - name: Verify module definitions
+        run: go mod verify
+
+      - name: Push release tag
+        shell: bash
+        run: git push origin "${{ steps.inputs.outputs.version }}"
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean --release-notes "${{ steps.inputs.outputs.release_notes_file }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NAME: ${{ steps.inputs.outputs.release_name }}
