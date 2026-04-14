@@ -43,7 +43,7 @@ func TestClassifyResult(t *testing.T) {
 				Port:      443,
 				ScannedAt: scannedAt,
 				Reachable: false,
-				Errors:    []string{"tls connection failed: dial tcp 127.0.0.1:443: connect: connection refused"},
+				Errors:    []string{"tls connection failed: connection attempt failed"},
 			},
 			wantClassification: classificationUnreachable,
 			wantFindingCodes:   []string{"target-unreachable"},

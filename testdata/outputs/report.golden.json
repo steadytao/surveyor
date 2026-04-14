@@ -55,12 +55,12 @@
           "severity": "medium",
           "summary": "The target could not be reached with a TLS connection.",
           "evidence": [
-            "tls connection failed: dial tcp 127.0.0.1:443: connect: connection refused"
+            "tls connection failed: connection attempt failed"
           ]
         }
       ],
       "errors": [
-        "tls connection failed: dial tcp 127.0.0.1:443: connect: connection refused"
+        "tls connection failed: connection attempt failed"
       ]
     }
   ],

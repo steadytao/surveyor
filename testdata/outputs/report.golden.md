@@ -44,8 +44,8 @@
 #### Findings
 
 - `target-unreachable` (medium): The target could not be reached with a TLS connection.
-  - evidence: `tls connection failed: dial tcp 127.0.0.1:443: connect: connection refused`
+  - evidence: `tls connection failed: connection attempt failed`
 
 #### Errors
 
-- tls connection failed: dial tcp 127.0.0.1:443: connect: connection refused
+- tls connection failed: connection attempt failed
