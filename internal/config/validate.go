@@ -27,29 +27,38 @@ func normalize(raw rawConfig) (Config, error) {
 }
 
 func normalizeTarget(target rawTarget, index int) (Target, error) {
-	host := strings.TrimSpace(target.Host)
-	name := strings.TrimSpace(target.Name)
 	pathPrefix := fmt.Sprintf("targets[%d]", index)
 
-	if host == "" {
+	return normalizeTargetFields(target.Name, target.Host, target.Port, target.Tags, pathPrefix)
+}
+
+func ValidateTarget(target Target) (Target, error) {
+	return normalizeTargetFields(target.Name, target.Host, target.Port, target.Tags, "target")
+}
+
+func normalizeTargetFields(name string, host string, port int, tags []string, pathPrefix string) (Target, error) {
+	trimmedHost := strings.TrimSpace(host)
+	trimmedName := strings.TrimSpace(name)
+
+	if trimmedHost == "" {
 		return Target{}, fmt.Errorf("%s.host must not be empty", pathPrefix)
 	}
 
-	if target.Port < 1 || target.Port > 65535 {
+	if port < 1 || port > 65535 {
 		return Target{}, fmt.Errorf("%s.port must be between 1 and 65535", pathPrefix)
 	}
 
-	if target.Name != "" && name == "" {
+	if name != "" && trimmedName == "" {
 		return Target{}, fmt.Errorf("%s.name must not be blank", pathPrefix)
 	}
 
-	tags := normalizeTags(target.Tags)
+	normalizedTags := normalizeTags(tags)
 
 	return Target{
-		Name: name,
-		Host: host,
-		Port: target.Port,
-		Tags: tags,
+		Name: trimmedName,
+		Host: trimmedHost,
+		Port: port,
+		Tags: normalizedTags,
 	}, nil
 }
 

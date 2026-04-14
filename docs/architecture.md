@@ -4,7 +4,7 @@ Surveyor is intentionally small at this stage.
 
 The current codebase is organised around one narrow flow:
 
-1. load explicit TLS targets from configuration
+1. accept explicit TLS targets from config or direct CLI input
 2. collect raw TLS and X.509 observations
 3. classify the observed posture conservatively
 4. derive canonical JSON and human-readable Markdown from the same result model
@@ -12,6 +12,18 @@ The current codebase is organised around one narrow flow:
 That separation matters. Surveyor should not blur raw observation, interpretation and reporting into one package.
 
 ## Package responsibilities
+
+### `cmd/surveyor`
+
+Owns the thin executable wrapper.
+
+Current responsibilities:
+- expose `surveyor scan tls`
+- accept either config-driven targets or explicit `--targets` input
+- run the TLS inventory flow end to end
+- write Markdown and JSON outputs
+
+This layer should stay thin. It should orchestrate existing packages, not reimplement their logic.
 
 ### `internal/config`
 
@@ -75,8 +87,9 @@ JSON is the source of truth. Markdown is derived output.
 The current data flow is:
 
 ```text
-YAML config
-  -> internal/config
+CLI arguments
+  -> cmd/surveyor
+  -> internal/config or direct target parsing
   -> []config.Target
   -> internal/scanners/tlsinventory
   -> []core.TargetResult
@@ -100,7 +113,6 @@ The following invariants must remain true as the project grows:
 ## What is not implemented yet
 
 The current architecture does not yet include:
-- a real CLI entrypoint
 - trust-store validation
 - hostname validation semantics
 - STARTTLS or multi-protocol probing

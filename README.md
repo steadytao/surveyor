@@ -20,7 +20,7 @@ The current repository already includes:
 - conservative readiness classification
 - machine-readable and human-readable reporting
 
-What does not exist yet is a finished end-user CLI entrypoint. The internal packages and report model are present; the executable wrapper is still to come.
+The repository now includes a first usable CLI path for the TLS inventory slice, with both config-driven and explicit command-line targets.
 
 ## Why this project exists
 
@@ -65,6 +65,26 @@ Surveyor currently has implemented internal slices for:
 
 The current code and docs are organised around JSON as the canonical result contract and Markdown as derived output.
 
+## CLI
+
+The current CLI supports the TLS inventory path:
+
+```bash
+surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
+```
+
+For ad hoc local or one-off scans, explicit command-line targets are also supported:
+
+```bash
+surveyor scan tls -t 127.0.0.1:443,127.0.0.1:8443
+```
+
+Rules:
+- use exactly one of `--config` or `--targets`
+- `--targets` requires explicit `host:port` entries
+- IPv6 targets must use bracket form, for example `[::1]:443`
+- if no output paths are given, Markdown is written to stdout
+
 For the current implementation boundaries, see:
 - [docs/architecture.md](docs/architecture.md)
 - [docs/output-schema.md](docs/output-schema.md)
@@ -72,15 +92,6 @@ For the current implementation boundaries, see:
 - [docs/references.md](docs/references.md)
 - [docs/safety.md](docs/safety.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
-
-## Planned CLI shape
-
-The intended first command shape is still:
-```bash
-surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
-```
-
-That may still change slightly as the executable wrapper lands but the model is expected to stay action-first and narrow.
 
 ## Roadmap
 
@@ -101,14 +112,14 @@ Later milestones may expand into other cryptographic surfaces, but not before th
 
 Surveyor is written in Go.
 
-The repository currently contains internal packages and tests, but not a finished `cmd/surveyor` entrypoint.
+The repository currently contains a working `cmd/surveyor` entrypoint for the TLS inventory slice, plus the internal packages and tests behind it.
 
 For now, the most useful verification command is:
 ```bash
 go test ./...
 ```
 
-Once the executable exists, the expected local build flow will be:
+The expected local build flow is:
 ```bash
 git clone https://github.com/steadytao/surveyor.git
 cd surveyor
