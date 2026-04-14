@@ -1,12 +1,12 @@
 # Release Checklist
 
-This checklist exists to keep `v0.1.0` honest.
+This checklist exists to keep releases honest.
 
-The first release should represent a coherent TLS inventory MVP, not just a pile of merged slices.
+`v0.1.0` used this checklist for the first public TLS inventory MVP release. Future releases should meet the same bar of coherence and verification.
 
 ## Functional baseline
 
-Before `v0.1.0`, confirm that Surveyor can:
+Before a release, confirm that Surveyor can:
 - load and validate explicit TLS targets from config
 - perform TLS collection against explicit targets
 - extract certificate metadata from presented peer certificates
@@ -16,7 +16,7 @@ Before `v0.1.0`, confirm that Surveyor can:
 
 ## Documentation
 
-Before `v0.1.0`, confirm that:
+Before a release, confirm that:
 - `README.md` describes the actual shipped state, not planned behaviour that no longer matches
 - `docs/architecture.md` matches the code
 - `docs/output-schema.md` matches the current JSON contract
@@ -27,7 +27,7 @@ Before `v0.1.0`, confirm that:
 
 ## Verification
 
-Before `v0.1.0`, confirm that:
+Before a release, confirm that:
 - `go build ./cmd/surveyor` passes
 - `go vet ./...` passes
 - `go test ./...` passes
@@ -39,7 +39,7 @@ If a release changes behaviour without updating tests or examples, it is not rea
 
 ## Scope discipline
 
-Before `v0.1.0`, confirm that the release has not silently drifted into:
+Before a release, confirm that the release has not silently drifted into:
 - range scanning
 - broad discovery features
 - generic vulnerability scanning
