@@ -28,9 +28,12 @@ Before `v0.1.0`, confirm that:
 ## Verification
 
 Before `v0.1.0`, confirm that:
+- `go build ./cmd/surveyor` passes
+- `go vet ./...` passes
 - `go test ./...` passes
 - example outputs remain representative
 - deterministic tests exist for config validation, TLS collection, classification and outputs
+- CI is green across all runners
 
 If a release changes behaviour without updating tests or examples, it is not ready.
 
@@ -48,7 +51,9 @@ The release should stay narrow and defensible.
 
 Before tagging:
 - review open milestone items
+- confirm branch protection and required CI checks on `master`
 - update release notes
+- update `CHANGELOG.md`
 - confirm the version to tag
 - confirm the examples and docs from a clean checkout
 

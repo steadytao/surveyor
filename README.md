@@ -1,6 +1,6 @@
 # Surveyor
 
-Surveyor is a cryptographic inventory and migration-readiness tool.
+Surveyor is a cryptographic inventory and migration-readiness tool, starting with explicit TLS-facing targets.
 
 It starts with a narrow question: what does a TLS-facing service actually present today, and what does that imply for post-quantum migration work tomorrow?
 
@@ -20,7 +20,7 @@ The current repository already includes:
 - conservative readiness classification
 - machine-readable and human-readable reporting
 
-The repository now includes a first usable CLI path for the TLS inventory slice, with both config-driven and explicit command-line targets.
+The repository now includes a usable CLI path for the TLS inventory slice, with both config-driven and explicit command-line targets.
 
 ## Why this project exists
 
@@ -83,6 +83,12 @@ Rules:
 - IPv6 targets must use bracket form, for example `[::1]:443`
 - if no output paths are given, Markdown is written to stdout
 
+Example local verification:
+```bash
+go build ./cmd/surveyor
+./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
+```
+
 For the current implementation boundaries, see:
 - [docs/architecture.md](docs/architecture.md)
 - [docs/output-schema.md](docs/output-schema.md)
@@ -114,6 +120,8 @@ The repository currently contains a working `cmd/surveyor` entrypoint for the TL
 
 For now, the most useful verification command is:
 ```bash
+go build ./cmd/surveyor
+go vet ./...
 go test ./...
 ```
 
@@ -122,6 +130,11 @@ The expected local build flow is:
 git clone https://github.com/steadytao/surveyor.git
 cd surveyor
 go build ./cmd/surveyor
+```
+
+Then run:
+```bash
+./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 
 ## Contributing
@@ -139,3 +152,7 @@ See [.github/SECURITY.md](.github/SECURITY.md) for reporting instructions.
 ## Licence
 
 Surveyor is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
