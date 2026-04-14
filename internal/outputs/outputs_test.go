@@ -131,13 +131,13 @@ func sampleReport() core.Report {
 			ScannedAt:      time.Date(2026, time.April, 14, 1, 1, 0, 0, time.UTC),
 			Reachable:      false,
 			Classification: "unreachable",
-			Errors:         []string{"tls connection failed: dial tcp 127.0.0.1:443: connect: connection refused"},
+			Errors:         []string{"tls connection failed: connection attempt failed"},
 			Findings: []core.Finding{
 				{
 					Code:     "target-unreachable",
 					Severity: core.SeverityMedium,
 					Summary:  "The target could not be reached with a TLS connection.",
-					Evidence: []string{"tls connection failed: dial tcp 127.0.0.1:443: connect: connection refused"},
+					Evidence: []string{"tls connection failed: connection attempt failed"},
 				},
 			},
 		},

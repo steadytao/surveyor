@@ -1,0 +1,95 @@
+name: Tests
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  verify:
+    name: Build and Test (${{ matrix.os }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runner: ubuntu-latest
+          - os: windows-latest
+            runner: windows-latest
+          - os: macos-latest
+            runner: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Print Go version
+        run: go version
+
+      - name: Print Go environment
+        run: go env
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Verify module definitions
+        run: go mod verify
+
+      - name: Build CLI
+        run: go build ./cmd/surveyor
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run test suite
+        run: go test -count=1 ./...
+
+  race:
+    name: Race Detection (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Print Go version
+        run: go version
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Verify module definitions
+        run: go mod verify
+
+      - name: Run race-enabled test suite
+        run: go test -count=1 -race ./...
