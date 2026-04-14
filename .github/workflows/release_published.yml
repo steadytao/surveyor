@@ -1,0 +1,63 @@
+name: Release Published
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  close-milestone:
+    name: Close Milestone
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Harden the runner (Audit outbound calls)
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        with:
+          egress-policy: audit
+
+      - name: Close matching milestone
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const releaseTag = context.payload.release?.tag_name;
+            const versionMatch = releaseTag?.match(/^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/);
+            const version = versionMatch?.[0];
+
+            if (!version) {
+              core.setFailed(`Release tag "${releaseTag}" does not look like a supported version tag.`);
+              return;
+            }
+
+            const milestones = await github.paginate(
+              github.rest.issues.listMilestones,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100,
+              }
+            );
+
+            const milestone = milestones.find(item =>
+              item.title.includes(version)
+            );
+
+            if (!milestone) {
+              core.notice(`No open milestone found containing version "${version}".`);
+              return;
+            }
+
+            await github.rest.issues.updateMilestone({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              milestone_number: milestone.number,
+              state: 'closed',
+            });
+
+            core.notice(`Closed milestone "${milestone.title}".`);
