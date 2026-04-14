@@ -8,9 +8,9 @@ The point is not to produce a vague “PQ score”. The point is to give teams a
 
 ## Status
 
-Surveyor is in early development.
+Surveyor is in early development, but `v0.1.0` has been released.
 
-The first milestone is intentionally narrow. It is a TLS inventory MVP for explicitly provided targets.
+The first milestone was intentionally narrow. It shipped as a TLS inventory MVP for explicitly provided targets.
 
 The current repository already includes:
 - target parsing and validation
@@ -21,6 +21,14 @@ The current repository already includes:
 - machine-readable and human-readable reporting
 
 The repository now includes a usable CLI path for the TLS inventory slice, with both config-driven and explicit command-line targets.
+
+## Releases
+
+`v0.1.0` is published here:
+
+<https://github.com/steadytao/surveyor/releases/tag/v0.1.0>
+
+Release assets include downloadable binaries for Linux, macOS and Windows on amd64 and arm64.
 
 ## Why this project exists
 
@@ -101,6 +109,8 @@ For the current implementation boundaries, see:
 
 ### Milestone 1: TLS Inventory MVP
 <https://github.com/steadytao/surveyor/milestone/1>
+Status: shipped in `v0.1.0`
+
 - repository baseline
 - configuration loading and validation
 - TLS target connection
