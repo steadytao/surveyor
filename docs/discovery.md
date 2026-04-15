@@ -217,7 +217,7 @@ The discovery command should:
 - avoid implying trust validation
 - avoid implying protocol verification where only a hint exists
 
-If future commands consume discovery output for scanner handoff, that should be a later layer and should be explicit in the CLI.
+The current `audit local` command consumes discovery output for scanner handoff as a later layer, and that handoff remains explicit in the CLI and report model.
 
 ## Current examples
 
@@ -228,12 +228,12 @@ Representative example outputs live in:
 
 ## Relationship to future work
 
-Discovery is the foundation for later work such as:
+Discovery is the foundation for work such as:
 
-- a future `audit local` flow
+- the current `audit local` flow
 - scanner handoff for endpoints that look TLS-like
 - additional protocol-specific scanners
 
 It is not itself the full audit layer.
 
-See [docs/audit.md](audit.md) for the planned audit-layer contract.
+See [docs/audit.md](audit.md) for the current audit-layer contract.

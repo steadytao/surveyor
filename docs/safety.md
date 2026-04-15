@@ -7,6 +7,7 @@ That is not just branding. It should shape default behaviour, scope and future d
 ## Current safety model
 
 The current implementation is intentionally narrow:
+- `surveyor audit local` only hands supported TLS-like endpoints into the current TLS scanner
 - `surveyor discover local` is observational only
 - targets are explicitly provided
 - local discovery is limited to local listening or bound endpoints
@@ -66,6 +67,30 @@ It does not currently support:
 
 Hints are not scans. Discovery output should be read as local endpoint inventory, not as verified service identification.
 
+## Local audit boundary
+
+The current audit path is:
+
+- local only
+- discovery first
+- conservative about scanner selection
+- limited to automatic handoff into the existing TLS scanner
+- explicit about skipped endpoints and skip reasons
+
+That means Surveyor currently supports:
+
+- combining discovered endpoint facts, hints, scanner selection and verified TLS results in one report
+- scanning only the supported TLS-like subset automatically
+
+It does not currently support:
+
+- automatic non-TLS scanning
+- remote audit
+- arbitrary range audit
+- aggressive probing
+
+`audit local` is a real scan workflow, but only for the explicitly supported subset chosen by the selection layer.
+
 ## Collection boundaries
 
 The current scanner deliberately disables certificate verification during collection.
@@ -98,6 +123,7 @@ Surveyor should prefer:
 - conservative labels over strong claims
 - manual review over false confidence
 - hints over overclaiming protocol certainty during discovery
+- explicit skip reasons over silent omission during audit
 
 That is why the current classifier uses `manual_review_required` when the evidence is incomplete or outside the recognised rule set.
 
@@ -106,7 +132,7 @@ That is why the current classifier uses `manual_review_required` when the eviden
 Surveyor is not currently intended to be:
 - a generic security scanner
 - an internet-wide discovery engine
-- a local host auditor that silently chains discovery into scan execution
+- a local host auditor that aggressively scans every discovered service
 - an exploitation framework
 - a binary "quantum-safe" labelling tool
 

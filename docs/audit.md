@@ -1,6 +1,6 @@
 # Audit
 
-Audit is the planned orchestration layer after the current discovery foundation.
+Audit is the current orchestration layer built on top of the discovery foundation.
 
 It exists to answer a different question from `surveyor discover local`:
 
@@ -15,7 +15,7 @@ Surveyor now has two separate implemented primitives:
 
 That is enough to collect local endpoint facts and to run verified TLS inventory against explicit targets.
 
-What Surveyor does not yet have is the workflow that joins them together:
+Surveyor now has the workflow that joins them together:
 
 - run local discovery first
 - decide which discovered endpoints are worth TLS scanning
@@ -24,19 +24,19 @@ What Surveyor does not yet have is the workflow that joins them together:
 
 That is the purpose of `audit local`.
 
-## Planned command
+## Command
 
-The planned audit command is:
+The audit command is:
 
 ```bash
 surveyor audit local
 ```
 
-This command should turn the current discovery and TLS slices into one usable local audit workflow.
+This command turns the current discovery and TLS slices into one usable local audit workflow.
 
 ## Command semantics
 
-The intended semantics of `surveyor audit local` are:
+The semantics of `surveyor audit local` are:
 
 - run local discovery first
 - preserve discovered endpoint facts and protocol hints
@@ -54,7 +54,7 @@ This command should follow the same output conventions as the existing CLI:
 
 ## Scope
 
-`v0.3.0` audit should cover:
+The current audit flow covers:
 
 - local-only execution
 - discovery-first orchestration
@@ -63,7 +63,7 @@ This command should follow the same output conventions as the existing CLI:
 - one combined report covering both discovery and verified scan results
 - explicit skip reasons for unscanned endpoints
 
-`v0.3.0` audit should not cover:
+The current audit flow does not cover:
 
 - remote discovery
 - subnet or range scanning
@@ -92,7 +92,7 @@ Examples:
 
 Hints are not scans, and scanner selection is not verification.
 
-## Planned audit schema
+## Audit schema
 
 Audit should follow the same output philosophy as the current TLS and discovery slices:
 
@@ -101,7 +101,7 @@ Audit should follow the same output philosophy as the current TLS and discovery 
 
 ### Top-level report
 
-Planned top-level audit report shape:
+Current top-level audit report shape:
 
 ```json
 {
@@ -119,7 +119,7 @@ Fields:
 
 ### Audit result
 
-Planned per-endpoint audit result shape:
+Current per-endpoint audit result shape:
 
 ```json
 {
@@ -137,7 +137,7 @@ Fields:
 
 ### Selection
 
-Planned selection shape:
+Current selection shape:
 
 ```json
 {
@@ -170,7 +170,7 @@ That means audit should reuse the existing target-result contract documented in 
 
 ### Summary
 
-Planned summary shape:
+Current summary shape:
 
 ```json
 {
@@ -207,11 +207,11 @@ It should:
 - preserve the difference between hinting and verification
 - avoid implying that unsupported endpoints were fully assessed
 
-The audit flow may perform real scanner activity on selected endpoints, but only within the scope of the scanners it explicitly invokes.
+The audit flow performs real scanner activity on selected endpoints, but only within the scope of the scanners it explicitly invokes.
 
 ## Relationship to future work
 
-`audit local` should be the first complete workflow in Surveyor.
+`audit local` is the first complete workflow in Surveyor.
 
 After that, future work may expand into:
 
@@ -220,4 +220,4 @@ After that, future work may expand into:
 - richer combined reporting
 - later, broader orchestration models
 
-But `v0.3.0` should stay focused on local discovery chained into the existing TLS scanner.
+The current boundary should stay focused on local discovery chained into the existing TLS scanner.

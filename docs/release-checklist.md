@@ -7,6 +7,9 @@ This checklist exists to keep releases honest.
 ## Functional baseline
 
 Before a release, confirm that Surveyor can:
+- run `surveyor audit local`
+- chain discovery into the supported TLS scanner conservatively
+- produce canonical JSON and derived Markdown for audit output
 - enumerate local endpoints through `surveyor discover local`
 - attach conservative protocol hints without treating them as verified scans
 - produce canonical JSON and derived Markdown for discovery output
@@ -21,13 +24,14 @@ Before a release, confirm that Surveyor can:
 
 Before a release, confirm that:
 - `README.md` describes the actual shipped state, not planned behaviour that no longer matches
+- `docs/audit.md` matches the implemented audit slice
 - `docs/discovery.md` matches the implemented discovery slice
 - `docs/architecture.md` matches the code
 - `docs/output-schema.md` matches the current JSON contract
 - `docs/classification.md` matches the implemented rule set
 - `docs/references.md` exists and is still the right reference set
 - `docs/safety.md` still matches the tool's actual behaviour
-- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json` and `examples/discovery.md` reflect the current implementation
+- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/audit.json` and `examples/audit.md` reflect the current implementation
 
 ## Verification
 
@@ -36,7 +40,7 @@ Before a release, confirm that:
 - `go vet ./...` passes
 - `go test ./...` passes
 - example outputs remain representative
-- deterministic tests exist for discovery, config validation, TLS collection, classification and outputs
+- deterministic tests exist for audit, discovery, config validation, TLS collection, classification and outputs
 - CI is green across all runners
 
 If a release changes behaviour without updating tests or examples, it is not ready.
@@ -46,6 +50,7 @@ If a release changes behaviour without updating tests or examples, it is not rea
 Before a release, confirm that the release has not silently drifted into:
 - range scanning
 - active probing hidden inside discovery
+- non-TLS scanner execution hidden inside audit
 - generic vulnerability scanning
 - trust or compliance claims the implementation cannot support
 
