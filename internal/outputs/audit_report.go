@@ -17,7 +17,10 @@ func BuildAuditReport(results []core.AuditResult, generatedAt time.Time) core.Au
 func BuildAuditReportWithMetadata(results []core.AuditResult, generatedAt time.Time, scope *core.ReportScope, execution *core.ReportExecution) core.AuditReport {
 	// Copy the slice so report assembly does not retain caller-owned backing
 	// storage. Rendering should be a pure step over stable audit results.
-	reportResults := append([]core.AuditResult(nil), results...)
+	reportResults := make([]core.AuditResult, 0, len(results))
+	for _, result := range results {
+		reportResults = append(reportResults, core.CloneAuditResult(result))
+	}
 
 	return core.AuditReport{
 		GeneratedAt: generatedAt.UTC(),

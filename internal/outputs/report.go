@@ -11,7 +11,10 @@ import (
 func BuildReport(results []core.TargetResult, generatedAt time.Time) core.Report {
 	// Copy the slice so report assembly does not retain caller-owned backing
 	// storage. Rendering should be a pure step over stable result data.
-	reportResults := append([]core.TargetResult(nil), results...)
+	reportResults := make([]core.TargetResult, 0, len(results))
+	for _, result := range results {
+		reportResults = append(reportResults, core.CloneTargetResult(result))
+	}
 
 	report := core.Report{
 		GeneratedAt: generatedAt.UTC(),

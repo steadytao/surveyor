@@ -17,7 +17,10 @@ func BuildDiscoveryReport(results []core.DiscoveredEndpoint, generatedAt time.Ti
 func BuildDiscoveryReportWithMetadata(results []core.DiscoveredEndpoint, generatedAt time.Time, scope *core.ReportScope, execution *core.ReportExecution) core.DiscoveryReport {
 	// Copy the slice so report assembly does not retain caller-owned backing
 	// storage. Discovery rendering should be a pure step over stable result data.
-	reportResults := append([]core.DiscoveredEndpoint(nil), results...)
+	reportResults := make([]core.DiscoveredEndpoint, 0, len(results))
+	for _, result := range results {
+		reportResults = append(reportResults, core.CloneDiscoveredEndpoint(result))
+	}
 
 	return core.DiscoveryReport{
 		GeneratedAt: generatedAt.UTC(),
