@@ -127,6 +127,7 @@ go build -o surveyor ./cmd/surveyor
 
 For the current implementation boundaries, see:
 
+- [docs/audit.md](docs/audit.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/discovery.md](docs/discovery.md)
 - [docs/output-schema.md](docs/output-schema.md)
@@ -137,23 +138,7 @@ For the current implementation boundaries, see:
 
 ## Roadmap
 
-### Milestone 1: TLS Inventory MVP
-
-<https://github.com/steadytao/surveyor/milestone/1>
-Status: milestone complete
-
-- repository baseline
-- configuration loading and validation
-- TLS target connection
-- certificate chain parsing
-- public-key and signature algorithm inventory
-- initial readiness classification
-- JSON reporting
-- Markdown reporting
-
-Later milestones may expand into other cryptographic surfaces, but not before the current discovery and TLS paths are solid.
-
-The current architectural focus is discovery foundation, not immediate expansion into more scanner-specific surface area.
+The current architectural focus is `Local Audit MVP`, chaining local discovery into the existing TLS scanner rather than adding another standalone deep scanner first.
 
 ## Development
 
