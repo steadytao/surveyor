@@ -93,7 +93,7 @@ Rules:
 
 Example local verification:
 ```bash
-go build ./cmd/surveyor
+go build -o surveyor ./cmd/surveyor
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 
@@ -139,13 +139,15 @@ The expected local build flow is:
 ```bash
 git clone https://github.com/steadytao/surveyor.git
 cd surveyor
-go build ./cmd/surveyor
+go build -o surveyor ./cmd/surveyor
 ```
 
 Then run:
 ```bash
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
+
+On Windows, run `.\surveyor.exe` instead of `./surveyor`.
 
 ## Contributing
 

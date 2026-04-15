@@ -6,7 +6,10 @@ The format is intentionally simple. Surveyor is still in early development so th
 
 ## Unreleased
 
-No unreleased changes are currently queued.
+### Changed
+- README build and run instructions now use an explicit output binary name and note the Windows invocation form
+- `examples/targets.yaml` now matches the single-target example report surface instead of including a guaranteed unreachable target
+- the manual release workflow now appends a generated commit changelog between releases, so checked-in release notes can stay editorial
 
 ## v0.1.0
 
