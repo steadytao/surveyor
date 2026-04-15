@@ -1,0 +1,57 @@
+{
+  "generated_at": "2026-04-18T01:15:00Z",
+  "results": [
+    {
+      "scope_kind": "remote",
+      "host": "10.0.0.10",
+      "port": 443,
+      "transport": "tcp",
+      "state": "responsive",
+      "hints": [
+        {
+          "protocol": "tls",
+          "confidence": "low",
+          "evidence": [
+            "transport=tcp",
+            "port=443"
+          ]
+        }
+      ]
+    },
+    {
+      "scope_kind": "remote",
+      "host": "10.0.0.11",
+      "port": 443,
+      "transport": "tcp",
+      "state": "candidate",
+      "errors": [
+        "connection refused"
+      ]
+    },
+    {
+      "scope_kind": "remote",
+      "host": "10.0.0.12",
+      "port": 8443,
+      "transport": "tcp",
+      "state": "responsive",
+      "hints": [
+        {
+          "protocol": "tls",
+          "confidence": "low",
+          "evidence": [
+            "transport=tcp",
+            "port=8443"
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_endpoints": 3,
+    "tcp_endpoints": 3,
+    "udp_endpoints": 0,
+    "hint_breakdown": {
+      "tls": 2
+    }
+  }
+}

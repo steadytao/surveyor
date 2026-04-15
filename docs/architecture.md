@@ -2,9 +2,9 @@
 
 Surveyor is intentionally small at this stage.
 
-The current codebase is organised around one narrow flow:
+The current codebase is organised around one narrow family of flows:
 
-1. enumerate local endpoints for discovery, or accept explicit TLS targets from config or direct CLI input
+1. enumerate local endpoints, enumerate explicitly declared remote subnet scope, or accept explicit TLS targets from config or direct CLI input
 2. collect observed endpoint facts or raw TLS and X.509 observations
 3. attach conservative hints or classify the observed posture conservatively
 4. derive canonical JSON and human-readable Markdown from the same result model
@@ -20,11 +20,14 @@ Owns the thin executable wrapper.
 Current responsibilities:
 
 - expose `surveyor audit local`
+- expose `surveyor audit subnet`
 - expose `surveyor discover local`
+- expose `surveyor discover subnet`
 - expose `surveyor scan tls`
 - run the audit flow end to end
 - run the discovery flow end to end
 - accept either config-driven targets or explicit `--targets` input
+- validate remote subnet scope and dry-run plans
 - run the TLS inventory flow end to end
 - write Markdown and JSON outputs
 
@@ -39,6 +42,8 @@ Current responsibilities:
 - parse YAML configuration
 - validate required fields
 - normalise target data into one in-memory representation
+- parse and validate remote subnet scope
+- enforce remote pace and safety controls such as host caps, concurrency and timeout defaults
 
 Current target model:
 
@@ -63,21 +68,22 @@ Current responsibilities:
 
 ### `internal/discovery`
 
-Owns local discovery and endpoint enrichment.
+Owns discovery and endpoint enrichment.
 
 Current responsibilities:
 
 - enumerate local TCP listening endpoints and UDP bound endpoints
+- enumerate explicitly declared remote TCP scope with bounded reachability probing
 - attach best-effort process metadata where available
 - attach conservative protocol hints based on observed facts
 
-This package should stay observational. It should not perform active probing or scanner-specific verification.
+This package should stay discovery-scoped. It should not perform scanner-specific verification. For local scope that means purely observational listener inspection; for remote scope that means bounded reachability probing within explicitly declared scope.
 
 ### `internal/audit`
 
 Current responsibilities:
 
-- orchestrate local discovery into supported scanner execution
+- orchestrate local and remote discovery into supported scanner execution
 - record selection decisions and skip reasons
 - preserve the distinction between discovered facts, hints and verified scan results
 
@@ -145,6 +151,19 @@ CLI arguments
   -> JSON / Markdown rendering
 ```
 
+The current remote discovery flow is:
+
+```text
+CLI arguments
+  -> cmd/surveyor
+  -> internal/config.ParseSubnetScope
+  -> internal/discovery.RemoteEnumerator
+  -> []core.DiscoveredEndpoint
+  -> internal/outputs.BuildDiscoveryReport
+  -> core.DiscoveryReport
+  -> JSON / Markdown rendering
+```
+
 The current local audit flow is:
 
 ```text
@@ -165,6 +184,27 @@ The runner reuses the same target validation and TLS scanner path as explicit
 `surveyor scan tls` execution. Local audit should be orchestration, not a
 parallel scanner implementation.
 
+The current remote audit flow is:
+
+```text
+CLI arguments
+  -> cmd/surveyor
+  -> internal/config.ParseSubnetScope
+  -> internal/audit.RemoteRunner
+  -> internal/discovery.RemoteEnumerator
+  -> []core.DiscoveredEndpoint
+  -> internal/audit selection logic
+  -> supported TLS scanner handoff
+  -> []core.AuditResult
+  -> internal/outputs.BuildAuditReport
+  -> core.AuditReport
+  -> JSON / Markdown rendering
+```
+
+Remote audit reuses the same selection and TLS scanner handoff path as local
+audit. The difference is the discovery source and scope contract, not a second
+TLS implementation.
+
 ## What must remain true
 
 The following invariants must remain true as the project grows:
@@ -183,23 +223,24 @@ The current architecture still does not include:
 - trust-store validation
 - hostname validation semantics
 - STARTTLS or multi-protocol probing
-- discovery across ranges or cloud inventories
+- remote scope inputs beyond the current explicit CIDR path
+- organisation-wide or cloud inventory discovery
 - policy engines
 - stateful storage or diffing
 
 Those are separate steps and should only be added once the current TLS path remains coherent.
 
-The next planned step is scoped remote inventory. See [docs/remote-inventory.md](remote-inventory.md) for the current `v0.4.0` design contract.
+Scoped remote inventory is now part of the current repository surface. See [docs/remote-inventory.md](remote-inventory.md) for the current boundary and non-goals.
 
 ## Current architectural boundary
 
-The current discovery layer around `surveyor discover local` sits beside scanner-specific execution, not inside it.
+The current discovery layer around `surveyor discover local` and `surveyor discover subnet` sits beside scanner-specific execution, not inside it.
 
 Its job is to:
 
-- enumerate candidate local endpoints
+- enumerate candidate local or remote endpoints within declared scope
 - describe them in a stable canonical model
 - attach conservative protocol hints
 - stay distinct from scanner-specific verification
 
-That boundary should remain intact. The current audit flow coordinates discovery, selection and verified scanning without collapsing them into one indistinguishable result type.
+That boundary should remain intact. The current audit flows coordinate discovery, selection and verified scanning without collapsing them into one indistinguishable result type.

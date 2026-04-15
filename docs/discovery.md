@@ -1,10 +1,22 @@
 # Discovery
 
-Discovery is the current foundation primitive that sits alongside the explicit-target TLS inventory slice.
+Discovery is the current foundation layer that sits alongside the explicit-target TLS inventory slice and beneath both audit commands.
 
-It exists to answer a narrower question than `audit local`:
+It answers two different but related questions:
 
-what endpoints is this machine exposing locally, and what conservative protocol hints can Surveyor attach before any scanner-specific verification runs?
+- what endpoints is this machine exposing locally
+- what endpoints within explicitly declared remote scope respond at all
+
+Discovery still stops short of verified scanner output.
+
+## Current commands
+
+The discovery commands are:
+
+```bash
+surveyor discover local
+surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443
+```
 
 ## Why discovery exists
 
@@ -14,62 +26,57 @@ Surveyor already has one verified scanner path:
 
 That path works when the operator already knows what to scan.
 
-Surveyor now has a discovery layer that can:
+The discovery layer exists to:
 
-- enumerate candidate local endpoints
+- enumerate candidate endpoints
 - describe them in a stable schema
 - attach conservative protocol hints
-- hand them off later to scanner-specific flows without collapsing discovery and scanning into one command
-
-That is the purpose of discovery.
-
-## Command
-
-The discovery command is:
-
-```bash
-surveyor discover local
-```
-
-This command enumerates local listening or bound endpoints and emits structured output.
-
-It is deliberately narrower than the current `audit local` command.
+- feed later audit flows without collapsing discovery and verified scanning into one command
 
 ## Command semantics
 
 The semantics of `surveyor discover local` are:
 
-- enumerate local endpoints the current host is exposing
+- enumerate local listener state
 - report observed local facts
 - attach conservative protocol hints where justified
 - emit canonical JSON and derived Markdown
 - avoid active probing or scanner-specific verification
 
-This command should follow the same output conventions as `scan tls`:
+The semantics of `surveyor discover subnet` are:
+
+- require explicit CIDR scope and explicit ports
+- perform bounded TCP reachability probing within that declared scope
+- report one observed result per attempted host:port
+- attach conservative protocol hints only where justified
+- emit canonical JSON and derived Markdown
+- avoid verified protocol scanning
+
+Both commands follow the same output conventions:
 
 - `-o, --output` for Markdown output
 - `-j, --json` for JSON output
 - Markdown to stdout when no output path is given
 
-## Scope
+## Current scope
 
 Discovery currently covers:
 
-- local-only endpoint enumeration
-- TCP listening endpoints
-- UDP bound endpoints
-- best-effort process metadata where available
+- local-only listener enumeration
+- explicit remote subnet discovery
+- TCP listening endpoints for local discovery
+- UDP bound endpoints for local discovery
+- TCP reachability probing for remote discovery
+- best-effort process metadata where available for local discovery
 - conservative protocol hints with explicit confidence and evidence
 
 Discovery does not cover:
 
-- remote discovery
-- arbitrary range scanning
-- active probing
-- automatic TLS or protocol handshakes
+- undeclared remote scope
+- automatic verified protocol handshakes
 - broad host assessment
 - vulnerability scanning
-- automatic scan orchestration in the same command
+- automatic scanner execution in the discovery command itself
 
 ## Facts, hints and scans
 
@@ -82,6 +89,7 @@ Discovery must keep three things separate:
 Examples:
 
 - `scope_kind=local`, `host=0.0.0.0`, `transport=tcp`, `port=443` are observed facts
+- `scope_kind=remote`, `host=10.0.0.10`, `state=responsive`, `port=443` are observed facts
 - `protocol=tls` with conservative confidence may be a hint
 - negotiated TLS version, cipher suite and certificate metadata are verified scan results and belong to a scanner, not discovery
 
@@ -89,14 +97,10 @@ Hints are not scans.
 
 ## Discovery schema
 
-Discovery should follow the same output philosophy as the current TLS slice:
+Discovery follows the same output philosophy as the TLS slice:
 
 - JSON is canonical
 - Markdown is derived from the canonical model
-
-The endpoint model is intentionally broader than the current `discover local`
-command so future remote observations can reuse the same contract without
-pretending remote endpoints are local sockets.
 
 ### Top-level report
 
@@ -113,7 +117,7 @@ Current top-level discovery report shape:
 Fields:
 
 - `generated_at`: RFC3339 UTC timestamp for report assembly time
-- `results`: one entry per discovered endpoint
+- `results`: one entry per observed endpoint
 - `summary`: aggregate counts derived from `results`
 
 ### Discovered endpoint
@@ -122,14 +126,11 @@ Current discovered-endpoint shape:
 
 ```json
 {
-  "scope_kind": "local",
-  "host": "0.0.0.0",
+  "scope_kind": "remote",
+  "host": "10.0.0.10",
   "port": 443,
   "transport": "tcp",
-  "state": "listening",
-  "pid": 1234,
-  "process_name": "local-service",
-  "executable": "C:\\Program Files\\Surveyor Test\\local-service.exe",
+  "state": "responsive",
   "hints": [],
   "warnings": [],
   "errors": []
@@ -138,17 +139,19 @@ Current discovered-endpoint shape:
 
 Fields:
 
-- `scope_kind`: whether the observation came from local or remote scope, currently `local`
-- `host`: observed host or IP within the declared scope, currently the local bound address for local discovery
-- `port`: local port number
-- `transport`: transport name, initially `tcp` or `udp`
-- `state`: observed endpoint state, currently `listening` or `bound` for local discovery
-- `pid`: process identifier where available without requiring elevation
-- `process_name`: best-effort process name where available
-- `executable`: best-effort executable path where available and appropriate to expose
+- `scope_kind`: whether the observation came from `local` or `remote` scope
+- `host`: observed host or IP within the declared scope
+- `port`: observed or attempted port within the declared scope
+- `transport`: transport name, currently `tcp` or `udp`
+- `state`: observed endpoint state
+  - local discovery currently uses `listening` or `bound`
+  - remote discovery currently uses `responsive` or `candidate`
+- `pid`: process identifier where available without requiring elevation, local-only
+- `process_name`: best-effort process name where available, local-only
+- `executable`: best-effort executable path where available and appropriate to expose, local-only
 - `hints`: protocol hints derived conservatively from observed facts
 - `warnings`: non-fatal discovery concerns or platform limitations
-- `errors`: result-level failures where discovery for a specific endpoint could not be completed cleanly
+- `errors`: result-level failures, including failed remote probe attempts
 
 ### Hint
 
@@ -179,12 +182,11 @@ Current summary shape:
 
 ```json
 {
-  "total_endpoints": 2,
-  "tcp_endpoints": 1,
-  "udp_endpoints": 1,
+  "total_endpoints": 3,
+  "tcp_endpoints": 3,
+  "udp_endpoints": 0,
   "hint_breakdown": {
-    "tls": 1,
-    "ssh": 1
+    "tls": 2
   }
 }
 ```
@@ -196,34 +198,25 @@ Fields:
 - `udp_endpoints`: count of UDP results
 - `hint_breakdown`: count of results carrying each hinted protocol
 
-## Platform expectations
+## Local and remote boundaries
 
-Discovery aims to support:
+`discover local` is observational only.
 
-- Linux
-- macOS
-- Windows
+It:
 
-But the process metadata surface will not be equally strong on every platform or under every permission model.
+- inspects local listener state
+- avoids active network probing
+- may attach best-effort process metadata
 
-That means:
+`discover subnet` is active but still conservative.
 
-- missing PID or process-name data must not fail discovery
-- platform limitations should surface as warnings, not silent omissions where possible
-- elevated access must not be required for the base discovery flow
+It:
 
-## Safety model
-
-Discovery should stay observational.
-
-The discovery command should:
-
-- inspect local listener state
-- avoid active network probing
-- avoid implying trust validation
-- avoid implying protocol verification where only a hint exists
-
-The current `audit local` command consumes discovery output for scanner handoff as a later layer, and that handoff remains explicit in the CLI and report model.
+- walks only explicitly declared CIDR scope
+- probes only explicitly declared ports
+- records both responsive and failed attempts
+- attaches hints only to responsive endpoints
+- does not perform verified TLS scanning
 
 ## Current examples
 
@@ -231,15 +224,11 @@ Representative example outputs live in:
 
 - [examples/discovery.json](../examples/discovery.json)
 - [examples/discovery.md](../examples/discovery.md)
+- [examples/discovery-subnet.json](../examples/discovery-subnet.json)
+- [examples/discovery-subnet.md](../examples/discovery-subnet.md)
 
-## Relationship to future work
+## Relationship to audit
 
-Discovery is the foundation for work such as:
+Discovery feeds both current audit flows.
 
-- the current `audit local` flow
-- scanner handoff for endpoints that look TLS-like
-- additional protocol-specific scanners
-
-It is not itself the full audit layer.
-
-See [docs/audit.md](audit.md) for the current audit-layer contract.
+It does not itself decide which scanners run. That is the job of the audit layer described in [docs/audit.md](audit.md).

@@ -8,11 +8,14 @@ This checklist exists to keep releases honest.
 
 Before a release, confirm that Surveyor can:
 - run `surveyor audit local`
+- run `surveyor audit subnet`
 - chain discovery into the supported TLS scanner conservatively
 - produce canonical JSON and derived Markdown for audit output
 - enumerate local endpoints through `surveyor discover local`
+- enumerate explicitly declared remote scope through `surveyor discover subnet`
 - attach conservative protocol hints without treating them as verified scans
 - produce canonical JSON and derived Markdown for discovery output
+- validate remote scope and dry-run plans without network I/O
 - load and validate explicit TLS targets from config
 - perform TLS collection against explicit targets
 - extract certificate metadata from presented peer certificates
@@ -26,12 +29,13 @@ Before a release, confirm that:
 - `README.md` describes the actual shipped state, not planned behaviour that no longer matches
 - `docs/audit.md` matches the implemented audit slice
 - `docs/discovery.md` matches the implemented discovery slice
+- `docs/remote-inventory.md` matches the implemented remote slice
 - `docs/architecture.md` matches the code
 - `docs/output-schema.md` matches the current JSON contract
 - `docs/classification.md` matches the implemented rule set
 - `docs/references.md` exists and is still the right reference set
 - `docs/safety.md` still matches the tool's actual behaviour
-- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/audit.json` and `examples/audit.md` reflect the current implementation
+- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-subnet.json` and `examples/audit-subnet.md` reflect the current implementation
 
 ## Verification
 
@@ -48,7 +52,7 @@ If a release changes behaviour without updating tests or examples, it is not rea
 ## Scope discipline
 
 Before a release, confirm that the release has not silently drifted into:
-- range scanning
+- undeclared or implicit range scanning
 - active probing hidden inside discovery
 - non-TLS scanner execution hidden inside audit
 - generic vulnerability scanning
