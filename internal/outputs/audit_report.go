@@ -7,7 +7,7 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
-// BuildAuditReport assembles the canonical local audit report and its summary.
+// BuildAuditReport assembles the canonical audit report and its summary.
 func BuildAuditReport(results []core.AuditResult, generatedAt time.Time) core.AuditReport {
 	// Copy the slice so report assembly does not retain caller-owned backing
 	// storage. Rendering should be a pure step over stable audit results.

@@ -185,6 +185,97 @@ func TestLocalRunnerRunSkipsUnsupportedSelectedScanner(t *testing.T) {
 	}
 }
 
+func TestRemoteRunnerRunScansSelectedTLSEndpoints(t *testing.T) {
+	t.Parallel()
+
+	discovered := []core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "10.0.0.10",
+			Port:      443,
+			Transport: "tcp",
+			State:     "responsive",
+			Hints: []core.DiscoveryHint{
+				{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+			},
+		},
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "10.0.0.11",
+			Port:      443,
+			Transport: "tcp",
+			State:     "candidate",
+			Errors:    []string{"connection refused"},
+		},
+	}
+
+	scanner := &stubTargetScanner{
+		result: core.TargetResult{
+			Host:           "10.0.0.10",
+			Port:           443,
+			ScannedAt:      time.Date(2026, time.April, 16, 4, 0, 0, 0, time.UTC),
+			Reachable:      true,
+			Classification: "modern_tls_classical_identity",
+		},
+	}
+
+	runner := RemoteRunner{
+		Scope:      config.SubnetScope{},
+		Discoverer: stubDiscoverer{results: discovered},
+		TLSScanner: scanner,
+	}
+
+	results, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("len(Run()) = %d, want 2", len(results))
+	}
+	if scanner.calls != 1 {
+		t.Fatalf("scanner.calls = %d, want 1", scanner.calls)
+	}
+	if scanner.targets[0].Host != "10.0.0.10" || scanner.targets[0].Port != 443 {
+		t.Fatalf("scanner.targets[0] = %#v, want 10.0.0.10:443", scanner.targets[0])
+	}
+
+	selected := results[0]
+	if selected.Selection.Status != core.AuditSelectionStatusSelected {
+		t.Fatalf("selected.Selection.Status = %q, want selected", selected.Selection.Status)
+	}
+	if selected.TLSResult == nil {
+		t.Fatalf("selected.TLSResult = nil, want scan result")
+	}
+	if selected.TLSResult.Classification != "modern_tls_classical_identity" {
+		t.Fatalf("selected.TLSResult.Classification = %q, want modern_tls_classical_identity", selected.TLSResult.Classification)
+	}
+
+	skipped := results[1]
+	if skipped.Selection.Status != core.AuditSelectionStatusSkipped {
+		t.Fatalf("skipped.Selection.Status = %q, want skipped", skipped.Selection.Status)
+	}
+	if skipped.Selection.Reason != "endpoint did not respond during remote discovery" {
+		t.Fatalf("skipped.Selection.Reason = %q, want remote discovery failure reason", skipped.Selection.Reason)
+	}
+	if skipped.TLSResult != nil {
+		t.Fatalf("skipped.TLSResult = %#v, want nil", skipped.TLSResult)
+	}
+}
+
+func TestRemoteRunnerRunReturnsDiscoveryError(t *testing.T) {
+	t.Parallel()
+
+	runner := RemoteRunner{
+		Scope:      config.SubnetScope{},
+		Discoverer: stubDiscoverer{err: errors.New("remote discovery failed")},
+	}
+
+	_, err := runner.Run(context.Background())
+	if err == nil || err.Error() != "remote discovery failed" {
+		t.Fatalf("Run() error = %v, want remote discovery failed", err)
+	}
+}
+
 type stubDiscoverer struct {
 	results []core.DiscoveredEndpoint
 	err     error

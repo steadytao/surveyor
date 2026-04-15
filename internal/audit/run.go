@@ -38,12 +38,35 @@ func (r LocalRunner) Run(ctx context.Context) ([]core.AuditResult, error) {
 		discoverer = discovery.LocalEnumerator{}
 	}
 
-	selector := r.Select
-	if selector == nil {
-		selector = SelectEndpoints
+	return runAuditFlow(ctx, discoverer, r.Select, r.TLSScanner)
+}
+
+// RemoteRunner performs the current remote audit workflow: scoped remote
+// discovery, selection and supported scanner handoff.
+type RemoteRunner struct {
+	Scope      config.SubnetScope
+	Discoverer Discoverer
+	TLSScanner TargetScanner
+	Select     SelectFunc
+}
+
+// Run executes the remote audit flow and returns one audit result per
+// discovered endpoint within the declared remote scope.
+func (r RemoteRunner) Run(ctx context.Context) ([]core.AuditResult, error) {
+	discoverer := r.Discoverer
+	if discoverer == nil {
+		discoverer = discovery.RemoteEnumerator{Scope: r.Scope}
 	}
 
-	tlsScanner := r.TLSScanner
+	return runAuditFlow(ctx, discoverer, r.Select, r.TLSScanner)
+}
+
+func runAuditFlow(ctx context.Context, discoverer Discoverer, selectFunc SelectFunc, scanner TargetScanner) ([]core.AuditResult, error) {
+	if selectFunc == nil {
+		selectFunc = SelectEndpoints
+	}
+
+	tlsScanner := scanner
 	if tlsScanner == nil {
 		tlsScanner = tlsinventory.Scanner{}
 	}
@@ -53,7 +76,7 @@ func (r LocalRunner) Run(ctx context.Context) ([]core.AuditResult, error) {
 		return nil, err
 	}
 
-	results := selector(endpoints)
+	results := selectFunc(endpoints)
 	for index := range results {
 		result := &results[index]
 		if result.Selection.Status != core.AuditSelectionStatusSelected {
