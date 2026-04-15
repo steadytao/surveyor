@@ -150,15 +150,20 @@ The current local audit flow is:
 ```text
 CLI arguments
   -> cmd/surveyor
+  -> internal/audit.LocalRunner
   -> internal/discovery
   -> []core.DiscoveredEndpoint
   -> internal/audit selection logic
-  -> supported scanner handoff
+  -> supported TLS scanner handoff
   -> []core.AuditResult
   -> internal/outputs.BuildAuditReport
   -> core.AuditReport
   -> JSON / Markdown rendering
 ```
+
+The runner reuses the same target validation and TLS scanner path as explicit
+`surveyor scan tls` execution. Local audit should be orchestration, not a
+parallel scanner implementation.
 
 ## What must remain true
 

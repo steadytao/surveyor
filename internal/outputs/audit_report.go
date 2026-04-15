@@ -7,7 +7,10 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// BuildAuditReport assembles the canonical local audit report and its summary.
 func BuildAuditReport(results []core.AuditResult, generatedAt time.Time) core.AuditReport {
+	// Copy the slice so report assembly does not retain caller-owned backing
+	// storage. Rendering should be a pure step over stable audit results.
 	reportResults := append([]core.AuditResult(nil), results...)
 
 	return core.AuditReport{
@@ -33,6 +36,8 @@ func buildAuditSummary(results []core.AuditResult) core.AuditSummary {
 			if result.Selection.SelectedScanner == "tls" {
 				summary.TLSCandidates += 1
 			}
+			// Only verified scanner output contributes to the scanned and
+			// classification summaries. Hints and selection decisions alone do not.
 			if result.TLSResult != nil {
 				summary.ScannedEndpoints += 1
 				if result.TLSResult.Classification != "" {

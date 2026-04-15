@@ -7,6 +7,7 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// MarshalAuditJSON serialises an audit report as stable, indented JSON.
 func MarshalAuditJSON(report core.AuditReport) ([]byte, error) {
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {

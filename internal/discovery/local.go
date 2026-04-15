@@ -21,11 +21,14 @@ type processView interface {
 	ExeWithContext(context.Context) (string, error)
 }
 
+// LocalEnumerator collects local endpoint facts for discovery and local audit input.
 type LocalEnumerator struct {
 	listConnections connectionLister
 	newProcess      processFactory
 }
 
+// Enumerate returns stable, deduplicated local endpoints enriched with any
+// best-effort process metadata and conservative protocol hints.
 func (e LocalEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpoint, error) {
 	listConnections := e.listConnections
 	if listConnections == nil {
@@ -50,6 +53,9 @@ func (e LocalEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpoi
 	seen := make(map[string]int, len(tcpConnections)+len(udpConnections))
 
 	appendEndpoint := func(endpoint core.DiscoveredEndpoint) {
+		// Some platforms surface the same bound socket more than once, sometimes
+		// with different amounts of process metadata. Merge by observed endpoint
+		// identity so discovery stays stable and keeps the richest result.
 		key := endpoint.Transport + "|" + endpoint.State + "|" + endpoint.Address + "|" + strconv.Itoa(endpoint.Port)
 		if index, ok := seen[key]; ok {
 			mergeEndpoint(&endpoints[index], endpoint)
@@ -101,6 +107,8 @@ func defaultConnectionLister(ctx context.Context, kind string) ([]net.Connection
 		return nil, err
 	}
 
+	// The reduced-privilege path is not implemented on some platforms. Fall
+	// back to the fuller call instead of failing discovery outright.
 	return net.ConnectionsWithContext(ctx, kind)
 }
 
@@ -158,6 +166,8 @@ func enrichEndpoint(ctx context.Context, endpoint *core.DiscoveredEndpoint, pid 
 
 	endpoint.PID = int(pid)
 
+	// Process metadata is best-effort. Discovery should still report the
+	// endpoint even when the current platform or permissions prevent lookup.
 	proc, err := newProcess(ctx, pid)
 	if err != nil {
 		endpoint.Warnings = append(endpoint.Warnings, "process metadata unavailable")
@@ -180,6 +190,8 @@ func inferHints(endpoint core.DiscoveredEndpoint) []core.DiscoveryHint {
 		return nil
 	}
 
+	// Hinting is intentionally conservative and port-based only for now.
+	// Verified protocol identification belongs to scanner execution, not discovery.
 	switch endpoint.Port {
 	case 22:
 		return []core.DiscoveryHint{newHint("ssh", endpoint.Transport, endpoint.Port)}
@@ -208,6 +220,7 @@ func mergeEndpoint(existing *core.DiscoveredEndpoint, incoming core.DiscoveredEn
 		return
 	}
 
+	// Preserve the richest observed metadata without inventing new facts.
 	if existing.PID == 0 && incoming.PID != 0 {
 		existing.PID = incoming.PID
 	}

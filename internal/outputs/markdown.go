@@ -8,6 +8,8 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// RenderMarkdown renders the human-readable TLS inventory report from the
+// canonical report model.
 func RenderMarkdown(report core.Report) string {
 	var builder strings.Builder
 

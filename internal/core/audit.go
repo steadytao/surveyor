@@ -2,6 +2,7 @@ package core
 
 import "time"
 
+// AuditSelectionStatus records whether audit chose to scan or skip an endpoint.
 type AuditSelectionStatus string
 
 const (
@@ -9,18 +10,21 @@ const (
 	AuditSelectionStatusSkipped  AuditSelectionStatus = "skipped"
 )
 
+// AuditSelection records the explicit scanner decision for one discovered endpoint.
 type AuditSelection struct {
 	Status          AuditSelectionStatus `json:"status"`
 	SelectedScanner string               `json:"selected_scanner,omitempty"`
 	Reason          string               `json:"reason,omitempty"`
 }
 
+// AuditResult combines discovered facts, the selection decision and any verified scan result.
 type AuditResult struct {
 	DiscoveredEndpoint DiscoveredEndpoint `json:"discovered_endpoint"`
 	Selection          AuditSelection     `json:"selection"`
 	TLSResult          *TargetResult      `json:"tls_result,omitempty"`
 }
 
+// AuditSummary contains aggregate counts derived from audit results.
 type AuditSummary struct {
 	TotalEndpoints                  int            `json:"total_endpoints"`
 	TLSCandidates                   int            `json:"tls_candidates"`
@@ -30,6 +34,7 @@ type AuditSummary struct {
 	VerifiedClassificationBreakdown map[string]int `json:"verified_classification_breakdown,omitempty"`
 }
 
+// AuditReport is the top-level canonical local audit report.
 type AuditReport struct {
 	GeneratedAt time.Time     `json:"generated_at"`
 	Results     []AuditResult `json:"results"`

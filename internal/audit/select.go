@@ -6,6 +6,8 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// SelectEndpoints turns discovered endpoints into explicit audit decisions
+// without running any scanners.
 func SelectEndpoints(endpoints []core.DiscoveredEndpoint) []core.AuditResult {
 	results := make([]core.AuditResult, 0, len(endpoints))
 
@@ -24,6 +26,8 @@ func selectEndpoint(endpoint core.DiscoveredEndpoint) core.AuditSelection {
 		return skippedSelection("discovery result contains errors")
 	}
 
+	// The current audit scope is intentionally narrow. Automatic handoff is
+	// limited to TCP listeners that already carry a conservative TLS hint.
 	if endpoint.Transport != "tcp" {
 		return skippedSelection(fmt.Sprintf("no supported scanner for %s endpoint", endpoint.Transport))
 	}
@@ -60,6 +64,8 @@ func skippedSelection(reason string) core.AuditSelection {
 
 func cloneDiscoveredEndpoint(endpoint core.DiscoveredEndpoint) core.DiscoveredEndpoint {
 	cloned := endpoint
+	// Preserve discovery output as report data, not as aliases back into any
+	// caller-owned slice storage that may later change.
 	cloned.Hints = append([]core.DiscoveryHint(nil), endpoint.Hints...)
 	cloned.Warnings = append([]string(nil), endpoint.Warnings...)
 	cloned.Errors = append([]string(nil), endpoint.Errors...)

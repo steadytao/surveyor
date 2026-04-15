@@ -18,15 +18,19 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// DefaultTimeout is the fallback network timeout for one TLS inventory scan.
 const DefaultTimeout = 10 * time.Second
 
 var repeatedDashPattern = regexp.MustCompile(`-+`)
 
+// Scanner collects TLS and certificate facts for one explicit target.
 type Scanner struct {
 	Timeout time.Duration
 	Now     func() time.Time
 }
 
+// ScanTarget records the TLS-facing state presented by the target without
+// treating the connection as a trust or compliance verdict.
 func (s Scanner) ScanTarget(ctx context.Context, target config.Target) core.TargetResult {
 	scannedAt := time.Now().UTC()
 	if s.Now != nil {

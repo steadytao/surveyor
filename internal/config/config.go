@@ -7,10 +7,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config is the canonical file-backed input shape for explicit target scans.
 type Config struct {
 	Targets []Target `yaml:"targets" json:"targets"`
 }
 
+// Target identifies one explicit endpoint Surveyor should scan.
 type Target struct {
 	Name string   `yaml:"name,omitempty" json:"name,omitempty"`
 	Host string   `yaml:"host" json:"host"`
@@ -29,6 +31,7 @@ type rawTarget struct {
 	Tags []string `yaml:"tags"`
 }
 
+// Load reads a YAML config file from disk and returns its normalised form.
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -38,6 +41,7 @@ func Load(path string) (Config, error) {
 	return Parse(data)
 }
 
+// Parse decodes YAML config data and normalises targets into the canonical model.
 func Parse(data []byte) (Config, error) {
 	var raw rawConfig
 

@@ -8,6 +8,8 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// RenderDiscoveryMarkdown renders the human-readable discovery report from the
+// canonical discovery model.
 func RenderDiscoveryMarkdown(report core.DiscoveryReport) string {
 	var builder strings.Builder
 

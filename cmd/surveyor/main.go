@@ -28,6 +28,9 @@ type localDiscoverer interface {
 	Enumerate(context.Context) ([]core.DiscoveredEndpoint, error)
 }
 
+// Package-level factories keep the CLI entrypoint thin while still letting
+// tests replace the real runner and discoverer without wiring a bespoke
+// dependency graph through main.
 var newLocalAuditRunner = func(now func() time.Time) localAuditRunner {
 	return auditflow.LocalRunner{
 		TLSScanner: tlsinventory.Scanner{Now: now},

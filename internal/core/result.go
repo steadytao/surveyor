@@ -2,6 +2,7 @@ package core
 
 import "time"
 
+// Severity is the stable machine-readable severity level for a finding.
 type Severity string
 
 const (
@@ -12,6 +13,7 @@ const (
 	SeverityCritical Severity = "critical"
 )
 
+// Finding records one derived explanation tied to observed evidence.
 type Finding struct {
 	Code           string   `json:"code"`
 	Severity       Severity `json:"severity"`
@@ -20,6 +22,7 @@ type Finding struct {
 	Recommendation string   `json:"recommendation,omitempty"`
 }
 
+// CertificateRef records one presented certificate exactly as collected.
 type CertificateRef struct {
 	Subject            string    `json:"subject,omitempty"`
 	Issuer             string    `json:"issuer,omitempty"`
@@ -33,6 +36,7 @@ type CertificateRef struct {
 	IsCA               bool      `json:"is_ca,omitempty"`
 }
 
+// TargetResult records the observed TLS-facing state for one explicit target.
 type TargetResult struct {
 	Name                   string           `json:"name,omitempty"`
 	Host                   string           `json:"host"`
@@ -52,6 +56,7 @@ type TargetResult struct {
 	Errors                 []string         `json:"errors,omitempty"`
 }
 
+// Summary contains aggregate counts derived from a set of target results.
 type Summary struct {
 	TotalTargets            int            `json:"total_targets"`
 	ReachableTargets        int            `json:"reachable_targets"`
@@ -59,6 +64,7 @@ type Summary struct {
 	ClassificationBreakdown map[string]int `json:"classification_breakdown,omitempty"`
 }
 
+// Report is the top-level canonical TLS inventory report.
 type Report struct {
 	GeneratedAt time.Time      `json:"generated_at"`
 	Results     []TargetResult `json:"results"`

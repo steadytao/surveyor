@@ -7,6 +7,7 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// MarshalDiscoveryJSON serialises a discovery report as stable, indented JSON.
 func MarshalDiscoveryJSON(report core.DiscoveryReport) ([]byte, error) {
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
