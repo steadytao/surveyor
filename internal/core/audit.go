@@ -34,7 +34,7 @@ type AuditSummary struct {
 	VerifiedClassificationBreakdown map[string]int `json:"verified_classification_breakdown,omitempty"`
 }
 
-// AuditReport is the top-level canonical local audit report.
+// AuditReport is the top-level canonical audit report.
 type AuditReport struct {
 	GeneratedAt time.Time     `json:"generated_at"`
 	Results     []AuditResult `json:"results"`

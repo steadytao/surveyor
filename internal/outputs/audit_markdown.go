@@ -8,12 +8,12 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
-// RenderAuditMarkdown renders the human-readable local audit report from the
+// RenderAuditMarkdown renders the human-readable audit report from the
 // canonical audit model.
 func RenderAuditMarkdown(report core.AuditReport) string {
 	var builder strings.Builder
 
-	builder.WriteString("# Surveyor Local Audit Report\n\n")
+	builder.WriteString("# Surveyor Audit Report\n\n")
 	builder.WriteString(fmt.Sprintf("- Generated: %s\n", report.GeneratedAt.UTC().Format(time.RFC3339)))
 	builder.WriteString(fmt.Sprintf("- Total endpoints: %d\n", report.Summary.TotalEndpoints))
 	builder.WriteString(fmt.Sprintf("- TLS candidates: %d\n", report.Summary.TLSCandidates))

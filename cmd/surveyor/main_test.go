@@ -80,6 +80,9 @@ func TestRunHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "audit local") {
 		t.Fatalf("stdout = %q, want audit command in top-level help", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "audit subnet") {
+		t.Fatalf("stdout = %q, want remote audit command in top-level help", stdout.String())
+	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
@@ -98,6 +101,9 @@ func TestRunAuditHelp(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "surveyor audit local") {
 		t.Fatalf("stdout = %q, want audit help text", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "surveyor audit subnet") {
+		t.Fatalf("stdout = %q, want subnet audit help text", stdout.String())
 	}
 }
 
@@ -122,7 +128,7 @@ func TestRunAuditLocalWritesMarkdownToStdout(t *testing.T) {
 	t.Cleanup(func() {
 		newLocalAuditRunner = originalRunner
 	})
-	newLocalAuditRunner = func(func() time.Time) localAuditRunner {
+	newLocalAuditRunner = func(func() time.Time) auditRunner {
 		return stubLocalAuditRunner{
 			results: []core.AuditResult{
 				{
@@ -154,7 +160,7 @@ func TestRunAuditLocalWritesMarkdownToStdout(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("run() exitCode = %d, want 0", exitCode)
 	}
-	if !strings.Contains(stdout.String(), "# Surveyor Local Audit Report") {
+	if !strings.Contains(stdout.String(), "# Surveyor Audit Report") {
 		t.Fatalf("stdout = %q, want audit markdown output", stdout.String())
 	}
 	if stderr.Len() != 0 {
@@ -183,7 +189,7 @@ func TestRunAuditLocalWritesOutputs(t *testing.T) {
 	t.Cleanup(func() {
 		newLocalAuditRunner = originalRunner
 	})
-	newLocalAuditRunner = func(func() time.Time) localAuditRunner {
+	newLocalAuditRunner = func(func() time.Time) auditRunner {
 		return stubLocalAuditRunner{
 			results: []core.AuditResult{
 				{
@@ -234,7 +240,7 @@ func TestRunAuditLocalWritesOutputs(t *testing.T) {
 		t.Fatalf("ReadFile(json) error = %v", err)
 	}
 
-	if !strings.Contains(string(markdownData), "# Surveyor Local Audit Report") {
+	if !strings.Contains(string(markdownData), "# Surveyor Audit Report") {
 		t.Fatalf("markdown output missing audit heading\n%s", string(markdownData))
 	}
 	if !strings.Contains(string(jsonData), "\"total_endpoints\": 1") {
@@ -247,7 +253,7 @@ func TestRunAuditLocalFailsOnRunnerError(t *testing.T) {
 	t.Cleanup(func() {
 		newLocalAuditRunner = originalRunner
 	})
-	newLocalAuditRunner = func(func() time.Time) localAuditRunner {
+	newLocalAuditRunner = func(func() time.Time) auditRunner {
 		return stubLocalAuditRunner{err: errors.New("audit failed")}
 	}
 
@@ -261,6 +267,247 @@ func TestRunAuditLocalFailsOnRunnerError(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "audit local: audit failed") {
 		t.Fatalf("stderr = %q, want runner error", stderr.String())
+	}
+}
+
+func TestRunAuditSubnetHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "subnet", "--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "--cidr") {
+		t.Fatalf("stderr = %q, want subnet audit flags", stderr.String())
+	}
+}
+
+func TestRunAuditSubnetRejectsPositionalArguments(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "subnet", "--cidr", "10.0.0.0/30", "--ports", "443", "extra"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "audit subnet does not accept positional arguments") {
+		t.Fatalf("stderr = %q, want positional argument rejection", stderr.String())
+	}
+}
+
+func TestRunAuditSubnetRequiresScopeAndPorts(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "subnet"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "one of --cidr or --targets-file is required") {
+		t.Fatalf("stderr = %q, want subnet scope validation error", stderr.String())
+	}
+}
+
+func TestRunAuditSubnetWritesMarkdownToStdout(t *testing.T) {
+	originalRunner := newRemoteAuditRunner
+	t.Cleanup(func() {
+		newRemoteAuditRunner = originalRunner
+	})
+	newRemoteAuditRunner = func(config.SubnetScope, func() time.Time) auditRunner {
+		return stubLocalAuditRunner{
+			results: []core.AuditResult{
+				{
+					DiscoveredEndpoint: core.DiscoveredEndpoint{
+						ScopeKind: core.EndpointScopeKindRemote,
+						Host:      "10.0.0.10",
+						Port:      443,
+						Transport: "tcp",
+						State:     "responsive",
+						Hints: []core.DiscoveryHint{
+							{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+						},
+					},
+					Selection: core.AuditSelection{
+						Status:          core.AuditSelectionStatusSelected,
+						SelectedScanner: "tls",
+						Reason:          "tls hint on tcp/443",
+					},
+				},
+			},
+		}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "subnet", "--cidr", "10.0.0.0/30", "--ports", "443"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Audit Report") {
+		t.Fatalf("stdout = %q, want audit markdown output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Scope kind: remote") {
+		t.Fatalf("stdout = %q, want remote audit output", stdout.String())
+	}
+}
+
+func TestRunAuditSubnetWritesOutputs(t *testing.T) {
+	originalRunner := newRemoteAuditRunner
+	t.Cleanup(func() {
+		newRemoteAuditRunner = originalRunner
+	})
+	newRemoteAuditRunner = func(config.SubnetScope, func() time.Time) auditRunner {
+		return stubLocalAuditRunner{
+			results: []core.AuditResult{
+				{
+					DiscoveredEndpoint: core.DiscoveredEndpoint{
+						ScopeKind: core.EndpointScopeKindRemote,
+						Host:      "10.0.0.10",
+						Port:      443,
+						Transport: "tcp",
+						State:     "responsive",
+					},
+					Selection: core.AuditSelection{
+						Status:          core.AuditSelectionStatusSelected,
+						SelectedScanner: "tls",
+						Reason:          "tls hint on tcp/443",
+					},
+				},
+			},
+		}
+	}
+
+	tempDir := t.TempDir()
+	markdownPath := filepath.Join(tempDir, "audit-subnet.md")
+	jsonPath := filepath.Join(tempDir, "audit-subnet.json")
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"subnet",
+		"--cidr", "10.0.0.0/30",
+		"--ports", "443",
+		"--output", markdownPath,
+		"--json", jsonPath,
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty when file outputs are requested", stdout.String())
+	}
+
+	markdownData, err := os.ReadFile(markdownPath)
+	if err != nil {
+		t.Fatalf("ReadFile(markdown) error = %v", err)
+	}
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile(json) error = %v", err)
+	}
+
+	if !strings.Contains(string(markdownData), "# Surveyor Audit Report") {
+		t.Fatalf("markdown output missing audit heading\n%s", string(markdownData))
+	}
+	if !strings.Contains(string(jsonData), "\"scope_kind\": \"remote\"") {
+		t.Fatalf("json output missing remote audit result\n%s", string(jsonData))
+	}
+}
+
+func TestRunAuditSubnetFailsOnRunnerError(t *testing.T) {
+	originalRunner := newRemoteAuditRunner
+	t.Cleanup(func() {
+		newRemoteAuditRunner = originalRunner
+	})
+	newRemoteAuditRunner = func(config.SubnetScope, func() time.Time) auditRunner {
+		return stubLocalAuditRunner{err: errors.New("remote audit failed")}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "subnet", "--cidr", "10.0.0.0/30", "--ports", "443"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "audit subnet: remote audit failed") {
+		t.Fatalf("stderr = %q, want runner error", stderr.String())
+	}
+}
+
+func TestRunAuditSubnetDryRunWritesPlan(t *testing.T) {
+	originalRunner := newRemoteAuditRunner
+	t.Cleanup(func() {
+		newRemoteAuditRunner = originalRunner
+	})
+
+	called := false
+	newRemoteAuditRunner = func(config.SubnetScope, func() time.Time) auditRunner {
+		called = true
+		return stubLocalAuditRunner{}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"subnet",
+		"--cidr", "10.0.0.0/30",
+		"--ports", "443,8443",
+		"--dry-run",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if called {
+		t.Fatal("newRemoteAuditRunner was called during dry run, want no network execution path")
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Execution Plan") {
+		t.Fatalf("stdout = %q, want execution plan output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Supported scanners: tls") {
+		t.Fatalf("stdout = %q, want audit dry-run scanner set", stdout.String())
+	}
+}
+
+func TestRunAuditSubnetDryRunRejectsJSON(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"subnet",
+		"--cidr", "10.0.0.0/30",
+		"--ports", "443",
+		"--dry-run",
+		"--json", "plan.json",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "does not support --json") {
+		t.Fatalf("stderr = %q, want dry-run json rejection", stderr.String())
 	}
 }
 
