@@ -6,8 +6,10 @@ That is not just branding. It should shape default behaviour, scope and future d
 
 ## Current safety model
 
-The current TLS inventory path is intentionally narrow:
+The current implementation is intentionally narrow:
+- `surveyor discover local` is observational only
 - targets are explicitly provided
+- local discovery is limited to local listening or bound endpoints
 - connections are bounded by timeout
 - the scanner performs standard TLS client behaviour
 - there is no range scanning
@@ -38,6 +40,31 @@ It does not currently support:
 - cloud inventory import
 
 That strictness is deliberate. Safety improves when the tool is explicit about what it will touch.
+
+## Local discovery boundary
+
+The current discovery path is:
+
+- local only
+- observational only
+- limited to local TCP listening endpoints and UDP bound endpoints
+- limited to conservative protocol hints from observed facts
+
+That means Surveyor currently supports:
+
+- enumerating local listener state
+- attaching best-effort process metadata where available
+- attaching conservative low-confidence hints such as `tls`, `ssh` or `rdp`
+
+It does not currently support:
+
+- active probing during discovery
+- automatic protocol verification during discovery
+- automatic scan handoff from discovery
+- remote discovery
+- arbitrary address-range discovery
+
+Hints are not scans. Discovery output should be read as local endpoint inventory, not as verified service identification.
 
 ## Collection boundaries
 
@@ -70,6 +97,7 @@ Surveyor should prefer:
 - evidence over certainty
 - conservative labels over strong claims
 - manual review over false confidence
+- hints over overclaiming protocol certainty during discovery
 
 That is why the current classifier uses `manual_review_required` when the evidence is incomplete or outside the recognised rule set.
 
@@ -78,6 +106,7 @@ That is why the current classifier uses `manual_review_required` when the eviden
 Surveyor is not currently intended to be:
 - a generic security scanner
 - an internet-wide discovery engine
+- a local host auditor that silently chains discovery into scan execution
 - an exploitation framework
 - a binary "quantum-safe" labelling tool
 

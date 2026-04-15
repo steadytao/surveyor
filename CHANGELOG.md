@@ -4,6 +4,18 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.2.0
+
+### Added
+- `surveyor discover local` now enumerates local TCP listening endpoints and UDP bound endpoints
+- discovery output now includes best-effort process metadata where available
+- discovery output now includes conservative low-confidence protocol hints derived from observed facts
+- canonical discovery JSON and derived Markdown reports, including checked-in example outputs
+
+### Changed
+- discovery docs, architecture docs, safety docs and output schema docs now describe the implemented discovery slice rather than a planned one
+- release checklist now treats discovery as part of the shipped functional surface
+
 ## v0.1.1
 
 ### Changed

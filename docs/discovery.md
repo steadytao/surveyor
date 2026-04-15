@@ -14,7 +14,7 @@ Surveyor already has one verified scanner path:
 
 That path works when the operator already knows what to scan.
 
-What Surveyor does not yet have is a discovery layer that can:
+Surveyor now has a discovery layer that can:
 
 - enumerate candidate local endpoints
 - describe them in a stable schema
