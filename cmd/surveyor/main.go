@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	auditflow "github.com/steadytao/surveyor/internal/audit"
 	"github.com/steadytao/surveyor/internal/config"
 	"github.com/steadytao/surveyor/internal/core"
 	"github.com/steadytao/surveyor/internal/discovery"
@@ -19,8 +20,18 @@ import (
 	"github.com/steadytao/surveyor/internal/scanners/tlsinventory"
 )
 
+type localAuditRunner interface {
+	Run(context.Context) ([]core.AuditResult, error)
+}
+
 type localDiscoverer interface {
 	Enumerate(context.Context) ([]core.DiscoveredEndpoint, error)
+}
+
+var newLocalAuditRunner = func(now func() time.Time) localAuditRunner {
+	return auditflow.LocalRunner{
+		TLSScanner: tlsinventory.Scanner{Now: now},
+	}
 }
 
 var newLocalDiscoverer = func() localDiscoverer {
@@ -264,7 +275,7 @@ func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer, now fun
 	return 0
 }
 
-func runAuditLocal(args []string, stdout io.Writer, stderr io.Writer, _ func() time.Time) int {
+func runAuditLocal(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
 	fs := flag.NewFlagSet("surveyor audit local", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
@@ -291,8 +302,49 @@ func runAuditLocal(args []string, stdout io.Writer, stderr io.Writer, _ func() t
 		return 2
 	}
 
-	fmt.Fprintln(stderr, "audit local is not implemented yet")
-	return 1
+	auditNow := now
+	if auditNow == nil {
+		auditNow = time.Now
+	}
+
+	results, err := newLocalAuditRunner(auditNow).Run(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "audit local: %v\n", err)
+		return 1
+	}
+
+	report := outputs.BuildAuditReport(results, auditNow().UTC())
+
+	if *jsonPath != "" {
+		jsonData, err := outputs.MarshalAuditJSON(report)
+		if err != nil {
+			fmt.Fprintf(stderr, "build audit JSON output: %v\n", err)
+			return 1
+		}
+
+		if err := writeOutputFile(*jsonPath, jsonData); err != nil {
+			fmt.Fprintf(stderr, "write audit JSON output %q: %v\n", *jsonPath, err)
+			return 1
+		}
+	}
+
+	markdown := outputs.RenderAuditMarkdown(report)
+
+	if *markdownPath != "" {
+		if err := writeOutputFile(*markdownPath, []byte(markdown)); err != nil {
+			fmt.Fprintf(stderr, "write audit Markdown output %q: %v\n", *markdownPath, err)
+			return 1
+		}
+	}
+
+	if *markdownPath == "" && *jsonPath == "" {
+		if _, err := io.WriteString(stdout, markdown); err != nil {
+			fmt.Fprintf(stderr, "write stdout: %v\n", err)
+			return 1
+		}
+	}
+
+	return 0
 }
 
 func resolveTargets(configPath string, targetsArg string) ([]config.Target, error) {
@@ -405,7 +457,7 @@ func printAuditLocalUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  Run local discovery, select supported TLS-like endpoints conservatively and later hand them into the audit workflow.")
+	fmt.Fprintln(w, "  Run local discovery, select supported TLS-like endpoints conservatively and emit local audit output.")
 	fmt.Fprintln(w, "  This command does not imply aggressive probing or non-TLS scanner support.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
