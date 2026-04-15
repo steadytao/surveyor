@@ -5,7 +5,7 @@ Surveyor's canonical output is JSON.
 Markdown exists for human-readable sharing but it is derived from the same canonical model. If a fact matters, it should exist in the JSON schema first.
 
 The same rule applies to the discovery slice described in [docs/discovery.md](discovery.md).
-The same rule should apply to the planned audit slice described in [docs/audit.md](audit.md).
+The same rule applies to the audit slice described in [docs/audit.md](audit.md).
 
 ## Top-level report
 
@@ -401,9 +401,9 @@ Fields:
 - `udp_endpoints`: number of discovered UDP endpoints
 - `hint_breakdown`: counts keyed by hinted protocol label
 
-## Planned audit report
+## Audit report
 
-Planned top-level audit report shape:
+Current top-level audit report shape:
 
 ```json
 {
@@ -430,9 +430,9 @@ Fields:
 - type: audit summary object
 - meaning: aggregate counts derived from `results`
 
-## Planned audit result
+## Audit result
 
-Planned per-endpoint audit-result shape:
+Current per-endpoint audit-result shape:
 
 ```json
 {
@@ -460,9 +460,9 @@ Fields:
 - optional: yes
 - meaning: verified TLS result when the endpoint is selected for the TLS scanner and the scan runs
 
-## Planned selection object
+## Selection object
 
-Planned selection shape:
+Current selection shape:
 
 ```json
 {
@@ -480,9 +480,9 @@ Fields:
 
 Hints are not verified scans, and selection is not verification.
 
-## Planned audit summary object
+## Audit summary object
 
-Planned audit summary shape:
+Current audit summary shape:
 
 ```json
 {

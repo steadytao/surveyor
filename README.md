@@ -15,10 +15,11 @@ Surveyor is in early development.
 
 The first milestone was intentionally narrow. It completed as a TLS inventory MVP for explicitly provided targets.
 
-The current repository now includes the discovery foundation work around `surveyor discover local`.
+The current repository now includes the local audit foundation around `surveyor audit local`.
 
 The current repository already includes:
 
+- local audit orchestration for supported TLS-like endpoints
 - local endpoint discovery
 - conservative protocol hints for discovery results
 - target parsing and validation
@@ -28,7 +29,7 @@ The current repository already includes:
 - conservative readiness classification
 - machine-readable and human-readable reporting
 
-The repository now includes usable CLI paths for both local discovery and the TLS inventory slice.
+The repository now includes usable CLI paths for local audit, local discovery and the explicit-target TLS inventory slice.
 
 ## Releases
 
@@ -58,6 +59,7 @@ The current repository is still intentionally narrow.
 
 That means Surveyor currently aims to:
 
+- run local audit by chaining discovery into the existing TLS scanner conservatively
 - enumerate local listening or bound endpoints without active probing
 - attach conservative protocol hints to discovered local endpoints
 - connect to explicit TLS targets
@@ -78,6 +80,7 @@ It does not currently aim to:
 
 Surveyor currently has implemented internal slices for:
 
+- local audit orchestration for discovery-to-TLS handoff
 - YAML config parsing and validation for explicit TLS targets
 - TLS handshake collection against explicit targets
 - X.509 certificate and chain metadata extraction
@@ -89,7 +92,13 @@ The current code and docs are organised around JSON as the canonical result cont
 
 ## CLI
 
-The current CLI supports discovery and explicit-target TLS inventory.
+The current CLI supports local audit, local discovery and explicit-target TLS inventory.
+
+Audit:
+
+```bash
+surveyor audit local -o audit.md -j audit.json
+```
 
 Discovery:
 
@@ -111,6 +120,7 @@ surveyor scan tls -t example.com:443,127.0.0.1:8000,[::1]:443
 
 Rules:
 
+- `audit local` only hands supported TLS-like endpoints into the current TLS scanner and keeps discovered facts, hints and verified scan results separate
 - `discover local` is observational only, it does not perform active probing or verified protocol scans
 - use exactly one of `--config` or `--targets`
 - `--targets` requires explicit `host:port` entries
@@ -121,6 +131,7 @@ Example local verification:
 
 ```bash
 go build -o surveyor ./cmd/surveyor
+./surveyor audit local -o audit.md -j audit.json
 ./surveyor discover local -o discovery.md -j discovery.json
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
@@ -144,7 +155,7 @@ The current architectural focus is `Local Audit MVP`, chaining local discovery i
 
 Surveyor is written in Go.
 
-The repository currently contains a working `cmd/surveyor` entrypoint for both the discovery and TLS inventory slices, plus the internal packages and tests behind them.
+The repository currently contains a working `cmd/surveyor` entrypoint for the audit, discovery and TLS inventory slices, plus the internal packages and tests behind them.
 
 For now, the most useful verification command is:
 
@@ -165,6 +176,7 @@ go build -o surveyor ./cmd/surveyor
 Then run:
 
 ```bash
+./surveyor audit local -o audit.md -j audit.json
 ./surveyor discover local -o discovery.md -j discovery.json
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```

@@ -19,19 +19,16 @@ Owns the thin executable wrapper.
 
 Current responsibilities:
 
+- expose `surveyor audit local`
 - expose `surveyor discover local`
 - expose `surveyor scan tls`
+- run the audit flow end to end
 - run the discovery flow end to end
 - accept either config-driven targets or explicit `--targets` input
 - run the TLS inventory flow end to end
 - write Markdown and JSON outputs
 
 This layer should stay thin. It should orchestrate existing packages, not reimplement their logic.
-
-Planned next responsibility:
-
-- expose `surveyor audit local`
-- orchestrate discovery and supported scanner handoff without embedding scanner logic in the CLI layer
 
 ### `internal/config`
 
@@ -78,7 +75,7 @@ This package should stay observational. It should not perform active probing or 
 
 ### `internal/audit`
 
-Planned responsibility:
+Current responsibilities:
 
 - orchestrate local discovery into supported scanner execution
 - record selection decisions and skip reasons
@@ -111,7 +108,7 @@ Owns report assembly and rendering.
 
 Current responsibilities:
 
-- build top-level reports from target results and discovery results
+- build top-level reports from target results, discovery results and audit results
 - derive summary counts
 - render canonical JSON
 - render Markdown from the same canonical model
@@ -148,7 +145,7 @@ CLI arguments
   -> JSON / Markdown rendering
 ```
 
-The planned local audit flow is:
+The current local audit flow is:
 
 ```text
 CLI arguments
@@ -180,7 +177,6 @@ The current architecture still does not include:
 
 - trust-store validation
 - hostname validation semantics
-- discovery-to-scan orchestration
 - STARTTLS or multi-protocol probing
 - discovery across ranges or cloud inventories
 - policy engines
@@ -199,4 +195,4 @@ Its job is to:
 - attach conservative protocol hints
 - stay distinct from scanner-specific verification
 
-That boundary should remain intact. Future audit flows should coordinate discovery, selection and verified scanning without collapsing them into one indistinguishable result type.
+That boundary should remain intact. The current audit flow coordinates discovery, selection and verified scanning without collapsing them into one indistinguishable result type.
