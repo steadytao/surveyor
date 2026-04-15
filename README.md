@@ -149,7 +149,9 @@ For the current implementation boundaries, see:
 
 ## Roadmap
 
-The current architectural focus is `Local Audit MVP`, chaining local discovery into the existing TLS scanner rather than adding another standalone deep scanner first.
+`Local Audit MVP` is now part of the shipped surface.
+
+Future milestones should build on that conservatively, widening supported scanner coverage or orchestration only where Surveyor can keep discovered facts, hints and verified scan results clearly separated.
 
 ## Development
 
