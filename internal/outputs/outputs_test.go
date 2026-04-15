@@ -84,6 +84,64 @@ func TestBuildDiscoveryReportSummary(t *testing.T) {
 	}
 }
 
+func TestBuildAuditReportSummary(t *testing.T) {
+	t.Parallel()
+
+	report := BuildAuditReport([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				Address:   "0.0.0.0",
+				Port:      443,
+				Transport: "tcp",
+				State:     "listening",
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:           "127.0.0.1",
+				Port:           443,
+				ScannedAt:      time.Date(2026, time.April, 16, 2, 0, 0, 0, time.UTC),
+				Reachable:      true,
+				Classification: "modern_tls_classical_identity",
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				Address:   "127.0.0.1",
+				Port:      5353,
+				Transport: "udp",
+				State:     "bound",
+			},
+			Selection: core.AuditSelection{
+				Status: core.AuditSelectionStatusSkipped,
+				Reason: "no supported scanner for udp endpoint",
+			},
+		},
+	}, time.Date(2026, time.April, 16, 2, 30, 0, 0, time.UTC))
+
+	if report.Summary.TotalEndpoints != 2 {
+		t.Fatalf("report.Summary.TotalEndpoints = %d, want 2", report.Summary.TotalEndpoints)
+	}
+	if report.Summary.TLSCandidates != 1 {
+		t.Fatalf("report.Summary.TLSCandidates = %d, want 1", report.Summary.TLSCandidates)
+	}
+	if report.Summary.ScannedEndpoints != 1 {
+		t.Fatalf("report.Summary.ScannedEndpoints = %d, want 1", report.Summary.ScannedEndpoints)
+	}
+	if report.Summary.SkippedEndpoints != 1 {
+		t.Fatalf("report.Summary.SkippedEndpoints = %d, want 1", report.Summary.SkippedEndpoints)
+	}
+	if report.Summary.SelectionBreakdown["tls"] != 1 {
+		t.Fatalf("selection count for tls = %d, want 1", report.Summary.SelectionBreakdown["tls"])
+	}
+	if report.Summary.VerifiedClassificationBreakdown["modern_tls_classical_identity"] != 1 {
+		t.Fatalf("verified classification count = %d, want 1", report.Summary.VerifiedClassificationBreakdown["modern_tls_classical_identity"])
+	}
+}
+
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
 
@@ -116,6 +174,22 @@ func TestMarshalDiscoveryJSON(t *testing.T) {
 	}
 }
 
+func TestMarshalAuditJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleAuditReport()
+
+	data, err := MarshalAuditJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalAuditJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "audit.golden.json")
+	if string(data) != want {
+		t.Fatalf("audit json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
 func TestRenderMarkdown(t *testing.T) {
 	t.Parallel()
 
@@ -137,6 +211,18 @@ func TestRenderDiscoveryMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "discovery.golden.md")
 	if markdown != want {
 		t.Fatalf("discovery markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderAuditMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleAuditReport()
+
+	markdown := RenderAuditMarkdown(report)
+	want := readGoldenFile(t, "audit.golden.md")
+	if markdown != want {
+		t.Fatalf("audit markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
 	}
 }
 
@@ -238,4 +324,58 @@ func sampleDiscoveryReport() core.DiscoveryReport {
 			Warnings:  []string{"process metadata unavailable"},
 		},
 	}, time.Date(2026, time.April, 15, 1, 45, 0, 0, time.UTC))
+}
+
+func sampleAuditReport() core.AuditReport {
+	return BuildAuditReport([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				Address:     "0.0.0.0",
+				Port:        443,
+				Transport:   "tcp",
+				State:       "listening",
+				PID:         4321,
+				ProcessName: "local-service",
+				Executable:  "C:\\Program Files\\Surveyor Test\\local-service.exe",
+				Hints: []core.DiscoveryHint{
+					{
+						Protocol:   "tls",
+						Confidence: "low",
+						Evidence:   []string{"transport=tcp", "port=443"},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:                   "127.0.0.1",
+				Port:                   443,
+				ScannedAt:              time.Date(2026, time.April, 16, 2, 0, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.3",
+				CipherSuite:            "TLS_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafKeySize:            2048,
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				Address:   "127.0.0.1",
+				Port:      5353,
+				Transport: "udp",
+				State:     "bound",
+				PID:       9876,
+				Warnings:  []string{"process metadata unavailable"},
+			},
+			Selection: core.AuditSelection{
+				Status: core.AuditSelectionStatusSkipped,
+				Reason: "no supported scanner for udp endpoint",
+			},
+		},
+	}, time.Date(2026, time.April, 16, 2, 30, 0, 0, time.UTC))
 }
