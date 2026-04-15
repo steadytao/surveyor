@@ -189,6 +189,8 @@ The current architecture still does not include:
 
 Those are separate steps and should only be added once the current TLS path remains coherent.
 
+The next planned step is scoped remote inventory. See [docs/remote-inventory.md](remote-inventory.md) for the current `v0.4.0` design contract.
+
 ## Current architectural boundary
 
 The current discovery layer around `surveyor discover local` sits beside scanner-specific execution, not inside it.

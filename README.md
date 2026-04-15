@@ -151,7 +151,16 @@ For the current implementation boundaries, see:
 
 `Local Audit MVP` is now part of the shipped surface.
 
-Future milestones should build on that conservatively, widening supported scanner coverage or orchestration only where Surveyor can keep discovered facts, hints and verified scan results clearly separated.
+The next planned milestone is `Scoped Remote Inventory MVP`.
+
+That work is intended to add `surveyor discover subnet` and `surveyor audit subnet` for explicitly declared remote scope while keeping the current discipline:
+
+- explicit scope required
+- cautious by default
+- existing TLS scanner only for verified remote scanning
+- discovered facts, hints, selection decisions and verified scan results kept separate
+
+See [docs/remote-inventory.md](docs/remote-inventory.md) for the current `v0.4.0` contract.
 
 ## Development
 
