@@ -12,7 +12,8 @@ func TestAuditResultJSONShape(t *testing.T) {
 
 	result := AuditResult{
 		DiscoveredEndpoint: DiscoveredEndpoint{
-			Address:     "0.0.0.0",
+			ScopeKind:   EndpointScopeKindLocal,
+			Host:        "0.0.0.0",
 			Port:        443,
 			Transport:   "tcp",
 			State:       "listening",
@@ -49,7 +50,8 @@ func TestAuditResultJSONShape(t *testing.T) {
 
 	wantSubstrings := []string{
 		`"discovered_endpoint":{`,
-		`"address":"0.0.0.0"`,
+		`"scope_kind":"local"`,
+		`"host":"0.0.0.0"`,
 		`"selection":{"status":"selected","selected_scanner":"tls","reason":"tls hint on tcp/443"}`,
 		`"tls_result":{"host":"127.0.0.1","port":443`,
 		`"classification":"modern_tls_classical_identity"`,
@@ -70,7 +72,8 @@ func TestAuditReportJSONShape(t *testing.T) {
 		Results: []AuditResult{
 			{
 				DiscoveredEndpoint: DiscoveredEndpoint{
-					Address:   "127.0.0.1",
+					ScopeKind: EndpointScopeKindLocal,
+					Host:      "127.0.0.1",
 					Port:      5353,
 					Transport: "udp",
 					State:     "bound",

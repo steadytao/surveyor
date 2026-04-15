@@ -66,7 +66,7 @@ func (r LocalRunner) Run(ctx context.Context) ([]core.AuditResult, error) {
 			// discovered endpoint to the TLS scanner. Audit should not invent a
 			// looser target model than the standalone TLS path accepts.
 			target, err := config.ValidateTarget(config.Target{
-				Host: result.DiscoveredEndpoint.Address,
+				Host: result.DiscoveredEndpoint.Host,
 				Port: result.DiscoveredEndpoint.Port,
 			})
 			if err != nil {

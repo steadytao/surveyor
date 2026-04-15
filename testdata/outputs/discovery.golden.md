@@ -13,7 +13,8 @@
 
 ### 0.0.0.0:443/tcp
 
-- Address: 0.0.0.0
+- Scope kind: local
+- Host: 0.0.0.0
 - Port: 443
 - Transport: tcp
 - State: listening
@@ -29,7 +30,8 @@
 
 ### 127.0.0.1:5353/udp
 
-- Address: 127.0.0.1
+- Scope kind: local
+- Host: 127.0.0.1
 - Port: 5353
 - Transport: udp
 - State: bound

@@ -123,7 +123,8 @@ func TestRunAuditLocalWritesMarkdownToStdout(t *testing.T) {
 			results: []core.AuditResult{
 				{
 					DiscoveredEndpoint: core.DiscoveredEndpoint{
-						Address:   "127.0.0.1",
+						ScopeKind: core.EndpointScopeKindLocal,
+						Host:      "127.0.0.1",
 						Port:      443,
 						Transport: "tcp",
 						State:     "listening",
@@ -183,7 +184,8 @@ func TestRunAuditLocalWritesOutputs(t *testing.T) {
 			results: []core.AuditResult{
 				{
 					DiscoveredEndpoint: core.DiscoveredEndpoint{
-						Address:   "0.0.0.0",
+						ScopeKind: core.EndpointScopeKindLocal,
+						Host:      "0.0.0.0",
 						Port:      443,
 						Transport: "tcp",
 						State:     "listening",
@@ -299,7 +301,8 @@ func TestRunDiscoverLocalWritesMarkdownToStdout(t *testing.T) {
 		return stubLocalDiscoverer{
 			results: []core.DiscoveredEndpoint{
 				{
-					Address:   "127.0.0.1",
+					ScopeKind: core.EndpointScopeKindLocal,
+					Host:      "127.0.0.1",
 					Port:      443,
 					Transport: "tcp",
 					State:     "listening",
@@ -352,7 +355,8 @@ func TestRunDiscoverLocalWritesOutputs(t *testing.T) {
 		return stubLocalDiscoverer{
 			results: []core.DiscoveredEndpoint{
 				{
-					Address:   "0.0.0.0",
+					ScopeKind: core.EndpointScopeKindLocal,
+					Host:      "0.0.0.0",
 					Port:      443,
 					Transport: "tcp",
 					State:     "listening",

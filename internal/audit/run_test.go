@@ -29,7 +29,8 @@ func TestLocalRunnerRunScansSelectedTLSEndpoints(t *testing.T) {
 
 	discovered := []core.DiscoveredEndpoint{
 		{
-			Address:   "127.0.0.1",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "127.0.0.1",
 			Port:      443,
 			Transport: "tcp",
 			State:     "listening",
@@ -38,7 +39,8 @@ func TestLocalRunnerRunScansSelectedTLSEndpoints(t *testing.T) {
 			},
 		},
 		{
-			Address:   "127.0.0.1",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "127.0.0.1",
 			Port:      5353,
 			Transport: "udp",
 			State:     "bound",
@@ -102,7 +104,8 @@ func TestLocalRunnerRunSkipsInvalidSelectedEndpoint(t *testing.T) {
 		Discoverer: stubDiscoverer{
 			results: []core.DiscoveredEndpoint{
 				{
-					Address:   "",
+					ScopeKind: core.EndpointScopeKindLocal,
+					Host:      "",
 					Port:      443,
 					Transport: "tcp",
 					State:     "listening",
@@ -144,7 +147,8 @@ func TestLocalRunnerRunSkipsUnsupportedSelectedScanner(t *testing.T) {
 		Discoverer: stubDiscoverer{
 			results: []core.DiscoveredEndpoint{
 				{
-					Address:   "127.0.0.1",
+					ScopeKind: core.EndpointScopeKindLocal,
+					Host:      "127.0.0.1",
 					Port:      22,
 					Transport: "tcp",
 					State:     "listening",

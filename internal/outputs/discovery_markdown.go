@@ -42,7 +42,8 @@ func RenderDiscoveryMarkdown(report core.DiscoveryReport) string {
 		}
 
 		builder.WriteString(fmt.Sprintf("### %s\n\n", discoveryEndpointHeading(result)))
-		builder.WriteString(fmt.Sprintf("- Address: %s\n", result.Address))
+		builder.WriteString(fmt.Sprintf("- Scope kind: %s\n", result.ScopeKind))
+		builder.WriteString(fmt.Sprintf("- Host: %s\n", result.Host))
 		builder.WriteString(fmt.Sprintf("- Port: %d\n", result.Port))
 		builder.WriteString(fmt.Sprintf("- Transport: %s\n", result.Transport))
 		builder.WriteString(fmt.Sprintf("- State: %s\n", result.State))
@@ -86,5 +87,5 @@ func RenderDiscoveryMarkdown(report core.DiscoveryReport) string {
 }
 
 func discoveryEndpointHeading(result core.DiscoveredEndpoint) string {
-	return fmt.Sprintf("%s:%d/%s", result.Address, result.Port, result.Transport)
+	return fmt.Sprintf("%s:%d/%s", result.Host, result.Port, result.Transport)
 }
