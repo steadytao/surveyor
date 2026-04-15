@@ -177,7 +177,17 @@ The current remote boundary is still intentionally narrow:
 - existing TLS scanner only for verified remote scanning
 - discovered facts, hints, selection decisions and verified scan results kept separate
 
-Future work remains open. See [docs/remote-inventory.md](docs/remote-inventory.md) for the current remote boundary and non-goals.
+The next planned architectural step is generalised remote scope:
+
+- `surveyor discover remote`
+- `surveyor audit remote`
+- `--cidr` and `--targets-file` under one honest remote scope model
+- `discover subnet` and `audit subnet` retained as compatibility aliases for `v0.5.x`
+
+See:
+
+- [docs/remote-inventory.md](docs/remote-inventory.md) for the current `v0.4.x` remote boundary
+- [docs/remote-scope.md](docs/remote-scope.md) for the planned `v0.5.0` remote-scope contract
 
 ## Development
 
