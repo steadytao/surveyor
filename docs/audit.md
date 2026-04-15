@@ -98,7 +98,7 @@ Audit must keep five things separate:
 
 Examples:
 
-- `transport=tcp`, `address=0.0.0.0`, `port=443` are discovered facts
+- `scope_kind=local`, `host=0.0.0.0`, `transport=tcp`, `port=443` are discovered facts
 - `protocol=tls` with low confidence is a hint
 - `selected_scanner=tls` is a selection decision
 - negotiated TLS version, cipher suite and certificate metadata are verified scan results

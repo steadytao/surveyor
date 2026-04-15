@@ -33,7 +33,7 @@ surveyor discover local
 
 This command enumerates local listening or bound endpoints and emits structured output.
 
-It is deliberately narrower than a future `audit local` command.
+It is deliberately narrower than the current `audit local` command.
 
 ## Command semantics
 
@@ -81,7 +81,7 @@ Discovery must keep three things separate:
 
 Examples:
 
-- `transport=tcp`, `address=0.0.0.0`, `port=443` are observed facts
+- `scope_kind=local`, `host=0.0.0.0`, `transport=tcp`, `port=443` are observed facts
 - `protocol=tls` with conservative confidence may be a hint
 - negotiated TLS version, cipher suite and certificate metadata are verified scan results and belong to a scanner, not discovery
 
@@ -93,6 +93,10 @@ Discovery should follow the same output philosophy as the current TLS slice:
 
 - JSON is canonical
 - Markdown is derived from the canonical model
+
+The endpoint model is intentionally broader than the current `discover local`
+command so future remote observations can reuse the same contract without
+pretending remote endpoints are local sockets.
 
 ### Top-level report
 
@@ -118,7 +122,8 @@ Current discovered-endpoint shape:
 
 ```json
 {
-  "address": "0.0.0.0",
+  "scope_kind": "local",
+  "host": "0.0.0.0",
   "port": 443,
   "transport": "tcp",
   "state": "listening",
@@ -133,10 +138,11 @@ Current discovered-endpoint shape:
 
 Fields:
 
-- `address`: local bound address as observed
+- `scope_kind`: whether the observation came from local or remote scope, currently `local`
+- `host`: observed host or IP within the declared scope, currently the local bound address for local discovery
 - `port`: local port number
 - `transport`: transport name, initially `tcp` or `udp`
-- `state`: observed local state, initially `listening` or `bound`
+- `state`: observed endpoint state, currently `listening` or `bound` for local discovery
 - `pid`: process identifier where available without requiring elevation
 - `process_name`: best-effort process name where available
 - `executable`: best-effort executable path where available and appropriate to expose
@@ -146,7 +152,7 @@ Fields:
 
 ### Hint
 
-Planned hint shape:
+Current hint shape:
 
 ```json
 {

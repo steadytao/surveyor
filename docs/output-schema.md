@@ -268,7 +268,7 @@ Fields:
 ### `results`
 
 - type: array of discovered endpoints
-- meaning: one entry per discovered local endpoint
+- meaning: one entry per observed endpoint in the discovery report
 
 ### `summary`
 
@@ -281,7 +281,8 @@ Current discovered-endpoint shape:
 
 ```json
 {
-  "address": "0.0.0.0",
+  "scope_kind": "local",
+  "host": "0.0.0.0",
   "port": 443,
   "transport": "tcp",
   "state": "listening",
@@ -296,11 +297,17 @@ Current discovered-endpoint shape:
 
 Fields:
 
-### `address`
+### `scope_kind`
 
 - type: string
 - optional: no
-- meaning: local bound address as observed
+- meaning: whether the endpoint was observed in `local` or `remote` scope
+
+### `host`
+
+- type: string
+- optional: no
+- meaning: observed host or IP within the declared scope; for local discovery this is the local bound address
 
 ### `port`
 
@@ -318,7 +325,7 @@ Fields:
 
 - type: string
 - optional: no
-- meaning: observed local socket state, currently `listening` or `bound`
+- meaning: observed endpoint state; currently `listening` or `bound` for local discovery
 
 ### `pid`
 

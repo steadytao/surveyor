@@ -81,7 +81,7 @@ func TestLocalEnumeratorEnumerateFiltersAndSortsEndpoints(t *testing.T) {
 	}
 
 	tcpTLS := got[0]
-	if tcpTLS.Address != "0.0.0.0" || tcpTLS.Port != 443 || tcpTLS.Transport != "tcp" || tcpTLS.State != "listening" {
+	if tcpTLS.ScopeKind != core.EndpointScopeKindLocal || tcpTLS.Host != "0.0.0.0" || tcpTLS.Port != 443 || tcpTLS.Transport != "tcp" || tcpTLS.State != "listening" {
 		t.Fatalf("got[0] = %#v, want tcp listener on 0.0.0.0:443", tcpTLS)
 	}
 	if tcpTLS.PID != 2002 {
@@ -95,7 +95,7 @@ func TestLocalEnumeratorEnumerateFiltersAndSortsEndpoints(t *testing.T) {
 	}
 
 	tcpLocalService := got[1]
-	if tcpLocalService.Address != "127.0.0.1" || tcpLocalService.Port != 8443 || tcpLocalService.Transport != "tcp" || tcpLocalService.State != "listening" {
+	if tcpLocalService.ScopeKind != core.EndpointScopeKindLocal || tcpLocalService.Host != "127.0.0.1" || tcpLocalService.Port != 8443 || tcpLocalService.Transport != "tcp" || tcpLocalService.State != "listening" {
 		t.Fatalf("got[1] = %#v, want tcp listener on 127.0.0.1:8443", tcpLocalService)
 	}
 	if tcpLocalService.PID != 1001 || tcpLocalService.ProcessName != "local-service" || tcpLocalService.Executable != "C:\\SurveyorTest\\local-service.exe" {
@@ -106,7 +106,7 @@ func TestLocalEnumeratorEnumerateFiltersAndSortsEndpoints(t *testing.T) {
 	}
 
 	udpMDNS := got[2]
-	if udpMDNS.Address != "127.0.0.1" || udpMDNS.Port != 5353 || udpMDNS.Transport != "udp" || udpMDNS.State != "bound" {
+	if udpMDNS.ScopeKind != core.EndpointScopeKindLocal || udpMDNS.Host != "127.0.0.1" || udpMDNS.Port != 5353 || udpMDNS.Transport != "udp" || udpMDNS.State != "bound" {
 		t.Fatalf("got[2] = %#v, want udp bound endpoint on 127.0.0.1:5353", udpMDNS)
 	}
 	if udpMDNS.PID != 3003 || udpMDNS.ProcessName != "mdnsd" {
@@ -172,7 +172,7 @@ func splitHostPort(t *testing.T, address string) (string, int) {
 
 func hasEndpoint(endpoints []core.DiscoveredEndpoint, transport string, state string, address string, port int) bool {
 	for _, endpoint := range endpoints {
-		if endpoint.Transport == transport && endpoint.State == state && endpoint.Address == address && endpoint.Port == port {
+		if endpoint.Transport == transport && endpoint.State == state && endpoint.Host == address && endpoint.Port == port {
 			return true
 		}
 	}

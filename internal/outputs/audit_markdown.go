@@ -54,7 +54,8 @@ func RenderAuditMarkdown(report core.AuditReport) string {
 		}
 
 		builder.WriteString(fmt.Sprintf("### %s\n\n", auditEndpointHeading(result.DiscoveredEndpoint)))
-		builder.WriteString(fmt.Sprintf("- Address: %s\n", result.DiscoveredEndpoint.Address))
+		builder.WriteString(fmt.Sprintf("- Scope kind: %s\n", result.DiscoveredEndpoint.ScopeKind))
+		builder.WriteString(fmt.Sprintf("- Host: %s\n", result.DiscoveredEndpoint.Host))
 		builder.WriteString(fmt.Sprintf("- Port: %d\n", result.DiscoveredEndpoint.Port))
 		builder.WriteString(fmt.Sprintf("- Transport: %s\n", result.DiscoveredEndpoint.Transport))
 		builder.WriteString(fmt.Sprintf("- State: %s\n", result.DiscoveredEndpoint.State))
@@ -128,5 +129,5 @@ func RenderAuditMarkdown(report core.AuditReport) string {
 }
 
 func auditEndpointHeading(endpoint core.DiscoveredEndpoint) string {
-	return fmt.Sprintf("%s:%d/%s", endpoint.Address, endpoint.Port, endpoint.Transport)
+	return fmt.Sprintf("%s:%d/%s", endpoint.Host, endpoint.Port, endpoint.Transport)
 }

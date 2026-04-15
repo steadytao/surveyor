@@ -53,7 +53,8 @@ func TestBuildDiscoveryReportSummary(t *testing.T) {
 
 	report := BuildDiscoveryReport([]core.DiscoveredEndpoint{
 		{
-			Address:   "0.0.0.0",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "0.0.0.0",
 			Port:      443,
 			Transport: "tcp",
 			State:     "listening",
@@ -63,7 +64,8 @@ func TestBuildDiscoveryReportSummary(t *testing.T) {
 			},
 		},
 		{
-			Address:   "127.0.0.1",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "127.0.0.1",
 			Port:      53,
 			Transport: "udp",
 			State:     "bound",
@@ -90,7 +92,8 @@ func TestBuildAuditReportSummary(t *testing.T) {
 	report := BuildAuditReport([]core.AuditResult{
 		{
 			DiscoveredEndpoint: core.DiscoveredEndpoint{
-				Address:   "0.0.0.0",
+				ScopeKind: core.EndpointScopeKindLocal,
+				Host:      "0.0.0.0",
 				Port:      443,
 				Transport: "tcp",
 				State:     "listening",
@@ -110,7 +113,8 @@ func TestBuildAuditReportSummary(t *testing.T) {
 		},
 		{
 			DiscoveredEndpoint: core.DiscoveredEndpoint{
-				Address:   "127.0.0.1",
+				ScopeKind: core.EndpointScopeKindLocal,
+				Host:      "127.0.0.1",
 				Port:      5353,
 				Transport: "udp",
 				State:     "bound",
@@ -300,7 +304,8 @@ func sampleReport() core.Report {
 func sampleDiscoveryReport() core.DiscoveryReport {
 	return BuildDiscoveryReport([]core.DiscoveredEndpoint{
 		{
-			Address:     "0.0.0.0",
+			ScopeKind:   core.EndpointScopeKindLocal,
+			Host:        "0.0.0.0",
 			Port:        443,
 			Transport:   "tcp",
 			State:       "listening",
@@ -316,7 +321,8 @@ func sampleDiscoveryReport() core.DiscoveryReport {
 			},
 		},
 		{
-			Address:   "127.0.0.1",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "127.0.0.1",
 			Port:      5353,
 			Transport: "udp",
 			State:     "bound",
@@ -330,7 +336,8 @@ func sampleAuditReport() core.AuditReport {
 	return BuildAuditReport([]core.AuditResult{
 		{
 			DiscoveredEndpoint: core.DiscoveredEndpoint{
-				Address:     "0.0.0.0",
+				ScopeKind:   core.EndpointScopeKindLocal,
+				Host:        "0.0.0.0",
 				Port:        443,
 				Transport:   "tcp",
 				State:       "listening",
@@ -365,7 +372,8 @@ func sampleAuditReport() core.AuditReport {
 		},
 		{
 			DiscoveredEndpoint: core.DiscoveredEndpoint{
-				Address:   "127.0.0.1",
+				ScopeKind: core.EndpointScopeKindLocal,
+				Host:      "127.0.0.1",
 				Port:      5353,
 				Transport: "udp",
 				State:     "bound",

@@ -2,6 +2,15 @@ package core
 
 import "time"
 
+// EndpointScopeKind records whether an observed endpoint came from local or
+// remote scope.
+type EndpointScopeKind string
+
+const (
+	EndpointScopeKindLocal  EndpointScopeKind = "local"
+	EndpointScopeKindRemote EndpointScopeKind = "remote"
+)
+
 // DiscoveryHint is a conservative protocol hint derived from observed facts.
 type DiscoveryHint struct {
 	Protocol   string   `json:"protocol"`
@@ -9,18 +18,20 @@ type DiscoveryHint struct {
 	Evidence   []string `json:"evidence,omitempty"`
 }
 
-// DiscoveredEndpoint records one observed local socket and any best-effort enrichment.
+// DiscoveredEndpoint records one observed endpoint within declared scope and
+// any best-effort enrichment that applies to that scope kind.
 type DiscoveredEndpoint struct {
-	Address     string          `json:"address"`
-	Port        int             `json:"port"`
-	Transport   string          `json:"transport"`
-	State       string          `json:"state"`
-	PID         int             `json:"pid,omitempty"`
-	ProcessName string          `json:"process_name,omitempty"`
-	Executable  string          `json:"executable,omitempty"`
-	Hints       []DiscoveryHint `json:"hints,omitempty"`
-	Warnings    []string        `json:"warnings,omitempty"`
-	Errors      []string        `json:"errors,omitempty"`
+	ScopeKind   EndpointScopeKind `json:"scope_kind"`
+	Host        string            `json:"host"`
+	Port        int               `json:"port"`
+	Transport   string            `json:"transport"`
+	State       string            `json:"state"`
+	PID         int               `json:"pid,omitempty"`
+	ProcessName string            `json:"process_name,omitempty"`
+	Executable  string            `json:"executable,omitempty"`
+	Hints       []DiscoveryHint   `json:"hints,omitempty"`
+	Warnings    []string          `json:"warnings,omitempty"`
+	Errors      []string          `json:"errors,omitempty"`
 }
 
 // DiscoverySummary contains aggregate counts derived from discovered endpoints.

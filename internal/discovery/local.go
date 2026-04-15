@@ -56,7 +56,7 @@ func (e LocalEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpoi
 		// Some platforms surface the same bound socket more than once, sometimes
 		// with different amounts of process metadata. Merge by observed endpoint
 		// identity so discovery stays stable and keeps the richest result.
-		key := endpoint.Transport + "|" + endpoint.State + "|" + endpoint.Address + "|" + strconv.Itoa(endpoint.Port)
+		key := string(endpoint.ScopeKind) + "|" + endpoint.Transport + "|" + endpoint.State + "|" + endpoint.Host + "|" + strconv.Itoa(endpoint.Port)
 		if index, ok := seen[key]; ok {
 			mergeEndpoint(&endpoints[index], endpoint)
 			return
@@ -85,8 +85,8 @@ func (e LocalEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpoi
 		if left.Transport != right.Transport {
 			return left.Transport < right.Transport
 		}
-		if left.Address != right.Address {
-			return left.Address < right.Address
+		if left.Host != right.Host {
+			return left.Host < right.Host
 		}
 		if left.Port != right.Port {
 			return left.Port < right.Port
@@ -128,7 +128,8 @@ func tcpEndpoint(ctx context.Context, connection net.ConnectionStat, newProcess 
 	}
 
 	endpoint := core.DiscoveredEndpoint{
-		Address:   connection.Laddr.IP,
+		ScopeKind: core.EndpointScopeKindLocal,
+		Host:      connection.Laddr.IP,
 		Port:      int(connection.Laddr.Port),
 		Transport: "tcp",
 		State:     "listening",
@@ -148,7 +149,8 @@ func udpEndpoint(ctx context.Context, connection net.ConnectionStat, newProcess 
 	}
 
 	endpoint := core.DiscoveredEndpoint{
-		Address:   connection.Laddr.IP,
+		ScopeKind: core.EndpointScopeKindLocal,
+		Host:      connection.Laddr.IP,
 		Port:      int(connection.Laddr.Port),
 		Transport: "udp",
 		State:     "bound",

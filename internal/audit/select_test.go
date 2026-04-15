@@ -11,7 +11,8 @@ func TestSelectEndpointsSelectsTLSCandidates(t *testing.T) {
 
 	results := SelectEndpoints([]core.DiscoveredEndpoint{
 		{
-			Address:   "0.0.0.0",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "0.0.0.0",
 			Port:      443,
 			Transport: "tcp",
 			State:     "listening",
@@ -49,7 +50,8 @@ func TestSelectEndpointsSkipsUnsupportedTransport(t *testing.T) {
 
 	results := SelectEndpoints([]core.DiscoveredEndpoint{
 		{
-			Address:   "127.0.0.1",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "127.0.0.1",
 			Port:      5353,
 			Transport: "udp",
 			State:     "bound",
@@ -70,7 +72,8 @@ func TestSelectEndpointsSkipsTCPWithoutHints(t *testing.T) {
 
 	results := SelectEndpoints([]core.DiscoveredEndpoint{
 		{
-			Address:   "127.0.0.1",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "127.0.0.1",
 			Port:      8080,
 			Transport: "tcp",
 			State:     "listening",
@@ -91,7 +94,8 @@ func TestSelectEndpointsSkipsUnsupportedHints(t *testing.T) {
 
 	results := SelectEndpoints([]core.DiscoveredEndpoint{
 		{
-			Address:   "127.0.0.1",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "127.0.0.1",
 			Port:      22,
 			Transport: "tcp",
 			State:     "listening",
@@ -119,7 +123,8 @@ func TestSelectEndpointsSkipsDiscoveryErrors(t *testing.T) {
 
 	results := SelectEndpoints([]core.DiscoveredEndpoint{
 		{
-			Address:   "0.0.0.0",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "0.0.0.0",
 			Port:      443,
 			Transport: "tcp",
 			State:     "listening",
@@ -148,7 +153,8 @@ func TestSelectEndpointsClonesDiscoverySlices(t *testing.T) {
 
 	input := []core.DiscoveredEndpoint{
 		{
-			Address:   "0.0.0.0",
+			ScopeKind: core.EndpointScopeKindLocal,
+			Host:      "0.0.0.0",
 			Port:      443,
 			Transport: "tcp",
 			State:     "listening",
