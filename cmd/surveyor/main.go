@@ -14,9 +14,18 @@ import (
 
 	"github.com/steadytao/surveyor/internal/config"
 	"github.com/steadytao/surveyor/internal/core"
+	"github.com/steadytao/surveyor/internal/discovery"
 	"github.com/steadytao/surveyor/internal/outputs"
 	"github.com/steadytao/surveyor/internal/scanners/tlsinventory"
 )
+
+type localDiscoverer interface {
+	Enumerate(context.Context) ([]core.DiscoveredEndpoint, error)
+}
+
+var newLocalDiscoverer = func() localDiscoverer {
+	return discovery.LocalEnumerator{}
+}
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, time.Now))
@@ -30,7 +39,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time
 
 	switch args[0] {
 	case "discover":
-		return runDiscover(args[1:], stdout, stderr)
+		return runDiscover(args[1:], stdout, stderr, now)
 	case "scan":
 		return runScan(args[1:], stdout, stderr, now)
 	case "-h", "--help", "help":
@@ -43,7 +52,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time
 	}
 }
 
-func runDiscover(args []string, stdout io.Writer, stderr io.Writer) int {
+func runDiscover(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
 	if len(args) == 0 {
 		printDiscoverUsage(stderr)
 		return 2
@@ -51,7 +60,7 @@ func runDiscover(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	switch args[0] {
 	case "local":
-		return runDiscoverLocal(args[1:], stdout, stderr)
+		return runDiscoverLocal(args[1:], stdout, stderr, now)
 	case "-h", "--help", "help":
 		printDiscoverUsage(stdout)
 		return 0
@@ -162,7 +171,7 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 	return 0
 }
 
-func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer) int {
+func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
 	fs := flag.NewFlagSet("surveyor discover local", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
@@ -189,8 +198,49 @@ func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 2
 	}
 
-	fmt.Fprintln(stderr, "discover local is not implemented yet")
-	return 1
+	discoverNow := now
+	if discoverNow == nil {
+		discoverNow = time.Now
+	}
+
+	results, err := newLocalDiscoverer().Enumerate(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "discover local: %v\n", err)
+		return 1
+	}
+
+	report := outputs.BuildDiscoveryReport(results, discoverNow().UTC())
+
+	if *jsonPath != "" {
+		jsonData, err := outputs.MarshalDiscoveryJSON(report)
+		if err != nil {
+			fmt.Fprintf(stderr, "build discovery JSON output: %v\n", err)
+			return 1
+		}
+
+		if err := writeOutputFile(*jsonPath, jsonData); err != nil {
+			fmt.Fprintf(stderr, "write discovery JSON output %q: %v\n", *jsonPath, err)
+			return 1
+		}
+	}
+
+	markdown := outputs.RenderDiscoveryMarkdown(report)
+
+	if *markdownPath != "" {
+		if err := writeOutputFile(*markdownPath, []byte(markdown)); err != nil {
+			fmt.Fprintf(stderr, "write discovery Markdown output %q: %v\n", *markdownPath, err)
+			return 1
+		}
+	}
+
+	if *markdownPath == "" && *jsonPath == "" {
+		if _, err := io.WriteString(stdout, markdown); err != nil {
+			fmt.Fprintf(stderr, "write stdout: %v\n", err)
+			return 1
+		}
+	}
+
+	return 0
 }
 
 func resolveTargets(configPath string, targetsArg string) ([]config.Target, error) {
@@ -268,7 +318,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
-	fmt.Fprintln(w, "  discover local  Enumerate planned local discovery scope and emit future Markdown and JSON output")
+	fmt.Fprintln(w, "  discover local  Enumerate local endpoints and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  scan tls    Scan explicit TLS targets and emit Markdown and optional JSON output")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor discover local --help' for discovery-specific help.")
@@ -293,7 +343,7 @@ func printDiscoverLocalUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  Enumerate planned local discovery scope once implemented.")
+	fmt.Fprintln(w, "  Enumerate local endpoints and emit discovery output.")
 	fmt.Fprintln(w, "  This command does not perform active probing or verified protocol scans.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")

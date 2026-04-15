@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/steadytao/surveyor/internal/core"
 )
 
 func TestParseTargetsArg(t *testing.T) {
@@ -106,22 +110,40 @@ func TestRunDiscoverLocalHelp(t *testing.T) {
 	}
 }
 
-func TestRunDiscoverLocalReturnsNotImplemented(t *testing.T) {
-	t.Parallel()
+func TestRunDiscoverLocalWritesMarkdownToStdout(t *testing.T) {
+	originalDiscoverer := newLocalDiscoverer
+	t.Cleanup(func() {
+		newLocalDiscoverer = originalDiscoverer
+	})
+	newLocalDiscoverer = func() localDiscoverer {
+		return stubLocalDiscoverer{
+			results: []core.DiscoveredEndpoint{
+				{
+					Address:   "127.0.0.1",
+					Port:      443,
+					Transport: "tcp",
+					State:     "listening",
+					Hints: []core.DiscoveryHint{
+						{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+					},
+				},
+			},
+		}
+	}
 
 	var stdout strings.Builder
 	var stderr strings.Builder
 
 	exitCode := run([]string{"discover", "local"}, &stdout, &stderr, fixedNow)
 
-	if exitCode != 1 {
-		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
 	}
-	if stdout.Len() != 0 {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
+	if !strings.Contains(stdout.String(), "# Surveyor Discovery Report") {
+		t.Fatalf("stdout = %q, want discovery markdown output", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "discover local is not implemented yet") {
-		t.Fatalf("stderr = %q, want explicit not implemented message", stderr.String())
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
 }
 
@@ -138,6 +160,84 @@ func TestRunDiscoverLocalRejectsPositionalArguments(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "does not accept positional arguments") {
 		t.Fatalf("stderr = %q, want positional argument rejection", stderr.String())
+	}
+}
+
+func TestRunDiscoverLocalWritesOutputs(t *testing.T) {
+	originalDiscoverer := newLocalDiscoverer
+	t.Cleanup(func() {
+		newLocalDiscoverer = originalDiscoverer
+	})
+	newLocalDiscoverer = func() localDiscoverer {
+		return stubLocalDiscoverer{
+			results: []core.DiscoveredEndpoint{
+				{
+					Address:   "0.0.0.0",
+					Port:      443,
+					Transport: "tcp",
+					State:     "listening",
+				},
+			},
+		}
+	}
+
+	tempDir := t.TempDir()
+	markdownPath := filepath.Join(tempDir, "discovery.md")
+	jsonPath := filepath.Join(tempDir, "discovery.json")
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"discover",
+		"local",
+		"--output", markdownPath,
+		"--json", jsonPath,
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty when file outputs are requested", stdout.String())
+	}
+
+	markdownData, err := os.ReadFile(markdownPath)
+	if err != nil {
+		t.Fatalf("ReadFile(markdown) error = %v", err)
+	}
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile(json) error = %v", err)
+	}
+
+	if !strings.Contains(string(markdownData), "# Surveyor Discovery Report") {
+		t.Fatalf("markdown output missing discovery heading\n%s", string(markdownData))
+	}
+	if !strings.Contains(string(jsonData), "\"total_endpoints\": 1") {
+		t.Fatalf("json output missing discovery summary\n%s", string(jsonData))
+	}
+}
+
+func TestRunDiscoverLocalFailsOnEnumeratorError(t *testing.T) {
+	originalDiscoverer := newLocalDiscoverer
+	t.Cleanup(func() {
+		newLocalDiscoverer = originalDiscoverer
+	})
+	newLocalDiscoverer = func() localDiscoverer {
+		return stubLocalDiscoverer{err: errors.New("enumeration failed")}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"discover", "local"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "discover local: enumeration failed") {
+		t.Fatalf("stderr = %q, want enumerator error", stderr.String())
 	}
 }
 
@@ -331,4 +431,17 @@ func splitServerAddress(t *testing.T, address string) (string, string) {
 	}
 
 	return host, port
+}
+
+type stubLocalDiscoverer struct {
+	results []core.DiscoveredEndpoint
+	err     error
+}
+
+func (d stubLocalDiscoverer) Enumerate(context.Context) ([]core.DiscoveredEndpoint, error) {
+	if d.err != nil {
+		return nil, d.err
+	}
+
+	return d.results, nil
 }
