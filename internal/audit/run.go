@@ -44,7 +44,7 @@ func (r LocalRunner) Run(ctx context.Context) ([]core.AuditResult, error) {
 // RemoteRunner performs the current remote audit workflow: scoped remote
 // discovery, selection and supported scanner handoff.
 type RemoteRunner struct {
-	Scope      config.SubnetScope
+	Scope      config.RemoteScope
 	Discoverer Discoverer
 	TLSScanner TargetScanner
 	Select     SelectFunc

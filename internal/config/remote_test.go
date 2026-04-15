@@ -7,18 +7,21 @@ import (
 	"time"
 )
 
-func TestParseSubnetScopeDefaults(t *testing.T) {
+func TestParseRemoteScopeDefaults(t *testing.T) {
 	t.Parallel()
 
-	scope, err := ParseSubnetScope(SubnetScopeInput{
+	scope, err := ParseRemoteScope(RemoteScopeInput{
 		CIDR:   "10.0.0.23/24",
 		Ports:  "8443,443,443",
 		DryRun: true,
 	})
 	if err != nil {
-		t.Fatalf("ParseSubnetScope() error = %v", err)
+		t.Fatalf("ParseRemoteScope() error = %v", err)
 	}
 
+	if got, want := scope.InputKind, RemoteScopeInputKindCIDR; got != want {
+		t.Fatalf("scope.InputKind = %q, want %q", got, want)
+	}
 	if got, want := scope.CIDR.String(), "10.0.0.0/24"; got != want {
 		t.Fatalf("scope.CIDR = %q, want %q", got, want)
 	}
@@ -45,10 +48,10 @@ func TestParseSubnetScopeDefaults(t *testing.T) {
 	}
 }
 
-func TestParseSubnetScopeOverrides(t *testing.T) {
+func TestParseRemoteScopeOverrides(t *testing.T) {
 	t.Parallel()
 
-	scope, err := ParseSubnetScope(SubnetScopeInput{
+	scope, err := ParseRemoteScope(RemoteScopeInput{
 		CIDR:           "10.0.0.0/25",
 		Ports:          "9443,443",
 		Profile:        "balanced",
@@ -57,7 +60,7 @@ func TestParseSubnetScopeOverrides(t *testing.T) {
 		Timeout:        5 * time.Second,
 	})
 	if err != nil {
-		t.Fatalf("ParseSubnetScope() error = %v", err)
+		t.Fatalf("ParseRemoteScope() error = %v", err)
 	}
 
 	if got, want := scope.Profile, RemoteProfileBalanced; got != want {
@@ -80,7 +83,7 @@ func TestParseSubnetScopeOverrides(t *testing.T) {
 	}
 }
 
-func TestParseSubnetScopeProfileDefaults(t *testing.T) {
+func TestParseRemoteScopeProfileDefaults(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -119,13 +122,13 @@ func TestParseSubnetScopeProfileDefaults(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			scope, err := ParseSubnetScope(SubnetScopeInput{
+			scope, err := ParseRemoteScope(RemoteScopeInput{
 				CIDR:    "10.0.0.0/24",
 				Ports:   "443",
 				Profile: testCase.profile,
 			})
 			if err != nil {
-				t.Fatalf("ParseSubnetScope() error = %v", err)
+				t.Fatalf("ParseRemoteScope() error = %v", err)
 			}
 
 			if got, want := scope.Profile, testCase.wantProfile; got != want {
@@ -141,24 +144,24 @@ func TestParseSubnetScopeProfileDefaults(t *testing.T) {
 	}
 }
 
-func TestParseSubnetScopeInvalidInput(t *testing.T) {
+func TestParseRemoteScopeInvalidInput(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name        string
-		input       SubnetScopeInput
+		input       RemoteScopeInput
 		wantErrText string
 	}{
 		{
 			name: "missing scope",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				Ports: "443",
 			},
 			wantErrText: "--cidr is required",
 		},
 		{
 			name: "invalid cidr",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:  "10.0.0.0/99",
 				Ports: "443",
 			},
@@ -166,14 +169,14 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		},
 		{
 			name: "missing ports",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR: "10.0.0.0/24",
 			},
 			wantErrText: "--ports is required",
 		},
 		{
 			name: "blank port entry",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:  "10.0.0.0/24",
 				Ports: "443, ,8443",
 			},
@@ -181,7 +184,7 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		},
 		{
 			name: "non numeric port",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:  "10.0.0.0/24",
 				Ports: "443,https",
 			},
@@ -189,7 +192,7 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		},
 		{
 			name: "port out of range",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:  "10.0.0.0/24",
 				Ports: "70000",
 			},
@@ -197,7 +200,7 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		},
 		{
 			name: "invalid profile",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:    "10.0.0.0/24",
 				Ports:   "443",
 				Profile: "reckless",
@@ -206,7 +209,7 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		},
 		{
 			name: "negative max hosts",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:     "10.0.0.0/24",
 				Ports:    "443",
 				MaxHosts: -1,
@@ -215,7 +218,7 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		},
 		{
 			name: "negative max concurrency",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:           "10.0.0.0/24",
 				Ports:          "443",
 				MaxConcurrency: -1,
@@ -224,7 +227,7 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		},
 		{
 			name: "negative timeout",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:    "10.0.0.0/24",
 				Ports:   "443",
 				Timeout: -1 * time.Second,
@@ -233,7 +236,7 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		},
 		{
 			name: "scope exceeds max hosts",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:     "10.0.0.0/24",
 				Ports:    "443",
 				MaxHosts: 64,
@@ -242,7 +245,7 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		},
 		{
 			name: "host count too large",
-			input: SubnetScopeInput{
+			input: RemoteScopeInput{
 				CIDR:  "2001:db8::/64",
 				Ports: "443",
 			},
@@ -256,13 +259,13 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := ParseSubnetScope(testCase.input)
+			_, err := ParseRemoteScope(testCase.input)
 			if err == nil {
-				t.Fatal("ParseSubnetScope() error = nil, want non-nil")
+				t.Fatal("ParseRemoteScope() error = nil, want non-nil")
 			}
 
 			if !strings.Contains(err.Error(), testCase.wantErrText) {
-				t.Fatalf("ParseSubnetScope() error = %q, want substring %q", err.Error(), testCase.wantErrText)
+				t.Fatalf("ParseRemoteScope() error = %q, want substring %q", err.Error(), testCase.wantErrText)
 			}
 		})
 	}

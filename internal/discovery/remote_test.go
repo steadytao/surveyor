@@ -16,14 +16,14 @@ import (
 func TestRemoteEnumeratorEnumerateRecordsResponsiveAndFailedAttempts(t *testing.T) {
 	t.Parallel()
 
-	scope, err := config.ParseSubnetScope(config.SubnetScopeInput{
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
 		CIDR:           "10.0.0.0/30",
 		Ports:          "8443,443",
 		MaxConcurrency: 3,
 		Timeout:        2 * time.Second,
 	})
 	if err != nil {
-		t.Fatalf("ParseSubnetScope() error = %v", err)
+		t.Fatalf("ParseRemoteScope() error = %v", err)
 	}
 
 	enumerator := RemoteEnumerator{
@@ -106,14 +106,14 @@ func TestRemoteEnumeratorEnumerateRecordsResponsiveAndFailedAttempts(t *testing.
 func TestRemoteEnumeratorEnumerateBoundsConcurrency(t *testing.T) {
 	t.Parallel()
 
-	scope, err := config.ParseSubnetScope(config.SubnetScopeInput{
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
 		CIDR:           "10.0.0.0/30",
 		Ports:          "443",
 		MaxConcurrency: 2,
 		Timeout:        time.Second,
 	})
 	if err != nil {
-		t.Fatalf("ParseSubnetScope() error = %v", err)
+		t.Fatalf("ParseRemoteScope() error = %v", err)
 	}
 
 	var mu sync.Mutex
@@ -170,14 +170,14 @@ func TestRemoteEnumeratorEnumerateBoundsConcurrency(t *testing.T) {
 func TestRemoteEnumeratorEnumerateReturnsContextCancellation(t *testing.T) {
 	t.Parallel()
 
-	scope, err := config.ParseSubnetScope(config.SubnetScopeInput{
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
 		CIDR:           "10.0.0.0/30",
 		Ports:          "443",
 		MaxConcurrency: 2,
 		Timeout:        time.Second,
 	})
 	if err != nil {
-		t.Fatalf("ParseSubnetScope() error = %v", err)
+		t.Fatalf("ParseRemoteScope() error = %v", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -209,12 +209,12 @@ func TestRemoteEnumeratorEnumerateReturnsContextCancellation(t *testing.T) {
 func TestExpandRemoteHostsReturnsCanonicalAddressOrder(t *testing.T) {
 	t.Parallel()
 
-	scope, err := config.ParseSubnetScope(config.SubnetScopeInput{
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
 		CIDR:  "10.0.0.9/30",
 		Ports: "443",
 	})
 	if err != nil {
-		t.Fatalf("ParseSubnetScope() error = %v", err)
+		t.Fatalf("ParseRemoteScope() error = %v", err)
 	}
 
 	got, err := expandRemoteHosts(scope.CIDR)

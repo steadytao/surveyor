@@ -37,7 +37,7 @@ var newLocalAuditRunner = func(now func() time.Time) auditRunner {
 	}
 }
 
-var newRemoteAuditRunner = func(scope config.SubnetScope, now func() time.Time) auditRunner {
+var newRemoteAuditRunner = func(scope config.RemoteScope, now func() time.Time) auditRunner {
 	return auditflow.RemoteRunner{
 		Scope:      scope,
 		TLSScanner: tlsinventory.Scanner{Now: now, Timeout: scope.Timeout},
@@ -48,7 +48,7 @@ var newLocalDiscoverer = func() discoverer {
 	return discovery.LocalEnumerator{}
 }
 
-var newRemoteDiscoverer = func(scope config.SubnetScope) discoverer {
+var newRemoteDiscoverer = func(scope config.RemoteScope) discoverer {
 	return discovery.RemoteEnumerator{
 		Scope: scope,
 	}
@@ -299,7 +299,7 @@ func runDiscoverSubnet(args []string, stdout io.Writer, stderr io.Writer, now fu
 		return 2
 	}
 
-	scope, err := config.ParseSubnetScope(config.SubnetScopeInput{
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
 		CIDR:           *cidr,
 		Ports:          *ports,
 		Profile:        *profile,
@@ -319,7 +319,7 @@ func runDiscoverSubnet(args []string, stdout io.Writer, stderr io.Writer, now fu
 			return 2
 		}
 
-		plan := renderSubnetExecutionPlanMarkdown("discover subnet", scope, "none, discovery only")
+		plan := renderRemoteExecutionPlanMarkdown("discover subnet", scope, "none, discovery only")
 		if *markdownPath != "" {
 			if err := writeOutputFile(*markdownPath, []byte(plan)); err != nil {
 				fmt.Fprintf(stderr, "write dry-run Markdown output %q: %v\n", *markdownPath, err)
@@ -347,7 +347,7 @@ func runDiscoverSubnet(args []string, stdout io.Writer, stderr io.Writer, now fu
 		return 1
 	}
 
-	reportScope, execution := subnetReportMetadata(scope)
+	reportScope, execution := remoteReportMetadata(scope)
 	return writeDiscoveryOutputs("discover subnet", results, discoverNow().UTC(), reportScope, execution, stdout, stderr, *markdownPath, *jsonPath)
 }
 
@@ -462,7 +462,7 @@ func runAuditSubnet(args []string, stdout io.Writer, stderr io.Writer, now func(
 		return 2
 	}
 
-	scope, err := config.ParseSubnetScope(config.SubnetScopeInput{
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
 		CIDR:           *cidr,
 		Ports:          *ports,
 		Profile:        *profile,
@@ -482,7 +482,7 @@ func runAuditSubnet(args []string, stdout io.Writer, stderr io.Writer, now func(
 			return 2
 		}
 
-		plan := renderSubnetExecutionPlanMarkdown("audit subnet", scope, "tls")
+		plan := renderRemoteExecutionPlanMarkdown("audit subnet", scope, "tls")
 		if *markdownPath != "" {
 			if err := writeOutputFile(*markdownPath, []byte(plan)); err != nil {
 				fmt.Fprintf(stderr, "write dry-run Markdown output %q: %v\n", *markdownPath, err)
@@ -510,7 +510,7 @@ func runAuditSubnet(args []string, stdout io.Writer, stderr io.Writer, now func(
 		return 1
 	}
 
-	reportScope, execution := subnetReportMetadata(scope)
+	reportScope, execution := remoteReportMetadata(scope)
 	return writeAuditOutputs("audit subnet", results, auditNow().UTC(), reportScope, execution, stdout, stderr, *markdownPath, *jsonPath)
 }
 
@@ -747,12 +747,13 @@ func printDiscoverSubnetUsage(w io.Writer) {
 	fmt.Fprintln(w, "  -j, --json          Write JSON output to this path")
 }
 
-func renderSubnetExecutionPlanMarkdown(commandName string, scope config.SubnetScope, supportedScanners string) string {
+func renderRemoteExecutionPlanMarkdown(commandName string, scope config.RemoteScope, supportedScanners string) string {
 	var builder strings.Builder
 
 	builder.WriteString("# Surveyor Execution Plan\n\n")
 	builder.WriteString(fmt.Sprintf("- Command: %s\n", commandName))
 	builder.WriteString(fmt.Sprintf("- Scope kind: remote\n"))
+	builder.WriteString(fmt.Sprintf("- Input kind: %s\n", scope.InputKind))
 	builder.WriteString(fmt.Sprintf("- Scope: %s\n", scope.CIDR.String()))
 	builder.WriteString(fmt.Sprintf("- Host count: %d\n", scope.HostCount))
 	builder.WriteString(fmt.Sprintf("- Ports: %s\n", joinPorts(scope.Ports)))
@@ -772,9 +773,10 @@ func localReportScopeMetadata() *core.ReportScope {
 	}
 }
 
-func subnetReportMetadata(scope config.SubnetScope) (*core.ReportScope, *core.ReportExecution) {
+func remoteReportMetadata(scope config.RemoteScope) (*core.ReportScope, *core.ReportExecution) {
 	return &core.ReportScope{
 			ScopeKind: core.EndpointScopeKindRemote,
+			InputKind: core.ReportScopeInputKind(scope.InputKind),
 			CIDR:      scope.CIDR.String(),
 			Ports:     append([]int(nil), scope.Ports...),
 		}, &core.ReportExecution{

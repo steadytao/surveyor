@@ -33,7 +33,7 @@ type indexedEndpoint struct {
 // observed result per attempted host:port pair. It attaches only conservative
 // port-based hints for responsive endpoints and does not run verified scanners.
 type RemoteEnumerator struct {
-	Scope         config.SubnetScope
+	Scope         config.RemoteScope
 	probeEndpoint endpointProber
 }
 

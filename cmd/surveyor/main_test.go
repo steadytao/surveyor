@@ -329,7 +329,7 @@ func TestRunAuditSubnetWritesMarkdownToStdout(t *testing.T) {
 	t.Cleanup(func() {
 		newRemoteAuditRunner = originalRunner
 	})
-	newRemoteAuditRunner = func(config.SubnetScope, func() time.Time) auditRunner {
+	newRemoteAuditRunner = func(config.RemoteScope, func() time.Time) auditRunner {
 		return stubLocalAuditRunner{
 			results: []core.AuditResult{
 				{
@@ -364,7 +364,7 @@ func TestRunAuditSubnetWritesMarkdownToStdout(t *testing.T) {
 	if !strings.Contains(stdout.String(), "# Surveyor Audit Report") {
 		t.Fatalf("stdout = %q, want audit markdown output", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "CIDR: 10.0.0.0/30") {
+	if !strings.Contains(stdout.String(), "Input kind: cidr") || !strings.Contains(stdout.String(), "CIDR: 10.0.0.0/30") {
 		t.Fatalf("stdout = %q, want remote scope metadata", stdout.String())
 	}
 }
@@ -374,7 +374,7 @@ func TestRunAuditSubnetWritesOutputs(t *testing.T) {
 	t.Cleanup(func() {
 		newRemoteAuditRunner = originalRunner
 	})
-	newRemoteAuditRunner = func(config.SubnetScope, func() time.Time) auditRunner {
+	newRemoteAuditRunner = func(config.RemoteScope, func() time.Time) auditRunner {
 		return stubLocalAuditRunner{
 			results: []core.AuditResult{
 				{
@@ -430,7 +430,7 @@ func TestRunAuditSubnetWritesOutputs(t *testing.T) {
 	if !strings.Contains(string(markdownData), "# Surveyor Audit Report") {
 		t.Fatalf("markdown output missing audit heading\n%s", string(markdownData))
 	}
-	if !strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") || !strings.Contains(string(jsonData), "\"profile\": \"cautious\"") || !strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
+	if !strings.Contains(string(jsonData), "\"input_kind\": \"cidr\"") || !strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") || !strings.Contains(string(jsonData), "\"profile\": \"cautious\"") || !strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
 		t.Fatalf("json output missing remote audit metadata\n%s", string(jsonData))
 	}
 }
@@ -440,7 +440,7 @@ func TestRunAuditSubnetFailsOnRunnerError(t *testing.T) {
 	t.Cleanup(func() {
 		newRemoteAuditRunner = originalRunner
 	})
-	newRemoteAuditRunner = func(config.SubnetScope, func() time.Time) auditRunner {
+	newRemoteAuditRunner = func(config.RemoteScope, func() time.Time) auditRunner {
 		return stubLocalAuditRunner{err: errors.New("remote audit failed")}
 	}
 
@@ -464,7 +464,7 @@ func TestRunAuditSubnetDryRunWritesPlan(t *testing.T) {
 	})
 
 	called := false
-	newRemoteAuditRunner = func(config.SubnetScope, func() time.Time) auditRunner {
+	newRemoteAuditRunner = func(config.RemoteScope, func() time.Time) auditRunner {
 		called = true
 		return stubLocalAuditRunner{}
 	}
@@ -744,7 +744,7 @@ func TestRunDiscoverSubnetWritesMarkdownToStdout(t *testing.T) {
 	t.Cleanup(func() {
 		newRemoteDiscoverer = originalDiscoverer
 	})
-	newRemoteDiscoverer = func(config.SubnetScope) discoverer {
+	newRemoteDiscoverer = func(config.RemoteScope) discoverer {
 		return stubLocalDiscoverer{
 			results: []core.DiscoveredEndpoint{
 				{
@@ -772,7 +772,7 @@ func TestRunDiscoverSubnetWritesMarkdownToStdout(t *testing.T) {
 	if !strings.Contains(stdout.String(), "# Surveyor Discovery Report") {
 		t.Fatalf("stdout = %q, want discovery markdown output", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "CIDR: 10.0.0.0/30") {
+	if !strings.Contains(stdout.String(), "Input kind: cidr") || !strings.Contains(stdout.String(), "CIDR: 10.0.0.0/30") {
 		t.Fatalf("stdout = %q, want remote scope metadata", stdout.String())
 	}
 }
@@ -782,7 +782,7 @@ func TestRunDiscoverSubnetWritesOutputs(t *testing.T) {
 	t.Cleanup(func() {
 		newRemoteDiscoverer = originalDiscoverer
 	})
-	newRemoteDiscoverer = func(config.SubnetScope) discoverer {
+	newRemoteDiscoverer = func(config.RemoteScope) discoverer {
 		return stubLocalDiscoverer{
 			results: []core.DiscoveredEndpoint{
 				{
@@ -831,7 +831,7 @@ func TestRunDiscoverSubnetWritesOutputs(t *testing.T) {
 	if !strings.Contains(string(markdownData), "# Surveyor Discovery Report") {
 		t.Fatalf("markdown output missing discovery heading\n%s", string(markdownData))
 	}
-	if !strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") || !strings.Contains(string(jsonData), "\"profile\": \"cautious\"") || !strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
+	if !strings.Contains(string(jsonData), "\"input_kind\": \"cidr\"") || !strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") || !strings.Contains(string(jsonData), "\"profile\": \"cautious\"") || !strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
 		t.Fatalf("json output missing remote discovery metadata\n%s", string(jsonData))
 	}
 }
@@ -841,7 +841,7 @@ func TestRunDiscoverSubnetFailsOnEnumeratorError(t *testing.T) {
 	t.Cleanup(func() {
 		newRemoteDiscoverer = originalDiscoverer
 	})
-	newRemoteDiscoverer = func(config.SubnetScope) discoverer {
+	newRemoteDiscoverer = func(config.RemoteScope) discoverer {
 		return stubLocalDiscoverer{err: errors.New("remote enumeration failed")}
 	}
 
@@ -865,7 +865,7 @@ func TestRunDiscoverSubnetDryRunWritesPlan(t *testing.T) {
 	})
 
 	called := false
-	newRemoteDiscoverer = func(config.SubnetScope) discoverer {
+	newRemoteDiscoverer = func(config.RemoteScope) discoverer {
 		called = true
 		return stubLocalDiscoverer{}
 	}

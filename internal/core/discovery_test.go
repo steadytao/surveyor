@@ -63,6 +63,12 @@ func TestDiscoveryReportJSONShape(t *testing.T) {
 
 	report := DiscoveryReport{
 		GeneratedAt: time.Date(2026, time.April, 15, 1, 45, 0, 0, time.UTC),
+		Scope: &ReportScope{
+			ScopeKind: EndpointScopeKindRemote,
+			InputKind: ReportScopeInputKindCIDR,
+			CIDR:      "10.0.0.0/30",
+			Ports:     []int{443},
+		},
 		Results: []DiscoveredEndpoint{
 			{
 				ScopeKind: EndpointScopeKindLocal,
@@ -86,6 +92,7 @@ func TestDiscoveryReportJSONShape(t *testing.T) {
 	jsonText := string(data)
 	wantSubstrings := []string{
 		`"generated_at":"2026-04-15T01:45:00Z"`,
+		`"scope":{"scope_kind":"remote","input_kind":"cidr","cidr":"10.0.0.0/30","ports":[443]}`,
 		`"results":[`,
 		`"scope_kind":"local"`,
 		`"summary":{"total_endpoints":1,"tcp_endpoints":0,"udp_endpoints":1}`,

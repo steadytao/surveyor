@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// RemoteProfile controls the default pace for future remote inventory commands.
+// RemoteProfile controls the default pace for remote inventory commands.
 type RemoteProfile string
 
 const (
@@ -19,9 +19,18 @@ const (
 	RemoteProfileAggressive RemoteProfile = "aggressive"
 )
 
-// SubnetScopeInput is the raw input shape for future remote subnet commands.
+// RemoteScopeInputKind records which declared remote scope shape the command is
+// trying to build.
+type RemoteScopeInputKind string
+
+const (
+	RemoteScopeInputKindCIDR        RemoteScopeInputKind = "cidr"
+	RemoteScopeInputKindTargetsFile RemoteScopeInputKind = "targets_file"
+)
+
+// RemoteScopeInput is the raw input shape for remote commands.
 // Zero-valued pace controls mean "use the selected profile default".
-type SubnetScopeInput struct {
+type RemoteScopeInput struct {
 	CIDR           string
 	Ports          string
 	Profile        string
@@ -31,8 +40,12 @@ type SubnetScopeInput struct {
 	DryRun         bool
 }
 
-// SubnetScope is the validated and normalised scope for future remote subnet commands.
-type SubnetScope struct {
+// RemoteScope is the validated and normalised scope contract remote commands
+// execute against. The current implementation only produces CIDR-backed scope,
+// but the type is broader so later file-backed input does not require another
+// subnet-shaped rewrite through the codebase.
+type RemoteScope struct {
+	InputKind      RemoteScopeInputKind
 	CIDR           netip.Prefix
 	Ports          []int
 	Profile        RemoteProfile
@@ -65,29 +78,31 @@ var remoteProfileDefaultsByProfile = map[RemoteProfile]remoteProfileDefaults{
 
 const defaultRemoteMaxHosts = 256
 
-// ParseSubnetScope validates and normalises raw remote subnet input into the
-// contract future remote commands will execute against.
-func ParseSubnetScope(input SubnetScopeInput) (SubnetScope, error) {
+// ParseRemoteScope validates and normalises raw remote input into the current
+// remote-scope contract. Today that means explicit CIDR scope and explicit
+// ports; later remote input kinds should extend this contract rather than
+// replace it.
+func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	cidrText := strings.TrimSpace(input.CIDR)
 
 	if cidrText == "" {
-		return SubnetScope{}, fmt.Errorf("--cidr is required")
+		return RemoteScope{}, fmt.Errorf("--cidr is required")
 	}
 
 	profile, err := parseRemoteProfile(input.Profile)
 	if err != nil {
-		return SubnetScope{}, err
+		return RemoteScope{}, err
 	}
 
 	prefix, err := netip.ParsePrefix(cidrText)
 	if err != nil {
-		return SubnetScope{}, fmt.Errorf("invalid --cidr: %w", err)
+		return RemoteScope{}, fmt.Errorf("invalid --cidr: %w", err)
 	}
 	prefix = prefix.Masked()
 
 	ports, err := parsePorts(input.Ports)
 	if err != nil {
-		return SubnetScope{}, err
+		return RemoteScope{}, err
 	}
 
 	maxHosts := input.MaxHosts
@@ -95,15 +110,15 @@ func ParseSubnetScope(input SubnetScopeInput) (SubnetScope, error) {
 		maxHosts = defaultRemoteMaxHosts
 	}
 	if maxHosts < 0 {
-		return SubnetScope{}, fmt.Errorf("--max-hosts must not be negative")
+		return RemoteScope{}, fmt.Errorf("--max-hosts must not be negative")
 	}
 
 	hostCount, err := subnetHostCount(prefix)
 	if err != nil {
-		return SubnetScope{}, err
+		return RemoteScope{}, err
 	}
 	if hostCount > maxHosts {
-		return SubnetScope{}, fmt.Errorf("--cidr expands to %d hosts, which exceeds --max-hosts=%d", hostCount, maxHosts)
+		return RemoteScope{}, fmt.Errorf("--cidr expands to %d hosts, which exceeds --max-hosts=%d", hostCount, maxHosts)
 	}
 
 	defaults := remoteProfileDefaultsByProfile[profile]
@@ -113,7 +128,7 @@ func ParseSubnetScope(input SubnetScopeInput) (SubnetScope, error) {
 		maxConcurrency = defaults.maxConcurrency
 	}
 	if maxConcurrency < 0 {
-		return SubnetScope{}, fmt.Errorf("--max-concurrency must not be negative")
+		return RemoteScope{}, fmt.Errorf("--max-concurrency must not be negative")
 	}
 
 	timeout := input.Timeout
@@ -121,10 +136,11 @@ func ParseSubnetScope(input SubnetScopeInput) (SubnetScope, error) {
 		timeout = defaults.timeout
 	}
 	if timeout < 0 {
-		return SubnetScope{}, fmt.Errorf("--timeout must not be negative")
+		return RemoteScope{}, fmt.Errorf("--timeout must not be negative")
 	}
 
-	return SubnetScope{
+	return RemoteScope{
+		InputKind:      RemoteScopeInputKindCIDR,
 		CIDR:           prefix,
 		Ports:          ports,
 		Profile:        profile,
