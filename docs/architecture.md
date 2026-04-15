@@ -28,6 +28,11 @@ Current responsibilities:
 
 This layer should stay thin. It should orchestrate existing packages, not reimplement their logic.
 
+Planned next responsibility:
+
+- expose `surveyor audit local`
+- orchestrate discovery and supported scanner handoff without embedding scanner logic in the CLI layer
+
 ### `internal/config`
 
 Owns the input contract.
@@ -70,6 +75,16 @@ Current responsibilities:
 - attach conservative protocol hints based on observed facts
 
 This package should stay observational. It should not perform active probing or scanner-specific verification.
+
+### `internal/audit`
+
+Planned responsibility:
+
+- orchestrate local discovery into supported scanner execution
+- record selection decisions and skip reasons
+- preserve the distinction between discovered facts, hints and verified scan results
+
+This layer should coordinate existing components rather than reimplement discovery or scanner internals.
 
 ### `internal/scanners/tlsinventory`
 
@@ -133,6 +148,21 @@ CLI arguments
   -> JSON / Markdown rendering
 ```
 
+The planned local audit flow is:
+
+```text
+CLI arguments
+  -> cmd/surveyor
+  -> internal/discovery
+  -> []core.DiscoveredEndpoint
+  -> internal/audit selection logic
+  -> supported scanner handoff
+  -> []core.AuditResult
+  -> internal/outputs.BuildAuditReport
+  -> core.AuditReport
+  -> JSON / Markdown rendering
+```
+
 ## What must remain true
 
 The following invariants must remain true as the project grows:
@@ -150,6 +180,7 @@ The current architecture still does not include:
 
 - trust-store validation
 - hostname validation semantics
+- discovery-to-scan orchestration
 - STARTTLS or multi-protocol probing
 - discovery across ranges or cloud inventories
 - policy engines
@@ -168,4 +199,4 @@ Its job is to:
 - attach conservative protocol hints
 - stay distinct from scanner-specific verification
 
-That boundary should remain intact. Future audit flows should not collapse discovery, hinting and verified scanning into one command.
+That boundary should remain intact. Future audit flows should coordinate discovery, selection and verified scanning without collapsing them into one indistinguishable result type.

@@ -235,3 +235,5 @@ Discovery is the foundation for later work such as:
 - additional protocol-specific scanners
 
 It is not itself the full audit layer.
+
+See [docs/audit.md](audit.md) for the planned audit-layer contract.

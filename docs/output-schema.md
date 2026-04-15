@@ -5,6 +5,7 @@ Surveyor's canonical output is JSON.
 Markdown exists for human-readable sharing but it is derived from the same canonical model. If a fact matters, it should exist in the JSON schema first.
 
 The same rule applies to the discovery slice described in [docs/discovery.md](discovery.md).
+The same rule should apply to the planned audit slice described in [docs/audit.md](audit.md).
 
 ## Top-level report
 
@@ -399,3 +400,110 @@ Fields:
 - `tcp_endpoints`: number of discovered TCP endpoints
 - `udp_endpoints`: number of discovered UDP endpoints
 - `hint_breakdown`: counts keyed by hinted protocol label
+
+## Planned audit report
+
+Planned top-level audit report shape:
+
+```json
+{
+  "generated_at": "2026-04-16T02:00:00Z",
+  "results": [],
+  "summary": {}
+}
+```
+
+Fields:
+
+### `generated_at`
+
+- type: RFC3339 UTC timestamp
+- meaning: when the audit report object was assembled
+
+### `results`
+
+- type: array of audit results
+- meaning: one entry per discovered endpoint considered by the audit flow
+
+### `summary`
+
+- type: audit summary object
+- meaning: aggregate counts derived from `results`
+
+## Planned audit result
+
+Planned per-endpoint audit-result shape:
+
+```json
+{
+  "discovered_endpoint": {},
+  "selection": {},
+  "tls_result": {}
+}
+```
+
+Fields:
+
+### `discovered_endpoint`
+
+- type: discovered endpoint object
+- meaning: observed endpoint facts and hints from the discovery layer
+
+### `selection`
+
+- type: selection object
+- meaning: scanner decision for the endpoint, including skipped outcomes
+
+### `tls_result`
+
+- type: target result object
+- optional: yes
+- meaning: verified TLS result when the endpoint is selected for the TLS scanner and the scan runs
+
+## Planned selection object
+
+Planned selection shape:
+
+```json
+{
+  "status": "selected",
+  "selected_scanner": "tls",
+  "reason": "tls hint on tcp/443"
+}
+```
+
+Fields:
+
+- `status`: selection outcome, initially `selected` or `skipped`
+- `selected_scanner`: scanner identifier when selected, initially `tls`
+- `reason`: explicit explanation for the decision
+
+Hints are not verified scans, and selection is not verification.
+
+## Planned audit summary object
+
+Planned audit summary shape:
+
+```json
+{
+  "total_endpoints": 3,
+  "tls_candidates": 1,
+  "scanned_endpoints": 1,
+  "skipped_endpoints": 2,
+  "selection_breakdown": {
+    "tls": 1
+  },
+  "verified_classification_breakdown": {
+    "modern_tls_classical_identity": 1
+  }
+}
+```
+
+Fields:
+
+- `total_endpoints`: total number of discovered endpoints considered by the audit flow
+- `tls_candidates`: endpoints selected for the TLS scanner
+- `scanned_endpoints`: endpoints for which a supported scanner ran
+- `skipped_endpoints`: endpoints not scanned
+- `selection_breakdown`: counts keyed by selected scanner
+- `verified_classification_breakdown`: counts keyed by verified TLS classification where a TLS scan completed
