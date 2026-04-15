@@ -29,6 +29,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time
 	}
 
 	switch args[0] {
+	case "discover":
+		return runDiscover(args[1:], stdout, stderr)
 	case "scan":
 		return runScan(args[1:], stdout, stderr, now)
 	case "-h", "--help", "help":
@@ -37,6 +39,25 @@ func run(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
+		return 2
+	}
+}
+
+func runDiscover(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) == 0 {
+		printDiscoverUsage(stderr)
+		return 2
+	}
+
+	switch args[0] {
+	case "local":
+		return runDiscoverLocal(args[1:], stdout, stderr)
+	case "-h", "--help", "help":
+		printDiscoverUsage(stdout)
+		return 0
+	default:
+		fmt.Fprintf(stderr, "unknown discovery target %q\n\n", args[0])
+		printDiscoverUsage(stderr)
 		return 2
 	}
 }
@@ -141,6 +162,37 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 	return 0
 }
 
+func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer) int {
+	fs := flag.NewFlagSet("surveyor discover local", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		printDiscoverLocalUsage(stderr)
+	}
+
+	markdownPath := fs.String("output", "", "Write Markdown output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+
+	jsonPath := fs.String("json", "", "Write JSON output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+
+		return 2
+	}
+
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "discover local does not accept positional arguments: %s\n\n", strings.Join(fs.Args(), " "))
+		printDiscoverLocalUsage(stderr)
+		return 2
+	}
+
+	fmt.Fprintln(stderr, "discover local is not implemented yet")
+	return 1
+}
+
 func resolveTargets(configPath string, targetsArg string) ([]config.Target, error) {
 	hasConfig := strings.TrimSpace(configPath) != ""
 	hasTargets := strings.TrimSpace(targetsArg) != ""
@@ -212,12 +264,22 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Surveyor")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
+	fmt.Fprintln(w, "  discover local  Enumerate planned local discovery scope and emit future Markdown and JSON output")
 	fmt.Fprintln(w, "  scan tls    Scan explicit TLS targets and emit Markdown and optional JSON output")
 	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'surveyor discover local --help' for discovery-specific help.")
 	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for command-specific help.")
+}
+
+func printDiscoverUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'surveyor discover local --help' for flags and examples.")
 }
 
 func printScanUsage(w io.Writer) {
@@ -225,6 +287,22 @@ func printScanUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for flags and examples.")
+}
+
+func printDiscoverLocalUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w, "  Enumerate planned local discovery scope once implemented.")
+	fmt.Fprintln(w, "  This command does not perform active probing or verified protocol scans.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Examples:")
+	fmt.Fprintln(w, "  surveyor discover local")
+	fmt.Fprintln(w, "  surveyor discover local -o discovery.md -j discovery.json")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
 }
 
 func printScanTLSUsage(w io.Writer) {
