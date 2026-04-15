@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/netip"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ const (
 // Zero-valued pace controls mean "use the selected profile default".
 type RemoteScopeInput struct {
 	CIDR           string
+	TargetsFile    string
 	Ports          string
 	Profile        string
 	MaxHosts       int
@@ -41,12 +43,14 @@ type RemoteScopeInput struct {
 }
 
 // RemoteScope is the validated and normalised scope contract remote commands
-// execute against. The current implementation only produces CIDR-backed scope,
-// but the type is broader so later file-backed input does not require another
-// subnet-shaped rewrite through the codebase.
+// execute against. It already supports CIDR-backed and simple file-backed host
+// scope so later remote inputs do not require another subnet-shaped rewrite
+// through the codebase.
 type RemoteScope struct {
 	InputKind      RemoteScopeInputKind
 	CIDR           netip.Prefix
+	TargetsFile    string
+	Hosts          []string
 	Ports          []int
 	Profile        RemoteProfile
 	MaxHosts       int
@@ -79,13 +83,17 @@ var remoteProfileDefaultsByProfile = map[RemoteProfile]remoteProfileDefaults{
 const defaultRemoteMaxHosts = 256
 
 // ParseRemoteScope validates and normalises raw remote input into the current
-// remote-scope contract. Today that means explicit CIDR scope and explicit
-// ports; later remote input kinds should extend this contract rather than
-// replace it.
+// remote-scope contract. Today that means explicit CIDR scope or a simple
+// file-backed host list, plus explicit ports; later remote input kinds should
+// extend this contract rather than replace it.
 func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	cidrText := strings.TrimSpace(input.CIDR)
+	targetsFileText := strings.TrimSpace(input.TargetsFile)
 
-	if cidrText == "" {
+	if cidrText != "" && targetsFileText != "" {
+		return RemoteScope{}, fmt.Errorf("use either --cidr or --targets-file, not both")
+	}
+	if cidrText == "" && targetsFileText == "" {
 		return RemoteScope{}, fmt.Errorf("--cidr is required")
 	}
 
@@ -93,12 +101,6 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	if err != nil {
 		return RemoteScope{}, err
 	}
-
-	prefix, err := netip.ParsePrefix(cidrText)
-	if err != nil {
-		return RemoteScope{}, fmt.Errorf("invalid --cidr: %w", err)
-	}
-	prefix = prefix.Masked()
 
 	ports, err := parsePorts(input.Ports)
 	if err != nil {
@@ -111,14 +113,6 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 	if maxHosts < 0 {
 		return RemoteScope{}, fmt.Errorf("--max-hosts must not be negative")
-	}
-
-	hostCount, err := subnetHostCount(prefix)
-	if err != nil {
-		return RemoteScope{}, err
-	}
-	if hostCount > maxHosts {
-		return RemoteScope{}, fmt.Errorf("--cidr expands to %d hosts, which exceeds --max-hosts=%d", hostCount, maxHosts)
 	}
 
 	defaults := remoteProfileDefaultsByProfile[profile]
@@ -137,6 +131,46 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 	if timeout < 0 {
 		return RemoteScope{}, fmt.Errorf("--timeout must not be negative")
+	}
+
+	if targetsFileText != "" {
+		hosts, err := parseRemoteTargetsFile(targetsFileText)
+		if err != nil {
+			return RemoteScope{}, err
+		}
+		if len(hosts) == 0 {
+			return RemoteScope{}, fmt.Errorf("--targets-file %q does not contain any hosts", targetsFileText)
+		}
+		if len(hosts) > maxHosts {
+			return RemoteScope{}, fmt.Errorf("--targets-file contains %d hosts, which exceeds --max-hosts=%d", len(hosts), maxHosts)
+		}
+
+		return RemoteScope{
+			InputKind:      RemoteScopeInputKindTargetsFile,
+			TargetsFile:    targetsFileText,
+			Hosts:          hosts,
+			Ports:          ports,
+			Profile:        profile,
+			MaxHosts:       maxHosts,
+			HostCount:      len(hosts),
+			MaxConcurrency: maxConcurrency,
+			Timeout:        timeout,
+			DryRun:         input.DryRun,
+		}, nil
+	}
+
+	prefix, err := netip.ParsePrefix(cidrText)
+	if err != nil {
+		return RemoteScope{}, fmt.Errorf("invalid --cidr: %w", err)
+	}
+	prefix = prefix.Masked()
+
+	hostCount, err := subnetHostCount(prefix)
+	if err != nil {
+		return RemoteScope{}, err
+	}
+	if hostCount > maxHosts {
+		return RemoteScope{}, fmt.Errorf("--cidr expands to %d hosts, which exceeds --max-hosts=%d", hostCount, maxHosts)
 	}
 
 	return RemoteScope{
@@ -199,6 +233,59 @@ func parsePorts(raw string) ([]int, error) {
 
 	sort.Ints(ports)
 	return ports, nil
+}
+
+func parseRemoteTargetsFile(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read --targets-file %q: %w", path, err)
+	}
+
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	hosts := make([]string, 0, len(lines))
+	seen := make(map[string]struct{}, len(lines))
+
+	for _, rawLine := range lines {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		host, err := validateRemoteHost(line)
+		if err != nil {
+			return nil, fmt.Errorf("--targets-file %q: %w", path, err)
+		}
+
+		key := remoteHostKey(host)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+
+		seen[key] = struct{}{}
+		hosts = append(hosts, host)
+	}
+
+	return hosts, nil
+}
+
+func validateRemoteHost(raw string) (string, error) {
+	target, err := ValidateTarget(Target{
+		Host: raw,
+		Port: 1,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return target.Host, nil
+}
+
+func remoteHostKey(host string) string {
+	if address, err := netip.ParseAddr(host); err == nil {
+		return address.String()
+	}
+
+	return strings.ToLower(host)
 }
 
 func subnetHostCount(prefix netip.Prefix) (int, error) {
