@@ -232,6 +232,11 @@ Those are separate steps and should only be added once the current TLS path rema
 
 Scoped remote inventory is now part of the current repository surface. See [docs/remote-inventory.md](remote-inventory.md) for the current boundary and non-goals.
 
+The next planned architectural step is to generalise the current subnet-only
+remote path into a broader remote scope model around `surveyor discover remote`
+and `surveyor audit remote`. See [docs/remote-scope.md](remote-scope.md) for
+that planned contract.
+
 ## Current architectural boundary
 
 The current discovery layer around `surveyor discover local` and `surveyor discover subnet` sits beside scanner-specific execution, not inside it.
@@ -244,3 +249,15 @@ Its job is to:
 - stay distinct from scanner-specific verification
 
 That boundary should remain intact. The current audit flows coordinate discovery, selection and verified scanning without collapsing them into one indistinguishable result type.
+
+## Next planned step
+
+The next planned step after the current `v0.4.x` remote surface is:
+
+- keep the current CIDR-backed remote behaviour working
+- introduce canonical `discover remote` and `audit remote` commands
+- support both `--cidr` and `--targets-file`
+- preserve `discover subnet` and `audit subnet` as compatibility aliases during `v0.5.x`
+
+That should widen the remote scope model without weakening the existing
+discovery, hinting, selection and verified-scanning boundaries.

@@ -195,3 +195,8 @@ The current remote inventory surface does not include:
 Remote inventory should be hardened through real use before Surveyor chooses the second deep scanner.
 
 That keeps the project growing upward before it grows sideways.
+
+The next planned step is remote-scope generalisation rather than another deep
+scanner. See [docs/remote-scope.md](remote-scope.md) for the planned
+`v0.5.0` contract around `discover remote`, `audit remote` and file-backed
+declared scope.
