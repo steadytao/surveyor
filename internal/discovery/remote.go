@@ -30,8 +30,8 @@ type indexedEndpoint struct {
 }
 
 // RemoteEnumerator walks explicitly declared remote scope and records one
-// observed result per attempted host:port pair. It does not attach protocol
-// hints or run verified scanners.
+// observed result per attempted host:port pair. It attaches only conservative
+// port-based hints for responsive endpoints and does not run verified scanners.
 type RemoteEnumerator struct {
 	Scope         config.SubnetScope
 	probeEndpoint endpointProber
@@ -169,11 +169,12 @@ func probeRemoteEndpoint(ctx context.Context, probe endpointProber, task remoteP
 		State:     "candidate",
 	}
 
-	// Remote discovery records reachability facts only. A successful TCP connect
-	// is enough to mark an endpoint responsive, but not enough to claim any
-	// protocol identity.
+	// Remote discovery records reachability facts first. A successful TCP
+	// connect is enough to mark an endpoint responsive, and only then can later
+	// hinting attach conservative port-based suggestions.
 	if err := probe(ctx, task.host, task.port, timeout); err == nil {
 		endpoint.State = "responsive"
+		endpoint.Hints = append(endpoint.Hints, inferHints(endpoint)...)
 	} else {
 		endpoint.Errors = []string{normaliseProbeError(err)}
 	}

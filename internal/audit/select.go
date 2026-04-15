@@ -23,16 +23,21 @@ func SelectEndpoints(endpoints []core.DiscoveredEndpoint) []core.AuditResult {
 
 func selectEndpoint(endpoint core.DiscoveredEndpoint) core.AuditSelection {
 	if len(endpoint.Errors) > 0 {
+		if endpoint.ScopeKind == core.EndpointScopeKindRemote {
+			return skippedSelection("endpoint did not respond during remote discovery")
+		}
+
 		return skippedSelection("discovery result contains errors")
 	}
 
 	// The current audit scope is intentionally narrow. Automatic handoff is
-	// limited to TCP listeners that already carry a conservative TLS hint.
+	// limited to local TCP listeners or remote responsive TCP endpoints that
+	// already carry a conservative TLS hint.
 	if endpoint.Transport != "tcp" {
 		return skippedSelection(fmt.Sprintf("no supported scanner for %s endpoint", endpoint.Transport))
 	}
 
-	if endpoint.State != "listening" {
+	if !isEligibleTCPState(endpoint) {
 		return skippedSelection(fmt.Sprintf("unsupported tcp endpoint state %s", endpoint.State))
 	}
 
@@ -59,6 +64,17 @@ func skippedSelection(reason string) core.AuditSelection {
 	return core.AuditSelection{
 		Status: core.AuditSelectionStatusSkipped,
 		Reason: reason,
+	}
+}
+
+func isEligibleTCPState(endpoint core.DiscoveredEndpoint) bool {
+	switch endpoint.ScopeKind {
+	case core.EndpointScopeKindLocal:
+		return endpoint.State == "listening"
+	case core.EndpointScopeKindRemote:
+		return endpoint.State == "responsive"
+	default:
+		return false
 	}
 }
 

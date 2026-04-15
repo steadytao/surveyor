@@ -45,6 +45,42 @@ func TestSelectEndpointsSelectsTLSCandidates(t *testing.T) {
 	}
 }
 
+func TestSelectEndpointsSelectsResponsiveRemoteTLSCandidates(t *testing.T) {
+	t.Parallel()
+
+	results := SelectEndpoints([]core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "10.0.0.10",
+			Port:      443,
+			Transport: "tcp",
+			State:     "responsive",
+			Hints: []core.DiscoveryHint{
+				{
+					Protocol:   "tls",
+					Confidence: "low",
+					Evidence:   []string{"transport=tcp", "port=443"},
+				},
+			},
+		},
+	})
+
+	if len(results) != 1 {
+		t.Fatalf("len(SelectEndpoints()) = %d, want 1", len(results))
+	}
+
+	got := results[0]
+	if got.Selection.Status != core.AuditSelectionStatusSelected {
+		t.Fatalf("Selection.Status = %q, want %q", got.Selection.Status, core.AuditSelectionStatusSelected)
+	}
+	if got.Selection.SelectedScanner != "tls" {
+		t.Fatalf("Selection.SelectedScanner = %q, want tls", got.Selection.SelectedScanner)
+	}
+	if got.Selection.Reason != "tls hint on tcp/443" {
+		t.Fatalf("Selection.Reason = %q, want tls hint on tcp/443", got.Selection.Reason)
+	}
+}
+
 func TestSelectEndpointsSkipsUnsupportedTransport(t *testing.T) {
 	t.Parallel()
 
@@ -145,6 +181,29 @@ func TestSelectEndpointsSkipsDiscoveryErrors(t *testing.T) {
 	}
 	if got.Selection.Reason != "discovery result contains errors" {
 		t.Fatalf("Selection.Reason = %q, want discovery error skip reason", got.Selection.Reason)
+	}
+}
+
+func TestSelectEndpointsSkipsUnresponsiveRemoteEndpoints(t *testing.T) {
+	t.Parallel()
+
+	results := SelectEndpoints([]core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "10.0.0.11",
+			Port:      443,
+			Transport: "tcp",
+			State:     "candidate",
+			Errors:    []string{"connection refused"},
+		},
+	})
+
+	got := results[0]
+	if got.Selection.Status != core.AuditSelectionStatusSkipped {
+		t.Fatalf("Selection.Status = %q, want %q", got.Selection.Status, core.AuditSelectionStatusSkipped)
+	}
+	if got.Selection.Reason != "endpoint did not respond during remote discovery" {
+		t.Fatalf("Selection.Reason = %q, want remote discovery failure skip reason", got.Selection.Reason)
 	}
 }
 
