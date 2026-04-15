@@ -24,12 +24,12 @@ type localAuditRunner interface {
 	Run(context.Context) ([]core.AuditResult, error)
 }
 
-type localDiscoverer interface {
+type discoverer interface {
 	Enumerate(context.Context) ([]core.DiscoveredEndpoint, error)
 }
 
 // Package-level factories keep the CLI entrypoint thin while still letting
-// tests replace the real runner and discoverer without wiring a bespoke
+// tests replace the real runners and discoverers without wiring a bespoke
 // dependency graph through main.
 var newLocalAuditRunner = func(now func() time.Time) localAuditRunner {
 	return auditflow.LocalRunner{
@@ -37,8 +37,14 @@ var newLocalAuditRunner = func(now func() time.Time) localAuditRunner {
 	}
 }
 
-var newLocalDiscoverer = func() localDiscoverer {
+var newLocalDiscoverer = func() discoverer {
 	return discovery.LocalEnumerator{}
+}
+
+var newRemoteDiscoverer = func(scope config.SubnetScope) discoverer {
+	return discovery.RemoteEnumerator{
+		Scope: scope,
+	}
 }
 
 func main() {
@@ -96,6 +102,8 @@ func runDiscover(args []string, stdout io.Writer, stderr io.Writer, now func() t
 	switch args[0] {
 	case "local":
 		return runDiscoverLocal(args[1:], stdout, stderr, now)
+	case "subnet":
+		return runDiscoverSubnet(args[1:], stdout, stderr, now)
 	case "-h", "--help", "help":
 		printDiscoverUsage(stdout)
 		return 0
@@ -244,33 +252,125 @@ func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer, now fun
 		return 1
 	}
 
-	report := outputs.BuildDiscoveryReport(results, discoverNow().UTC())
+	return writeDiscoveryOutputs("discover local", results, discoverNow().UTC(), stdout, stderr, *markdownPath, *jsonPath)
+}
 
-	if *jsonPath != "" {
+func runDiscoverSubnet(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
+	fs := flag.NewFlagSet("surveyor discover subnet", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		printDiscoverSubnetUsage(stderr)
+	}
+
+	cidr := fs.String("cidr", "", "CIDR scope to discover, for example 10.0.0.0/24")
+	targetsFile := fs.String("targets-file", "", "Path to a newline-delimited approved targets file")
+	ports := fs.String("ports", "", "Comma-separated explicit remote ports, for example 443,8443")
+	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
+	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
+	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the profile-safe command default")
+	maxConcurrency := fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts")
+	timeout := fs.Duration("timeout", 0, "Per probe or connection attempt timeout")
+
+	markdownPath := fs.String("output", "", "Write Markdown output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+
+	jsonPath := fs.String("json", "", "Write JSON output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+
+		return 2
+	}
+
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "discover subnet does not accept positional arguments: %s\n\n", strings.Join(fs.Args(), " "))
+		printDiscoverSubnetUsage(stderr)
+		return 2
+	}
+
+	scope, err := config.ParseSubnetScope(config.SubnetScopeInput{
+		CIDR:           *cidr,
+		TargetsFile:    *targetsFile,
+		Ports:          *ports,
+		Profile:        *profile,
+		MaxHosts:       *maxHosts,
+		MaxConcurrency: *maxConcurrency,
+		Timeout:        *timeout,
+		DryRun:         *dryRun,
+	})
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+
+	if scope.DryRun {
+		if *jsonPath != "" {
+			fmt.Fprintln(stderr, "discover subnet --dry-run does not support --json")
+			return 2
+		}
+
+		plan := renderSubnetExecutionPlanMarkdown("discover subnet", scope)
+		if *markdownPath != "" {
+			if err := writeOutputFile(*markdownPath, []byte(plan)); err != nil {
+				fmt.Fprintf(stderr, "write dry-run Markdown output %q: %v\n", *markdownPath, err)
+				return 1
+			}
+		}
+		if *markdownPath == "" {
+			if _, err := io.WriteString(stdout, plan); err != nil {
+				fmt.Fprintf(stderr, "write stdout: %v\n", err)
+				return 1
+			}
+		}
+
+		return 0
+	}
+
+	discoverNow := now
+	if discoverNow == nil {
+		discoverNow = time.Now
+	}
+
+	results, err := newRemoteDiscoverer(scope).Enumerate(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "discover subnet: %v\n", err)
+		return 1
+	}
+
+	return writeDiscoveryOutputs("discover subnet", results, discoverNow().UTC(), stdout, stderr, *markdownPath, *jsonPath)
+}
+
+func writeDiscoveryOutputs(commandName string, results []core.DiscoveredEndpoint, generatedAt time.Time, stdout io.Writer, stderr io.Writer, markdownPath string, jsonPath string) int {
+	report := outputs.BuildDiscoveryReport(results, generatedAt.UTC())
+
+	if jsonPath != "" {
 		jsonData, err := outputs.MarshalDiscoveryJSON(report)
 		if err != nil {
 			fmt.Fprintf(stderr, "build discovery JSON output: %v\n", err)
 			return 1
 		}
 
-		if err := writeOutputFile(*jsonPath, jsonData); err != nil {
-			fmt.Fprintf(stderr, "write discovery JSON output %q: %v\n", *jsonPath, err)
+		if err := writeOutputFile(jsonPath, jsonData); err != nil {
+			fmt.Fprintf(stderr, "write discovery JSON output %q: %v\n", jsonPath, err)
 			return 1
 		}
 	}
 
 	markdown := outputs.RenderDiscoveryMarkdown(report)
 
-	if *markdownPath != "" {
-		if err := writeOutputFile(*markdownPath, []byte(markdown)); err != nil {
-			fmt.Fprintf(stderr, "write discovery Markdown output %q: %v\n", *markdownPath, err)
+	if markdownPath != "" {
+		if err := writeOutputFile(markdownPath, []byte(markdown)); err != nil {
+			fmt.Fprintf(stderr, "write discovery Markdown output %q: %v\n", markdownPath, err)
 			return 1
 		}
 	}
 
-	if *markdownPath == "" && *jsonPath == "" {
+	if markdownPath == "" && jsonPath == "" {
 		if _, err := io.WriteString(stdout, markdown); err != nil {
-			fmt.Fprintf(stderr, "write stdout: %v\n", err)
+			fmt.Fprintf(stderr, "%s: write stdout: %v\n", commandName, err)
 			return 1
 		}
 	}
@@ -423,15 +523,18 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
 	fmt.Fprintln(w, "  audit local     Audit local endpoints by chaining discovery into supported scanners")
 	fmt.Fprintln(w, "  discover local  Enumerate local endpoints and emit Markdown and optional JSON output")
+	fmt.Fprintln(w, "  discover subnet Enumerate remote TCP endpoints within declared subnet scope")
 	fmt.Fprintln(w, "  scan tls        Scan explicit TLS targets and emit Markdown and optional JSON output")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor audit local --help' for audit-specific help.")
 	fmt.Fprintln(w, "Run 'surveyor discover local --help' for discovery-specific help.")
+	fmt.Fprintln(w, "Run 'surveyor discover subnet --help' for subnet discovery help.")
 	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for command-specific help.")
 }
 
@@ -445,8 +548,10 @@ func printAuditUsage(w io.Writer) {
 func printDiscoverUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Run 'surveyor discover local --help' for flags and examples.")
+	fmt.Fprintln(w, "Run 'surveyor discover local --help' for local discovery help.")
+	fmt.Fprintln(w, "Run 'surveyor discover subnet --help' for remote subnet discovery help.")
 }
 
 func printScanUsage(w io.Writer) {
@@ -486,6 +591,64 @@ func printDiscoverLocalUsage(w io.Writer) {
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
 	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
+}
+
+func printDiscoverSubnetUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w, "  Enumerate remote TCP endpoints within explicitly declared CIDR scope and explicit port set.")
+	fmt.Fprintln(w, "  This command records observed reachability facts and conservative hints only; it does not run verified scanners.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Examples:")
+	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443")
+	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443 --profile balanced -o discovery.md -j discovery.json")
+	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 --dry-run")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  --cidr              CIDR scope to discover, for example 10.0.0.0/24")
+	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited approved targets file, not yet supported")
+	fmt.Fprintln(w, "  --ports             Comma-separated explicit remote ports, for example 443,8443")
+	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
+	fmt.Fprintln(w, "  --dry-run           Print the execution plan without performing network I/O")
+	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
+	fmt.Fprintln(w, "  --max-concurrency   Maximum concurrent remote probe attempts")
+	fmt.Fprintln(w, "  --timeout           Per probe or connection attempt timeout")
+	fmt.Fprintln(w, "  -o, --output        Write Markdown output to this path")
+	fmt.Fprintln(w, "  -j, --json          Write JSON output to this path")
+}
+
+func renderSubnetExecutionPlanMarkdown(commandName string, scope config.SubnetScope) string {
+	var builder strings.Builder
+
+	builder.WriteString("# Surveyor Execution Plan\n\n")
+	builder.WriteString(fmt.Sprintf("- Command: %s\n", commandName))
+	builder.WriteString(fmt.Sprintf("- Scope kind: remote\n"))
+	builder.WriteString(fmt.Sprintf("- Scope: %s\n", scope.CIDR.String()))
+	builder.WriteString(fmt.Sprintf("- Host count: %d\n", scope.HostCount))
+	builder.WriteString(fmt.Sprintf("- Ports: %s\n", joinPorts(scope.Ports)))
+	builder.WriteString(fmt.Sprintf("- Profile: %s\n", scope.Profile))
+	builder.WriteString(fmt.Sprintf("- Max hosts: %d\n", scope.MaxHosts))
+	builder.WriteString(fmt.Sprintf("- Max concurrency: %d\n", scope.MaxConcurrency))
+	builder.WriteString(fmt.Sprintf("- Timeout per attempt: %s\n", scope.Timeout))
+	builder.WriteString("- Network I/O: disabled (dry run)\n")
+	builder.WriteString("- Supported scanners: none, discovery only\n")
+
+	return builder.String()
+}
+
+func joinPorts(ports []int) string {
+	if len(ports) == 0 {
+		return ""
+	}
+
+	values := make([]string, 0, len(ports))
+	for _, port := range ports {
+		values = append(values, strconv.Itoa(port))
+	}
+
+	return strings.Join(values, ",")
 }
 
 func printScanTLSUsage(w io.Writer) {
