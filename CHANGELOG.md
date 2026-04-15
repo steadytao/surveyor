@@ -4,6 +4,18 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.4.0
+
+### Added
+- `surveyor discover subnet` now performs bounded remote TCP reachability discovery within explicitly declared CIDR scope and explicit port sets
+- `surveyor audit subnet` now chains scoped remote discovery into the existing TLS scanner and emits one combined audit report
+- discovery and audit reports now carry explicit scope metadata, and remote runs also carry execution metadata describing the effective profile, host cap, concurrency and timeout
+
+### Changed
+- the `v0.4.0` remote inventory contract is now explicitly CIDR-only; deferred `--targets-file` mode is removed from the current public CLI surface
+- remote audit now passes the effective remote timeout through to TLS connection attempts as well as remote discovery probes
+- README, remote-inventory docs, discovery docs, audit docs, output-schema docs, safety docs, classification docs, examples and golden outputs now describe the actual remote release boundary, including the fact that remote IP-target TLS results are literal connection-path observations rather than hostname-validation or full virtual-host coverage claims
+
 ## v0.3.1
 
 ### Changed
