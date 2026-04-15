@@ -167,7 +167,7 @@ For the current implementation boundaries, see:
 
 ## Roadmap
 
-`Scoped Remote Inventory MVP` is now part of the current repository surface.
+Scoped remote inventory is now part of the current repository surface.
 
 The current remote boundary is still intentionally narrow:
 
