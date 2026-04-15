@@ -38,6 +38,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time
 	}
 
 	switch args[0] {
+	case "audit":
+		return runAudit(args[1:], stdout, stderr, now)
 	case "discover":
 		return runDiscover(args[1:], stdout, stderr, now)
 	case "scan":
@@ -48,6 +50,25 @@ func run(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
 		printUsage(stderr)
+		return 2
+	}
+}
+
+func runAudit(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
+	if len(args) == 0 {
+		printAuditUsage(stderr)
+		return 2
+	}
+
+	switch args[0] {
+	case "local":
+		return runAuditLocal(args[1:], stdout, stderr, now)
+	case "-h", "--help", "help":
+		printAuditUsage(stdout)
+		return 0
+	default:
+		fmt.Fprintf(stderr, "unknown audit target %q\n\n", args[0])
+		printAuditUsage(stderr)
 		return 2
 	}
 }
@@ -243,6 +264,37 @@ func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer, now fun
 	return 0
 }
 
+func runAuditLocal(args []string, stdout io.Writer, stderr io.Writer, _ func() time.Time) int {
+	fs := flag.NewFlagSet("surveyor audit local", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		printAuditLocalUsage(stderr)
+	}
+
+	markdownPath := fs.String("output", "", "Write Markdown output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+
+	jsonPath := fs.String("json", "", "Write JSON output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+
+		return 2
+	}
+
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "audit local does not accept positional arguments: %s\n\n", strings.Join(fs.Args(), " "))
+		printAuditLocalUsage(stderr)
+		return 2
+	}
+
+	fmt.Fprintln(stderr, "audit local is not implemented yet")
+	return 1
+}
+
 func resolveTargets(configPath string, targetsArg string) ([]config.Target, error) {
 	hasConfig := strings.TrimSpace(configPath) != ""
 	hasTargets := strings.TrimSpace(targetsArg) != ""
@@ -314,15 +366,25 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Surveyor")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
+	fmt.Fprintln(w, "  audit local     Audit local endpoints by chaining discovery into supported scanners")
 	fmt.Fprintln(w, "  discover local  Enumerate local endpoints and emit Markdown and optional JSON output")
-	fmt.Fprintln(w, "  scan tls    Scan explicit TLS targets and emit Markdown and optional JSON output")
+	fmt.Fprintln(w, "  scan tls        Scan explicit TLS targets and emit Markdown and optional JSON output")
 	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'surveyor audit local --help' for audit-specific help.")
 	fmt.Fprintln(w, "Run 'surveyor discover local --help' for discovery-specific help.")
 	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for command-specific help.")
+}
+
+func printAuditUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'surveyor audit local --help' for flags and examples.")
 }
 
 func printDiscoverUsage(w io.Writer) {
@@ -337,6 +399,22 @@ func printScanUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for flags and examples.")
+}
+
+func printAuditLocalUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w, "  Run local discovery, select supported TLS-like endpoints conservatively and later hand them into the audit workflow.")
+	fmt.Fprintln(w, "  This command does not imply aggressive probing or non-TLS scanner support.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Examples:")
+	fmt.Fprintln(w, "  surveyor audit local")
+	fmt.Fprintln(w, "  surveyor audit local -o audit.md -j audit.json")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
 }
 
 func printDiscoverLocalUsage(w io.Writer) {

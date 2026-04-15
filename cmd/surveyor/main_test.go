@@ -73,8 +73,78 @@ func TestRunHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "discover local") {
 		t.Fatalf("stdout = %q, want discover command in top-level help", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "audit local") {
+		t.Fatalf("stdout = %q, want audit command in top-level help", stdout.String())
+	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunAuditHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "surveyor audit local") {
+		t.Fatalf("stdout = %q, want audit help text", stdout.String())
+	}
+}
+
+func TestRunAuditLocalHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "local", "--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "Examples:") {
+		t.Fatalf("stderr = %q, want audit command-specific help", stderr.String())
+	}
+}
+
+func TestRunAuditLocalReturnsNotImplemented(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "local"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "audit local is not implemented yet") {
+		t.Fatalf("stderr = %q, want explicit not implemented message", stderr.String())
+	}
+}
+
+func TestRunAuditLocalRejectsPositionalArguments(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "local", "extra"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "does not accept positional arguments") {
+		t.Fatalf("stderr = %q, want positional argument rejection", stderr.String())
 	}
 }
 
