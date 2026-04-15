@@ -1,6 +1,6 @@
 # Discovery
 
-Discovery is the planned next primitive for Surveyor after the current explicit-target TLS inventory slice.
+Discovery is the current foundation primitive that sits alongside the explicit-target TLS inventory slice.
 
 It exists to answer a narrower question than `audit local`:
 
@@ -23,21 +23,21 @@ What Surveyor does not yet have is a discovery layer that can:
 
 That is the purpose of discovery.
 
-## Planned command
+## Command
 
-The planned discovery command is:
+The discovery command is:
 
 ```bash
 surveyor discover local
 ```
 
-This command is intended to enumerate local listening or bound endpoints and emit structured output.
+This command enumerates local listening or bound endpoints and emits structured output.
 
 It is deliberately narrower than a future `audit local` command.
 
 ## Command semantics
 
-The intended semantics of `surveyor discover local` are:
+The semantics of `surveyor discover local` are:
 
 - enumerate local endpoints the current host is exposing
 - report observed local facts
@@ -53,7 +53,7 @@ This command should follow the same output conventions as `scan tls`:
 
 ## Scope
 
-Discovery is intended to cover:
+Discovery currently covers:
 
 - local-only endpoint enumeration
 - TCP listening endpoints
@@ -61,7 +61,7 @@ Discovery is intended to cover:
 - best-effort process metadata where available
 - conservative protocol hints with explicit confidence and evidence
 
-Discovery is not intended to cover:
+Discovery does not cover:
 
 - remote discovery
 - arbitrary range scanning
@@ -87,7 +87,7 @@ Examples:
 
 Hints are not scans.
 
-## Planned discovery schema
+## Discovery schema
 
 Discovery should follow the same output philosophy as the current TLS slice:
 
@@ -96,7 +96,7 @@ Discovery should follow the same output philosophy as the current TLS slice:
 
 ### Top-level report
 
-Planned top-level discovery report shape:
+Current top-level discovery report shape:
 
 ```json
 {
@@ -114,7 +114,7 @@ Fields:
 
 ### Discovered endpoint
 
-Planned discovered-endpoint shape:
+Current discovered-endpoint shape:
 
 ```json
 {
@@ -123,8 +123,8 @@ Planned discovered-endpoint shape:
   "transport": "tcp",
   "state": "listening",
   "pid": 1234,
-  "process_name": "caddy",
-  "executable": "C:\\Program Files\\Caddy\\caddy.exe",
+  "process_name": "local-service",
+  "executable": "C:\\Program Files\\Surveyor Test\\local-service.exe",
   "hints": [],
   "warnings": [],
   "errors": []
@@ -165,11 +165,11 @@ Fields:
 - `confidence`: explicit qualitative confidence label
 - `evidence`: observed facts supporting the hint
 
-Confidence should stay conservative. Discovery should prefer understating certainty over implying protocol verification it has not performed.
+Confidence stays conservative. Discovery prefers understating certainty over implying protocol verification it has not performed.
 
 ### Summary
 
-Planned summary shape:
+Current summary shape:
 
 ```json
 {
@@ -192,7 +192,7 @@ Fields:
 
 ## Platform expectations
 
-Discovery should aim to support:
+Discovery aims to support:
 
 - Linux
 - macOS
@@ -218,6 +218,13 @@ The discovery command should:
 - avoid implying protocol verification where only a hint exists
 
 If future commands consume discovery output for scanner handoff, that should be a later layer and should be explicit in the CLI.
+
+## Current examples
+
+Representative example outputs live in:
+
+- [examples/discovery.json](../examples/discovery.json)
+- [examples/discovery.md](../examples/discovery.md)
 
 ## Relationship to future work
 

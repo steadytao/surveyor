@@ -1,8 +1,11 @@
 # Surveyor
 
-Surveyor is a cryptographic inventory and migration-readiness tool, starting with explicit TLS-facing targets.
+Surveyor is a cryptographic inventory and migration-readiness tool.
 
-It starts with a narrow question: what does a TLS-facing service actually present today, and what does that imply for post-quantum migration work tomorrow?
+It currently starts with two narrow questions:
+
+- what endpoints is this machine exposing locally
+- what does a TLS-facing service actually present today, and what does that imply for post-quantum migration work tomorrow
 
 The point is not to produce a vague “PQ score”. The point is to give teams a clear inventory of what they are running, where classical public-key dependencies still exist, and what probably needs attention first.
 
@@ -11,6 +14,8 @@ The point is not to produce a vague “PQ score”. The point is to give teams a
 Surveyor is in early development.
 
 The first milestone was intentionally narrow. It completed as a TLS inventory MVP for explicitly provided targets.
+
+The current repository also includes the start of the next architectural step, discovery foundation work around `surveyor discover local`.
 
 The current repository already includes:
 
@@ -47,10 +52,12 @@ Surveyor exists to make that visible.
 
 ## Current scope
 
-Version one is intentionally limited to TLS-facing services that are explicitly provided as targets.
+The current repository is still intentionally narrow.
 
 That means Surveyor currently aims to:
 
+- enumerate local listening or bound endpoints without active probing
+- attach conservative protocol hints to discovered local endpoints
 - connect to explicit TLS targets
 - collect handshake and certificate facts
 - classify migration posture conservatively
@@ -80,7 +87,15 @@ The current code and docs are organised around JSON as the canonical result cont
 
 ## CLI
 
-The current CLI supports the TLS inventory path:
+The current CLI supports discovery and explicit-target TLS inventory.
+
+Discovery:
+
+```bash
+surveyor discover local -o discovery.md -j discovery.json
+```
+
+TLS inventory:
 
 ```bash
 surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
@@ -94,6 +109,7 @@ surveyor scan tls -t example.com:443,127.0.0.1:8000,[::1]:443
 
 Rules:
 
+- `discover local` is observational only, it does not perform active probing or verified protocol scans
 - use exactly one of `--config` or `--targets`
 - `--targets` requires explicit `host:port` entries
 - IPv6 targets must use bracket form, for example `[::1]:443`
@@ -103,6 +119,7 @@ Example local verification:
 
 ```bash
 go build -o surveyor ./cmd/surveyor
+./surveyor discover local -o discovery.md -j discovery.json
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 
