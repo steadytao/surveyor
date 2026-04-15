@@ -4,6 +4,8 @@ Surveyor's canonical output is JSON.
 
 Markdown exists for human-readable sharing but it is derived from the same canonical model. If a fact matters, it should exist in the JSON schema first.
 
+The same rule should apply to the planned discovery slice described in [docs/discovery.md](discovery.md).
+
 ## Top-level report
 
 Current top-level report shape:

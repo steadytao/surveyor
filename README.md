@@ -109,6 +109,7 @@ go build -o surveyor ./cmd/surveyor
 For the current implementation boundaries, see:
 
 - [docs/architecture.md](docs/architecture.md)
+- [docs/discovery.md](docs/discovery.md)
 - [docs/output-schema.md](docs/output-schema.md)
 - [docs/classification.md](docs/classification.md)
 - [docs/references.md](docs/references.md)
@@ -132,6 +133,8 @@ Status: milestone complete
 - Markdown reporting
 
 Later milestones may expand into other cryptographic surfaces, but not before the TLS path is solid.
+
+The planned next step is discovery foundation work around `surveyor discover local`, not immediate expansion into more scanner-specific surface area.
 
 ## Development
 
