@@ -4,7 +4,7 @@ Surveyor's canonical output is JSON.
 
 Markdown exists for human-readable sharing but it is derived from the same canonical model. If a fact matters, it should exist in the JSON schema first.
 
-The same rule should apply to the planned discovery slice described in [docs/discovery.md](discovery.md).
+The same rule applies to the discovery slice described in [docs/discovery.md](discovery.md).
 
 ## Top-level report
 
@@ -244,3 +244,158 @@ Still, changes to these field names or meanings should be treated as public cont
 - update the examples
 - update tests
 - explain the behavioural impact in the PR
+
+## Discovery report
+
+Current discovery report shape:
+
+```json
+{
+  "generated_at": "2026-04-15T01:45:00Z",
+  "results": [],
+  "summary": {}
+}
+```
+
+Fields:
+
+### `generated_at`
+
+- type: RFC3339 UTC timestamp
+- meaning: when the discovery report object was assembled
+
+### `results`
+
+- type: array of discovered endpoints
+- meaning: one entry per discovered local endpoint
+
+### `summary`
+
+- type: discovery summary object
+- meaning: aggregate counts derived from `results`
+
+## Discovered endpoint
+
+Current discovered-endpoint shape:
+
+```json
+{
+  "address": "0.0.0.0",
+  "port": 443,
+  "transport": "tcp",
+  "state": "listening",
+  "pid": 4321,
+  "process_name": "local-service",
+  "executable": "C:\\Program Files\\Surveyor Test\\local-service.exe",
+  "hints": [],
+  "warnings": [],
+  "errors": []
+}
+```
+
+Fields:
+
+### `address`
+
+- type: string
+- optional: no
+- meaning: local bound address as observed
+
+### `port`
+
+- type: integer
+- optional: no
+- meaning: local port number
+
+### `transport`
+
+- type: string
+- optional: no
+- meaning: transport name, currently `tcp` or `udp`
+
+### `state`
+
+- type: string
+- optional: no
+- meaning: observed local socket state, currently `listening` or `bound`
+
+### `pid`
+
+- type: integer
+- optional: yes
+- meaning: process identifier where available without requiring elevation
+
+### `process_name`
+
+- type: string
+- optional: yes
+- meaning: best-effort process name where available
+
+### `executable`
+
+- type: string
+- optional: yes
+- meaning: best-effort executable path where available
+
+### `hints`
+
+- type: array of discovery hints
+- optional: yes
+- meaning: conservative protocol hints derived from observed facts
+
+### `warnings`
+
+- type: array of strings
+- optional: yes
+- meaning: non-fatal discovery concerns, for example unavailable process metadata
+
+### `errors`
+
+- type: array of strings
+- optional: yes
+- meaning: endpoint-level discovery failures
+
+## Discovery hint
+
+Current discovery-hint shape:
+
+```json
+{
+  "protocol": "tls",
+  "confidence": "low",
+  "evidence": [
+    "transport=tcp",
+    "port=443"
+  ]
+}
+```
+
+Fields:
+
+- `protocol`: hinted protocol family, for example `tls`, `ssh` or `rdp`
+- `confidence`: explicit qualitative confidence label
+- `evidence`: observed facts supporting the hint
+
+Hints are not verified scan results.
+
+## Discovery summary object
+
+Current discovery summary shape:
+
+```json
+{
+  "total_endpoints": 2,
+  "tcp_endpoints": 1,
+  "udp_endpoints": 1,
+  "hint_breakdown": {
+    "tls": 1
+  }
+}
+```
+
+Fields:
+
+- `total_endpoints`: total number of discovered endpoints
+- `tcp_endpoints`: number of discovered TCP endpoints
+- `udp_endpoints`: number of discovered UDP endpoints
+- `hint_breakdown`: counts keyed by hinted protocol label

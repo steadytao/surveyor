@@ -4,9 +4,9 @@ Surveyor is intentionally small at this stage.
 
 The current codebase is organised around one narrow flow:
 
-1. accept explicit TLS targets from config or direct CLI input
-2. collect raw TLS and X.509 observations
-3. classify the observed posture conservatively
+1. enumerate local endpoints for discovery, or accept explicit TLS targets from config or direct CLI input
+2. collect observed endpoint facts or raw TLS and X.509 observations
+3. attach conservative hints or classify the observed posture conservatively
 4. derive canonical JSON and human-readable Markdown from the same result model
 
 That separation matters. Surveyor should not blur raw observation, interpretation and reporting into one package.
@@ -19,7 +19,9 @@ Owns the thin executable wrapper.
 
 Current responsibilities:
 
+- expose `surveyor discover local`
 - expose `surveyor scan tls`
+- run the discovery flow end to end
 - accept either config-driven targets or explicit `--targets` input
 - run the TLS inventory flow end to end
 - write Markdown and JSON outputs
@@ -57,6 +59,18 @@ Current responsibilities:
 
 `internal/core` should not become a dumping ground for scanner logic or renderer-specific behaviour.
 
+### `internal/discovery`
+
+Owns local discovery and endpoint enrichment.
+
+Current responsibilities:
+
+- enumerate local TCP listening endpoints and UDP bound endpoints
+- attach best-effort process metadata where available
+- attach conservative protocol hints based on observed facts
+
+This package should stay observational. It should not perform active probing or scanner-specific verification.
+
 ### `internal/scanners/tlsinventory`
 
 Owns collection and first-pass classification for the TLS inventory slice.
@@ -82,7 +96,7 @@ Owns report assembly and rendering.
 
 Current responsibilities:
 
-- build a top-level report from target results
+- build top-level reports from target results and discovery results
 - derive summary counts
 - render canonical JSON
 - render Markdown from the same canonical model
@@ -91,7 +105,7 @@ JSON is the source of truth. Markdown is derived output.
 
 ## Data flow
 
-The current data flow is:
+The current TLS data flow is:
 
 ```text
 CLI arguments
@@ -107,6 +121,18 @@ CLI arguments
 
 That flow is intentionally linear. It keeps the boundaries easy to reason about and easy to test.
 
+The current discovery flow is:
+
+```text
+CLI arguments
+  -> cmd/surveyor
+  -> internal/discovery
+  -> []core.DiscoveredEndpoint
+  -> internal/outputs.BuildDiscoveryReport
+  -> core.DiscoveryReport
+  -> JSON / Markdown rendering
+```
+
 ## What must remain true
 
 The following invariants must remain true as the project grows:
@@ -120,7 +146,7 @@ The following invariants must remain true as the project grows:
 
 ## What is not implemented yet
 
-The current architecture does not yet include:
+The current architecture still does not include:
 
 - trust-store validation
 - hostname validation semantics
@@ -131,15 +157,15 @@ The current architecture does not yet include:
 
 Those are separate steps and should only be added once the current TLS path remains coherent.
 
-## Planned next architectural step
+## Current architectural boundary
 
-The planned next step is a discovery layer around `surveyor discover local`.
+The current discovery layer around `surveyor discover local` sits beside scanner-specific execution, not inside it.
 
-That layer should sit between CLI orchestration and scanner-specific execution. Its job is to:
+Its job is to:
 
 - enumerate candidate local endpoints
 - describe them in a stable canonical model
 - attach conservative protocol hints
 - stay distinct from scanner-specific verification
 
-That means discovery should not be implemented as a thin alias for future scan orchestration, and future audit flows should not collapse discovery, hinting and verified scanning into one command.
+That boundary should remain intact. Future audit flows should not collapse discovery, hinting and verified scanning into one command.
