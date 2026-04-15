@@ -15,10 +15,12 @@ Surveyor is in early development.
 
 The first milestone was intentionally narrow. It completed as a TLS inventory MVP for explicitly provided targets.
 
-The current repository also includes the start of the next architectural step, discovery foundation work around `surveyor discover local`.
+The current repository now includes the discovery foundation work around `surveyor discover local`.
 
 The current repository already includes:
 
+- local endpoint discovery
+- conservative protocol hints for discovery results
 - target parsing and validation
 - TLS connection and protocol inspection
 - certificate chain parsing
@@ -26,7 +28,7 @@ The current repository already includes:
 - conservative readiness classification
 - machine-readable and human-readable reporting
 
-The repository now includes a usable CLI path for the TLS inventory slice, with both config-driven and explicit command-line targets.
+The repository now includes usable CLI paths for both local discovery and the TLS inventory slice.
 
 ## Releases
 
@@ -149,15 +151,15 @@ Status: milestone complete
 - JSON reporting
 - Markdown reporting
 
-Later milestones may expand into other cryptographic surfaces, but not before the TLS path is solid.
+Later milestones may expand into other cryptographic surfaces, but not before the current discovery and TLS paths are solid.
 
-The planned next step is discovery foundation work around `surveyor discover local`, not immediate expansion into more scanner-specific surface area.
+The current architectural focus is discovery foundation, not immediate expansion into more scanner-specific surface area.
 
 ## Development
 
 Surveyor is written in Go.
 
-The repository currently contains a working `cmd/surveyor` entrypoint for the TLS inventory slice, plus the internal packages and tests behind it.
+The repository currently contains a working `cmd/surveyor` entrypoint for both the discovery and TLS inventory slices, plus the internal packages and tests behind them.
 
 For now, the most useful verification command is:
 
@@ -178,6 +180,7 @@ go build -o surveyor ./cmd/surveyor
 Then run:
 
 ```bash
+./surveyor discover local -o discovery.md -j discovery.json
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 

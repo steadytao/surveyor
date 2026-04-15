@@ -7,6 +7,9 @@ This checklist exists to keep releases honest.
 ## Functional baseline
 
 Before a release, confirm that Surveyor can:
+- enumerate local endpoints through `surveyor discover local`
+- attach conservative protocol hints without treating them as verified scans
+- produce canonical JSON and derived Markdown for discovery output
 - load and validate explicit TLS targets from config
 - perform TLS collection against explicit targets
 - extract certificate metadata from presented peer certificates
@@ -18,12 +21,13 @@ Before a release, confirm that Surveyor can:
 
 Before a release, confirm that:
 - `README.md` describes the actual shipped state, not planned behaviour that no longer matches
+- `docs/discovery.md` matches the implemented discovery slice
 - `docs/architecture.md` matches the code
 - `docs/output-schema.md` matches the current JSON contract
 - `docs/classification.md` matches the implemented rule set
 - `docs/references.md` exists and is still the right reference set
 - `docs/safety.md` still matches the tool's actual behaviour
-- `examples/targets.yaml`, `examples/report.json` and `examples/report.md` reflect the current implementation
+- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json` and `examples/discovery.md` reflect the current implementation
 
 ## Verification
 
@@ -32,7 +36,7 @@ Before a release, confirm that:
 - `go vet ./...` passes
 - `go test ./...` passes
 - example outputs remain representative
-- deterministic tests exist for config validation, TLS collection, classification and outputs
+- deterministic tests exist for discovery, config validation, TLS collection, classification and outputs
 - CI is green across all runners
 
 If a release changes behaviour without updating tests or examples, it is not ready.
@@ -41,7 +45,7 @@ If a release changes behaviour without updating tests or examples, it is not rea
 
 Before a release, confirm that the release has not silently drifted into:
 - range scanning
-- broad discovery features
+- active probing hidden inside discovery
 - generic vulnerability scanning
 - trust or compliance claims the implementation cannot support
 
