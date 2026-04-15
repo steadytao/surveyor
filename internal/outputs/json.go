@@ -7,6 +7,7 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// MarshalJSON serialises a TLS inventory report as stable, indented JSON.
 func MarshalJSON(report core.Report) ([]byte, error) {
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {

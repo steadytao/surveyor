@@ -32,6 +32,8 @@ func normalizeTarget(target rawTarget, index int) (Target, error) {
 	return normalizeTargetFields(target.Name, target.Host, target.Port, target.Tags, pathPrefix)
 }
 
+// ValidateTarget normalises one in-memory target and enforces the same rules
+// used for file-backed config input.
 func ValidateTarget(target Target) (Target, error) {
 	return normalizeTargetFields(target.Name, target.Host, target.Port, target.Tags, "target")
 }

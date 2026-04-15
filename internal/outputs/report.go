@@ -7,6 +7,7 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// BuildReport assembles the canonical TLS inventory report and its summary.
 func BuildReport(results []core.TargetResult, generatedAt time.Time) core.Report {
 	// Copy the slice so report assembly does not retain caller-owned backing
 	// storage. Rendering should be a pure step over stable result data.

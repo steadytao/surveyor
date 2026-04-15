@@ -72,6 +72,20 @@ The current audit flow does not cover:
 - broad vulnerability-scanner behaviour
 - enterprise-wide orchestration
 
+## Current selection rules
+
+The current selection layer is intentionally narrow.
+
+At the moment, `audit local` will:
+
+- skip discovery results that already contain endpoint-level errors
+- consider only TCP endpoints in `listening` state
+- select only endpoints that already carry a conservative `tls` hint
+- skip everything else explicitly with a reason
+
+That keeps automatic handoff aligned with the currently supported scanner set
+and makes the report explain why something was or was not scanned.
+
 ## Facts, hints, selections and scans
 
 Audit must keep five things separate:

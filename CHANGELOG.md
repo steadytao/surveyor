@@ -4,6 +4,13 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.3.1
+
+### Changed
+- clarified internal contracts across the config, core, discovery, audit, scanner and output packages with higher-signal doc comments and invariant comments
+- tightened the architecture and audit docs so the current local-audit runner, selection rules and discovery-to-scan boundary are easier to understand and maintain
+- preserved the current CLI, JSON and Markdown behaviour while making the codebase easier to review and extend safely
+
 ## v0.3.0
 
 ### Added

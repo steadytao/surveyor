@@ -7,7 +7,10 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// BuildDiscoveryReport assembles the canonical discovery report and its summary.
 func BuildDiscoveryReport(results []core.DiscoveredEndpoint, generatedAt time.Time) core.DiscoveryReport {
+	// Copy the slice so report assembly does not retain caller-owned backing
+	// storage. Discovery rendering should be a pure step over stable result data.
 	reportResults := append([]core.DiscoveredEndpoint(nil), results...)
 
 	return core.DiscoveryReport{

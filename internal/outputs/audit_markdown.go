@@ -8,6 +8,8 @@ import (
 	"github.com/steadytao/surveyor/internal/core"
 )
 
+// RenderAuditMarkdown renders the human-readable local audit report from the
+// canonical audit model.
 func RenderAuditMarkdown(report core.AuditReport) string {
 	var builder strings.Builder
 
