@@ -58,13 +58,14 @@ func TestRemoteEnumeratorEnumerateRecordsResponsiveAndFailedAttempts(t *testing.
 		port  int
 		state string
 		err   string
+		hint  string
 	}{
 		{host: "10.0.0.0", port: 443, state: "candidate", err: "probe timed out"},
 		{host: "10.0.0.0", port: 8443, state: "candidate", err: "connection refused"},
-		{host: "10.0.0.1", port: 443, state: "responsive"},
+		{host: "10.0.0.1", port: 443, state: "responsive", hint: "tls"},
 		{host: "10.0.0.1", port: 8443, state: "candidate", err: "connection refused"},
 		{host: "10.0.0.2", port: 443, state: "candidate", err: "connection refused"},
-		{host: "10.0.0.2", port: 8443, state: "responsive"},
+		{host: "10.0.0.2", port: 8443, state: "responsive", hint: "tls"},
 		{host: "10.0.0.3", port: 443, state: "candidate", err: "connection refused"},
 		{host: "10.0.0.3", port: 8443, state: "candidate", err: "connection refused"},
 	}
@@ -83,19 +84,21 @@ func TestRemoteEnumeratorEnumerateRecordsResponsiveAndFailedAttempts(t *testing.
 		if gotEndpoint.State != want.state {
 			t.Fatalf("got[%d].State = %q, want %q", index, gotEndpoint.State, want.state)
 		}
-		if len(gotEndpoint.Hints) != 0 {
-			t.Fatalf("got[%d].Hints = %#v, want no hints before remote hinting lands", index, gotEndpoint.Hints)
-		}
-
 		if want.err == "" {
 			if len(gotEndpoint.Errors) != 0 {
 				t.Fatalf("got[%d].Errors = %#v, want none", index, gotEndpoint.Errors)
+			}
+			if len(gotEndpoint.Hints) != 1 || gotEndpoint.Hints[0].Protocol != want.hint || gotEndpoint.Hints[0].Confidence != "low" {
+				t.Fatalf("got[%d].Hints = %#v, want low-confidence %q hint", index, gotEndpoint.Hints, want.hint)
 			}
 			continue
 		}
 
 		if len(gotEndpoint.Errors) != 1 || gotEndpoint.Errors[0] != want.err {
 			t.Fatalf("got[%d].Errors = %#v, want [%q]", index, gotEndpoint.Errors, want.err)
+		}
+		if len(gotEndpoint.Hints) != 0 {
+			t.Fatalf("got[%d].Hints = %#v, want no hints for failed probe", index, gotEndpoint.Hints)
 		}
 	}
 }
