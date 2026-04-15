@@ -1,0 +1,42 @@
+{
+  "generated_at": "2026-04-15T01:45:00Z",
+  "results": [
+    {
+      "address": "0.0.0.0",
+      "port": 443,
+      "transport": "tcp",
+      "state": "listening",
+      "pid": 4321,
+      "process_name": "local-service",
+      "executable": "C:\\Program Files\\Surveyor Test\\local-service.exe",
+      "hints": [
+        {
+          "protocol": "tls",
+          "confidence": "low",
+          "evidence": [
+            "transport=tcp",
+            "port=443"
+          ]
+        }
+      ]
+    },
+    {
+      "address": "127.0.0.1",
+      "port": 5353,
+      "transport": "udp",
+      "state": "bound",
+      "pid": 9876,
+      "warnings": [
+        "process metadata unavailable"
+      ]
+    }
+  ],
+  "summary": {
+    "total_endpoints": 2,
+    "tcp_endpoints": 1,
+    "udp_endpoints": 1,
+    "hint_breakdown": {
+      "tls": 1
+    }
+  }
+}

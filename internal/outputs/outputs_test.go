@@ -48,6 +48,42 @@ func TestBuildReportSummary(t *testing.T) {
 	}
 }
 
+func TestBuildDiscoveryReportSummary(t *testing.T) {
+	t.Parallel()
+
+	report := BuildDiscoveryReport([]core.DiscoveredEndpoint{
+		{
+			Address:   "0.0.0.0",
+			Port:      443,
+			Transport: "tcp",
+			State:     "listening",
+			Hints: []core.DiscoveryHint{
+				{Protocol: "tls", Confidence: "low"},
+				{Protocol: "tls", Confidence: "low"},
+			},
+		},
+		{
+			Address:   "127.0.0.1",
+			Port:      53,
+			Transport: "udp",
+			State:     "bound",
+		},
+	}, time.Date(2026, time.April, 15, 1, 30, 0, 0, time.UTC))
+
+	if report.Summary.TotalEndpoints != 2 {
+		t.Fatalf("report.Summary.TotalEndpoints = %d, want 2", report.Summary.TotalEndpoints)
+	}
+	if report.Summary.TCPEndpoints != 1 {
+		t.Fatalf("report.Summary.TCPEndpoints = %d, want 1", report.Summary.TCPEndpoints)
+	}
+	if report.Summary.UDPEndpoints != 1 {
+		t.Fatalf("report.Summary.UDPEndpoints = %d, want 1", report.Summary.UDPEndpoints)
+	}
+	if report.Summary.HintBreakdown["tls"] != 1 {
+		t.Fatalf("hint count for tls = %d, want 1", report.Summary.HintBreakdown["tls"])
+	}
+}
+
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
 
@@ -64,6 +100,22 @@ func TestMarshalJSON(t *testing.T) {
 	}
 }
 
+func TestMarshalDiscoveryJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleDiscoveryReport()
+
+	data, err := MarshalDiscoveryJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalDiscoveryJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "discovery.golden.json")
+	if string(data) != want {
+		t.Fatalf("discovery json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
 func TestRenderMarkdown(t *testing.T) {
 	t.Parallel()
 
@@ -73,6 +125,18 @@ func TestRenderMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "report.golden.md")
 	if markdown != want {
 		t.Fatalf("markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderDiscoveryMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleDiscoveryReport()
+
+	markdown := RenderDiscoveryMarkdown(report)
+	want := readGoldenFile(t, "discovery.golden.md")
+	if markdown != want {
+		t.Fatalf("discovery markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
 	}
 }
 
@@ -145,4 +209,33 @@ func sampleReport() core.Report {
 			},
 		},
 	}, time.Date(2026, time.April, 14, 1, 30, 0, 0, time.UTC))
+}
+
+func sampleDiscoveryReport() core.DiscoveryReport {
+	return BuildDiscoveryReport([]core.DiscoveredEndpoint{
+		{
+			Address:     "0.0.0.0",
+			Port:        443,
+			Transport:   "tcp",
+			State:       "listening",
+			PID:         4321,
+			ProcessName: "local-service",
+			Executable:  "C:\\Program Files\\Surveyor Test\\local-service.exe",
+			Hints: []core.DiscoveryHint{
+				{
+					Protocol:   "tls",
+					Confidence: "low",
+					Evidence:   []string{"transport=tcp", "port=443"},
+				},
+			},
+		},
+		{
+			Address:   "127.0.0.1",
+			Port:      5353,
+			Transport: "udp",
+			State:     "bound",
+			PID:       9876,
+			Warnings:  []string{"process metadata unavailable"},
+		},
+	}, time.Date(2026, time.April, 15, 1, 45, 0, 0, time.UTC))
 }
