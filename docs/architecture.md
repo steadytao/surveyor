@@ -18,6 +18,7 @@ That separation matters. Surveyor should not blur raw observation, interpretatio
 Owns the thin executable wrapper.
 
 Current responsibilities:
+
 - expose `surveyor scan tls`
 - accept either config-driven targets or explicit `--targets` input
 - run the TLS inventory flow end to end
@@ -30,11 +31,13 @@ This layer should stay thin. It should orchestrate existing packages, not reimpl
 Owns the input contract.
 
 Current responsibilities:
+
 - parse YAML configuration
 - validate required fields
 - normalise target data into one in-memory representation
 
 Current target model:
+
 - required: `host`, `port`
 - optional: `name`, `tags`
 
@@ -45,6 +48,7 @@ This package should stay strict. It is better for config files to be explicit th
 Owns the canonical result model shared across the rest of the project.
 
 Current responsibilities:
+
 - define severities
 - define findings
 - define certificate references
@@ -58,12 +62,14 @@ Current responsibilities:
 Owns collection and first-pass classification for the TLS inventory slice.
 
 Current responsibilities:
+
 - establish a standard TLS connection to an explicit target
 - record transport facts such as reachability, negotiated TLS version and cipher suite
 - extract presented certificate-chain metadata
 - classify the result into conservative migration-posture buckets
 
 Important current design choices:
+
 - certificate verification is deliberately disabled during collection so the scanner can observe what the service presents even when trust or hostname validation would fail
 - SNI is only set for non-IP hosts
 - classification is based on observed evidence only
@@ -75,6 +81,7 @@ This package should remain focused on TLS inventory. It should not grow into a g
 Owns report assembly and rendering.
 
 Current responsibilities:
+
 - build a top-level report from target results
 - derive summary counts
 - render canonical JSON
@@ -103,6 +110,7 @@ That flow is intentionally linear. It keeps the boundaries easy to reason about 
 ## What must remain true
 
 The following invariants must remain true as the project grows:
+
 - config parsing stays separate from scanning
 - collection records observed facts before interpretation
 - classification does not invent evidence that was not observed
@@ -113,6 +121,7 @@ The following invariants must remain true as the project grows:
 ## What is not implemented yet
 
 The current architecture does not yet include:
+
 - trust-store validation
 - hostname validation semantics
 - STARTTLS or multi-protocol probing
@@ -121,3 +130,16 @@ The current architecture does not yet include:
 - stateful storage or diffing
 
 Those are separate steps and should only be added once the current TLS path remains coherent.
+
+## Planned next architectural step
+
+The planned next step is a discovery layer around `surveyor discover local`.
+
+That layer should sit between CLI orchestration and scanner-specific execution. Its job is to:
+
+- enumerate candidate local endpoints
+- describe them in a stable canonical model
+- attach conservative protocol hints
+- stay distinct from scanner-specific verification
+
+That means discovery should not be implemented as a thin alias for future scan orchestration, and future audit flows should not collapse discovery, hinting and verified scanning into one command.
