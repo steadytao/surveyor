@@ -9,6 +9,7 @@
 ## Scope
 
 - Scope kind: remote
+- Input kind: cidr
 - CIDR: 10.0.0.0/30
 - Ports: 443,8443
 

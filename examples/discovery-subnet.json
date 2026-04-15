@@ -2,6 +2,7 @@
   "generated_at": "2026-04-18T01:15:00Z",
   "scope": {
     "scope_kind": "remote",
+    "input_kind": "cidr",
     "cidr": "10.0.0.0/30",
     "ports": [
       443,

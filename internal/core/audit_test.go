@@ -69,6 +69,12 @@ func TestAuditReportJSONShape(t *testing.T) {
 
 	report := AuditReport{
 		GeneratedAt: time.Date(2026, time.April, 16, 2, 30, 0, 0, time.UTC),
+		Scope: &ReportScope{
+			ScopeKind: EndpointScopeKindRemote,
+			InputKind: ReportScopeInputKindCIDR,
+			CIDR:      "10.0.0.0/30",
+			Ports:     []int{443},
+		},
 		Results: []AuditResult{
 			{
 				DiscoveredEndpoint: DiscoveredEndpoint{
@@ -99,6 +105,7 @@ func TestAuditReportJSONShape(t *testing.T) {
 
 	wantSubstrings := []string{
 		`"generated_at":"2026-04-16T02:30:00Z"`,
+		`"scope":{"scope_kind":"remote","input_kind":"cidr","cidr":"10.0.0.0/30","ports":[443]}`,
 		`"results":[`,
 		`"selection":{"status":"skipped","reason":"no supported scanner for udp endpoint"}`,
 		`"summary":{"total_endpoints":1,"tls_candidates":0,"scanned_endpoints":0,"skipped_endpoints":1}`,

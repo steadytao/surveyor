@@ -220,7 +220,7 @@ func TestRemoteRunnerRunScansSelectedTLSEndpoints(t *testing.T) {
 	}
 
 	runner := RemoteRunner{
-		Scope:      config.SubnetScope{},
+		Scope:      config.RemoteScope{},
 		Discoverer: stubDiscoverer{results: discovered},
 		TLSScanner: scanner,
 	}
@@ -266,7 +266,7 @@ func TestRemoteRunnerRunReturnsDiscoveryError(t *testing.T) {
 	t.Parallel()
 
 	runner := RemoteRunner{
-		Scope:      config.SubnetScope{},
+		Scope:      config.RemoteScope{},
 		Discoverer: stubDiscoverer{err: errors.New("remote discovery failed")},
 	}
 

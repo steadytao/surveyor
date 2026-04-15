@@ -51,7 +51,8 @@ compatibility affordances, not the long-term design centre.
 
 ## Scope model
 
-The current `SubnetScope` contract should become a broader remote scope model.
+The current CIDR-backed remote scope contract should become a broader remote
+scope model.
 
 That model should represent:
 

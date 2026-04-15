@@ -131,6 +131,7 @@ Current top-level audit report shape:
   "generated_at": "2026-04-16T02:00:00Z",
   "scope": {
     "scope_kind": "remote",
+    "input_kind": "cidr",
     "cidr": "10.0.0.0/30",
     "ports": [443, 8443]
   },
@@ -160,6 +161,7 @@ Current report-scope shape:
 ```json
 {
   "scope_kind": "remote",
+  "input_kind": "cidr",
   "cidr": "10.0.0.0/30",
   "ports": [443, 8443]
 }
@@ -168,6 +170,7 @@ Current report-scope shape:
 Fields:
 
 - `scope_kind`: `local` or `remote`
+- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr`
 - `cidr`: declared remote CIDR when the report covers remote scope
 - `ports`: declared remote port set when the report covers remote scope
 

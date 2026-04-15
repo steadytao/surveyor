@@ -156,7 +156,7 @@ The current remote discovery flow is:
 ```text
 CLI arguments
   -> cmd/surveyor
-  -> internal/config.ParseSubnetScope
+  -> internal/config.ParseRemoteScope
   -> internal/discovery.RemoteEnumerator
   -> []core.DiscoveredEndpoint
   -> internal/outputs.BuildDiscoveryReport
@@ -189,7 +189,7 @@ The current remote audit flow is:
 ```text
 CLI arguments
   -> cmd/surveyor
-  -> internal/config.ParseSubnetScope
+  -> internal/config.ParseRemoteScope
   -> internal/audit.RemoteRunner
   -> internal/discovery.RemoteEnumerator
   -> []core.DiscoveredEndpoint

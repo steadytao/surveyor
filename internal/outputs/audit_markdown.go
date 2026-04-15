@@ -23,8 +23,14 @@ func RenderAuditMarkdown(report core.AuditReport) string {
 	if report.Scope != nil {
 		builder.WriteString("## Scope\n\n")
 		builder.WriteString(fmt.Sprintf("- Scope kind: %s\n", report.Scope.ScopeKind))
+		if report.Scope.InputKind != "" {
+			builder.WriteString(fmt.Sprintf("- Input kind: %s\n", report.Scope.InputKind))
+		}
 		if report.Scope.CIDR != "" {
 			builder.WriteString(fmt.Sprintf("- CIDR: %s\n", report.Scope.CIDR))
+		}
+		if report.Scope.TargetsFile != "" {
+			builder.WriteString(fmt.Sprintf("- Targets file: %s\n", report.Scope.TargetsFile))
 		}
 		if len(report.Scope.Ports) > 0 {
 			builder.WriteString(fmt.Sprintf("- Ports: %s\n", renderPortsList(report.Scope.Ports)))
