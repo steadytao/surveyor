@@ -23,7 +23,7 @@ func RenderMarkdown(report core.Report) string {
 		builder.WriteString("- No classifications recorded\n\n")
 	} else {
 		for _, key := range classificationKeys {
-			builder.WriteString(fmt.Sprintf("- `%s`: %d\n", key, report.Summary.ClassificationBreakdown[key]))
+			builder.WriteString(fmt.Sprintf("- %s: %d\n", key, report.Summary.ClassificationBreakdown[key]))
 		}
 		builder.WriteString("\n")
 	}
@@ -40,29 +40,29 @@ func RenderMarkdown(report core.Report) string {
 		}
 
 		builder.WriteString(fmt.Sprintf("### %s\n\n", targetHeading(result)))
-		builder.WriteString(fmt.Sprintf("- Host: `%s`\n", result.Host))
-		builder.WriteString(fmt.Sprintf("- Port: `%d`\n", result.Port))
-		builder.WriteString(fmt.Sprintf("- Scanned at: `%s`\n", result.ScannedAt.UTC().Format(time.RFC3339)))
-		builder.WriteString(fmt.Sprintf("- Reachable: `%t`\n", result.Reachable))
-		builder.WriteString(fmt.Sprintf("- Classification: `%s`\n", defaultString(result.Classification, "unclassified")))
+		builder.WriteString(fmt.Sprintf("- Host: %s\n", result.Host))
+		builder.WriteString(fmt.Sprintf("- Port: %d\n", result.Port))
+		builder.WriteString(fmt.Sprintf("- Scanned at: %s\n", result.ScannedAt.UTC().Format(time.RFC3339)))
+		builder.WriteString(fmt.Sprintf("- Reachable: %t\n", result.Reachable))
+		builder.WriteString(fmt.Sprintf("- Classification: %s\n", defaultString(result.Classification, "unclassified")))
 
 		if result.Address != "" {
-			builder.WriteString(fmt.Sprintf("- Address: `%s`\n", result.Address))
+			builder.WriteString(fmt.Sprintf("- Address: %s\n", result.Address))
 		}
 		if result.TLSVersion != "" {
-			builder.WriteString(fmt.Sprintf("- TLS version: `%s`\n", result.TLSVersion))
+			builder.WriteString(fmt.Sprintf("- TLS version: %s\n", result.TLSVersion))
 		}
 		if result.CipherSuite != "" {
-			builder.WriteString(fmt.Sprintf("- Cipher suite: `%s`\n", result.CipherSuite))
+			builder.WriteString(fmt.Sprintf("- Cipher suite: %s\n", result.CipherSuite))
 		}
 		if result.LeafKeyAlgorithm != "" {
-			builder.WriteString(fmt.Sprintf("- Leaf key algorithm: `%s`\n", result.LeafKeyAlgorithm))
+			builder.WriteString(fmt.Sprintf("- Leaf key algorithm: %s\n", result.LeafKeyAlgorithm))
 		}
 		if result.LeafKeySize > 0 {
-			builder.WriteString(fmt.Sprintf("- Leaf key size: `%d`\n", result.LeafKeySize))
+			builder.WriteString(fmt.Sprintf("- Leaf key size: %d\n", result.LeafKeySize))
 		}
 		if result.LeafSignatureAlgorithm != "" {
-			builder.WriteString(fmt.Sprintf("- Leaf signature algorithm: `%s`\n", result.LeafSignatureAlgorithm))
+			builder.WriteString(fmt.Sprintf("- Leaf signature algorithm: %s\n", result.LeafSignatureAlgorithm))
 		}
 
 		if len(result.Findings) > 0 {
@@ -70,9 +70,9 @@ func RenderMarkdown(report core.Report) string {
 			// If a fact matters here, it should already exist in JSON.
 			builder.WriteString("\n#### Findings\n\n")
 			for _, finding := range result.Findings {
-				builder.WriteString(fmt.Sprintf("- `%s` (%s): %s\n", finding.Code, finding.Severity, finding.Summary))
+				builder.WriteString(fmt.Sprintf("- %s (%s): %s\n", finding.Code, finding.Severity, finding.Summary))
 				for _, evidence := range finding.Evidence {
-					builder.WriteString(fmt.Sprintf("  - evidence: `%s`\n", evidence))
+					builder.WriteString(fmt.Sprintf("  - evidence: %s\n", evidence))
 				}
 				if finding.Recommendation != "" {
 					builder.WriteString(fmt.Sprintf("  - recommendation: %s\n", finding.Recommendation))
