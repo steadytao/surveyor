@@ -253,6 +253,17 @@ Current discovery report shape:
 ```json
 {
   "generated_at": "2026-04-15T01:45:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "cidr": "10.0.0.0/30",
+    "ports": [443, 8443]
+  },
+  "execution": {
+    "profile": "cautious",
+    "max_hosts": 256,
+    "max_concurrency": 8,
+    "timeout": "3s"
+  },
   "results": [],
   "summary": {}
 }
@@ -265,6 +276,17 @@ Fields:
 - type: RFC3339 UTC timestamp
 - meaning: when the discovery report object was assembled
 
+### `scope`
+
+- type: report-scope object
+- meaning: declared scope metadata for the discovery report
+
+### `execution`
+
+- type: report-execution object
+- optional: yes
+- meaning: execution settings that materially shaped the run, currently present for remote discovery
+
 ### `results`
 
 - type: array of discovered endpoints
@@ -274,6 +296,44 @@ Fields:
 
 - type: discovery summary object
 - meaning: aggregate counts derived from `results`
+
+## Report scope
+
+Current report-scope shape:
+
+```json
+{
+  "scope_kind": "remote",
+  "cidr": "10.0.0.0/30",
+  "ports": [443, 8443]
+}
+```
+
+Fields:
+
+- `scope_kind`: whether the report covers `local` or `remote` scope
+- `cidr`: declared remote CIDR when the report covers remote scope
+- `ports`: declared remote port set when the report covers remote scope
+
+## Report execution
+
+Current report-execution shape:
+
+```json
+{
+  "profile": "cautious",
+  "max_hosts": 256,
+  "max_concurrency": 8,
+  "timeout": "3s"
+}
+```
+
+Fields:
+
+- `profile`: effective remote pace profile
+- `max_hosts`: effective expanded-host hard cap
+- `max_concurrency`: effective probe concurrency cap
+- `timeout`: effective per-attempt timeout, currently also used for remote TLS connection attempts during audit
 
 ## Discovered endpoint
 
@@ -414,6 +474,17 @@ Current top-level audit report shape:
 ```json
 {
   "generated_at": "2026-04-16T02:00:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "cidr": "10.0.0.0/30",
+    "ports": [443, 8443]
+  },
+  "execution": {
+    "profile": "cautious",
+    "max_hosts": 256,
+    "max_concurrency": 8,
+    "timeout": "3s"
+  },
   "results": [],
   "summary": {}
 }
@@ -425,6 +496,17 @@ Fields:
 
 - type: RFC3339 UTC timestamp
 - meaning: when the audit report object was assembled
+
+### `scope`
+
+- type: report-scope object
+- meaning: declared scope metadata for the audit report
+
+### `execution`
+
+- type: report-execution object
+- optional: yes
+- meaning: execution settings that materially shaped the run, currently present for remote audit
 
 ### `results`
 

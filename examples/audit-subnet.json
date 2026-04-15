@@ -1,5 +1,19 @@
 {
   "generated_at": "2026-04-18T01:30:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "cidr": "10.0.0.0/30",
+    "ports": [
+      443,
+      8443
+    ]
+  },
+  "execution": {
+    "profile": "cautious",
+    "max_hosts": 256,
+    "max_concurrency": 8,
+    "timeout": "3s"
+  },
   "results": [
     {
       "discovered_endpoint": {

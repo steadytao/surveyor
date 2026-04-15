@@ -121,6 +121,7 @@ That is intentional. Surveyor should extend its rule set only when the new behav
 The current classifier does not yet consider:
 - trust-store validation
 - hostname validation
+- remote IP-target virtual-host routing beyond the literal observed connection path
 - incomplete chains beyond presented metadata
 - revocation
 - certificate transparency

@@ -9,15 +9,42 @@ import (
 
 // BuildDiscoveryReport assembles the canonical discovery report and its summary.
 func BuildDiscoveryReport(results []core.DiscoveredEndpoint, generatedAt time.Time) core.DiscoveryReport {
+	return BuildDiscoveryReportWithMetadata(results, generatedAt, nil, nil)
+}
+
+// BuildDiscoveryReportWithMetadata assembles the canonical discovery report,
+// including any declared report scope and execution settings.
+func BuildDiscoveryReportWithMetadata(results []core.DiscoveredEndpoint, generatedAt time.Time, scope *core.ReportScope, execution *core.ReportExecution) core.DiscoveryReport {
 	// Copy the slice so report assembly does not retain caller-owned backing
 	// storage. Discovery rendering should be a pure step over stable result data.
 	reportResults := append([]core.DiscoveredEndpoint(nil), results...)
 
 	return core.DiscoveryReport{
 		GeneratedAt: generatedAt.UTC(),
+		Scope:       cloneReportScope(scope),
+		Execution:   cloneReportExecution(execution),
 		Results:     reportResults,
 		Summary:     buildDiscoverySummary(reportResults),
 	}
+}
+
+func cloneReportScope(scope *core.ReportScope) *core.ReportScope {
+	if scope == nil {
+		return nil
+	}
+
+	clone := *scope
+	clone.Ports = append([]int(nil), scope.Ports...)
+	return &clone
+}
+
+func cloneReportExecution(execution *core.ReportExecution) *core.ReportExecution {
+	if execution == nil {
+		return nil
+	}
+
+	clone := *execution
+	return &clone
 }
 
 func buildDiscoverySummary(results []core.DiscoveredEndpoint) core.DiscoverySummary {

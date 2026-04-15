@@ -109,6 +109,17 @@ Current top-level discovery report shape:
 ```json
 {
   "generated_at": "2026-04-15T03:00:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "cidr": "10.0.0.0/30",
+    "ports": [443, 8443]
+  },
+  "execution": {
+    "profile": "cautious",
+    "max_hosts": 256,
+    "max_concurrency": 8,
+    "timeout": "3s"
+  },
   "results": [],
   "summary": {}
 }
@@ -117,8 +128,48 @@ Current top-level discovery report shape:
 Fields:
 
 - `generated_at`: RFC3339 UTC timestamp for report assembly time
+- `scope`: declared scope metadata for the report
+- `execution`: execution settings that materially shaped the run, currently present for remote discovery
 - `results`: one entry per observed endpoint
 - `summary`: aggregate counts derived from `results`
+
+### Report scope
+
+Current report-scope shape:
+
+```json
+{
+  "scope_kind": "remote",
+  "cidr": "10.0.0.0/30",
+  "ports": [443, 8443]
+}
+```
+
+Fields:
+
+- `scope_kind`: `local` or `remote`
+- `cidr`: declared remote CIDR when the report covers remote scope
+- `ports`: declared remote port set when the report covers remote scope
+
+### Report execution
+
+Current report-execution shape:
+
+```json
+{
+  "profile": "cautious",
+  "max_hosts": 256,
+  "max_concurrency": 8,
+  "timeout": "3s"
+}
+```
+
+Fields:
+
+- `profile`: effective remote pace profile
+- `max_hosts`: effective expanded-host hard cap
+- `max_concurrency`: effective probe concurrency cap
+- `timeout`: effective per-attempt timeout
 
 ### Discovered endpoint
 
@@ -217,6 +268,7 @@ It:
 - records both responsive and failed attempts
 - attaches hints only to responsive endpoints
 - does not perform verified TLS scanning
+- records the declared scope and effective remote execution settings in the report metadata
 
 ## Current examples
 

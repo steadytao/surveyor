@@ -18,6 +18,22 @@ type DiscoveryHint struct {
 	Evidence   []string `json:"evidence,omitempty"`
 }
 
+// ReportScope records the declared scope a discovery or audit report covers.
+type ReportScope struct {
+	ScopeKind EndpointScopeKind `json:"scope_kind"`
+	CIDR      string            `json:"cidr,omitempty"`
+	Ports     []int             `json:"ports,omitempty"`
+}
+
+// ReportExecution records the execution settings that materially shaped a
+// discovery or audit run.
+type ReportExecution struct {
+	Profile        string `json:"profile,omitempty"`
+	MaxHosts       int    `json:"max_hosts,omitempty"`
+	MaxConcurrency int    `json:"max_concurrency,omitempty"`
+	Timeout        string `json:"timeout,omitempty"`
+}
+
 // DiscoveredEndpoint records one observed endpoint within declared scope and
 // any best-effort enrichment that applies to that scope kind.
 type DiscoveredEndpoint struct {
@@ -45,6 +61,8 @@ type DiscoverySummary struct {
 // DiscoveryReport is the top-level canonical discovery report.
 type DiscoveryReport struct {
 	GeneratedAt time.Time            `json:"generated_at"`
+	Scope       *ReportScope         `json:"scope,omitempty"`
+	Execution   *ReportExecution     `json:"execution,omitempty"`
 	Results     []DiscoveredEndpoint `json:"results"`
 	Summary     DiscoverySummary     `json:"summary"`
 }

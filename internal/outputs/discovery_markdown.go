@@ -2,6 +2,7 @@ package outputs
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +19,35 @@ func RenderDiscoveryMarkdown(report core.DiscoveryReport) string {
 	builder.WriteString(fmt.Sprintf("- Total endpoints: %d\n", report.Summary.TotalEndpoints))
 	builder.WriteString(fmt.Sprintf("- TCP endpoints: %d\n", report.Summary.TCPEndpoints))
 	builder.WriteString(fmt.Sprintf("- UDP endpoints: %d\n\n", report.Summary.UDPEndpoints))
+
+	if report.Scope != nil {
+		builder.WriteString("## Scope\n\n")
+		builder.WriteString(fmt.Sprintf("- Scope kind: %s\n", report.Scope.ScopeKind))
+		if report.Scope.CIDR != "" {
+			builder.WriteString(fmt.Sprintf("- CIDR: %s\n", report.Scope.CIDR))
+		}
+		if len(report.Scope.Ports) > 0 {
+			builder.WriteString(fmt.Sprintf("- Ports: %s\n", renderPortsList(report.Scope.Ports)))
+		}
+		builder.WriteString("\n")
+	}
+
+	if report.Execution != nil {
+		builder.WriteString("## Execution\n\n")
+		if report.Execution.Profile != "" {
+			builder.WriteString(fmt.Sprintf("- Profile: %s\n", report.Execution.Profile))
+		}
+		if report.Execution.MaxHosts > 0 {
+			builder.WriteString(fmt.Sprintf("- Max hosts: %d\n", report.Execution.MaxHosts))
+		}
+		if report.Execution.MaxConcurrency > 0 {
+			builder.WriteString(fmt.Sprintf("- Max concurrency: %d\n", report.Execution.MaxConcurrency))
+		}
+		if report.Execution.Timeout != "" {
+			builder.WriteString(fmt.Sprintf("- Timeout per attempt: %s\n", report.Execution.Timeout))
+		}
+		builder.WriteString("\n")
+	}
 
 	builder.WriteString("## Hint summary\n\n")
 	hintKeys := sortedHintKeys(report.Summary)
@@ -88,4 +118,17 @@ func RenderDiscoveryMarkdown(report core.DiscoveryReport) string {
 
 func discoveryEndpointHeading(result core.DiscoveredEndpoint) string {
 	return fmt.Sprintf("%s:%d/%s", result.Host, result.Port, result.Transport)
+}
+
+func renderPortsList(ports []int) string {
+	if len(ports) == 0 {
+		return ""
+	}
+
+	values := make([]string, 0, len(ports))
+	for _, port := range ports {
+		values = append(values, strconv.Itoa(port))
+	}
+
+	return strings.Join(values, ",")
 }

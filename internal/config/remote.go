@@ -23,7 +23,6 @@ const (
 // Zero-valued pace controls mean "use the selected profile default".
 type SubnetScopeInput struct {
 	CIDR           string
-	TargetsFile    string
 	Ports          string
 	Profile        string
 	MaxHosts       int
@@ -70,15 +69,9 @@ const defaultRemoteMaxHosts = 256
 // contract future remote commands will execute against.
 func ParseSubnetScope(input SubnetScopeInput) (SubnetScope, error) {
 	cidrText := strings.TrimSpace(input.CIDR)
-	targetsFile := strings.TrimSpace(input.TargetsFile)
 
-	switch {
-	case cidrText != "" && targetsFile != "":
-		return SubnetScope{}, fmt.Errorf("use either --cidr or --targets-file, not both")
-	case cidrText == "" && targetsFile == "":
-		return SubnetScope{}, fmt.Errorf("one of --cidr or --targets-file is required")
-	case targetsFile != "":
-		return SubnetScope{}, fmt.Errorf("--targets-file is not supported yet")
+	if cidrText == "" {
+		return SubnetScope{}, fmt.Errorf("--cidr is required")
 	}
 
 	profile, err := parseRemoteProfile(input.Profile)

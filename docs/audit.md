@@ -129,6 +129,17 @@ Current top-level audit report shape:
 ```json
 {
   "generated_at": "2026-04-16T02:00:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "cidr": "10.0.0.0/30",
+    "ports": [443, 8443]
+  },
+  "execution": {
+    "profile": "cautious",
+    "max_hosts": 256,
+    "max_concurrency": 8,
+    "timeout": "3s"
+  },
   "results": [],
   "summary": {}
 }
@@ -137,8 +148,48 @@ Current top-level audit report shape:
 Fields:
 
 - `generated_at`: RFC3339 UTC timestamp for report assembly time
+- `scope`: declared scope metadata for the report
+- `execution`: execution settings that materially shaped the run, currently present for remote audit
 - `results`: one entry per discovered endpoint considered by the audit flow
 - `summary`: aggregate counts derived from `results`
+
+### Report scope
+
+Current report-scope shape:
+
+```json
+{
+  "scope_kind": "remote",
+  "cidr": "10.0.0.0/30",
+  "ports": [443, 8443]
+}
+```
+
+Fields:
+
+- `scope_kind`: `local` or `remote`
+- `cidr`: declared remote CIDR when the report covers remote scope
+- `ports`: declared remote port set when the report covers remote scope
+
+### Report execution
+
+Current report-execution shape:
+
+```json
+{
+  "profile": "cautious",
+  "max_hosts": 256,
+  "max_concurrency": 8,
+  "timeout": "3s"
+}
+```
+
+Fields:
+
+- `profile`: effective remote pace profile
+- `max_hosts`: effective expanded-host hard cap
+- `max_concurrency`: effective remote probe concurrency cap
+- `timeout`: effective per-attempt timeout used for remote probing and TLS connection attempts
 
 ### Audit result
 
@@ -229,6 +280,8 @@ It:
 - only hands off to supported scanners intentionally
 - preserves the difference between hinting and verification
 - keeps unsupported or failed endpoints explicit in the report instead of silently dropping them
+
+For `audit subnet`, verified TLS results should be read as literal IP-target connection-path observations. They do not imply hostname validation or full virtual-host coverage behind the address.
 
 ## Current examples
 

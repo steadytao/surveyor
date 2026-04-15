@@ -15,7 +15,7 @@ Surveyor is in early development.
 
 The first milestone was intentionally narrow. It completed as a TLS inventory MVP for explicitly provided targets.
 
-The current repository now includes the scoped remote inventory foundation around `surveyor discover subnet` and `surveyor audit subnet`.
+The current repository now includes a scoped remote inventory surface around `surveyor discover subnet` and `surveyor audit subnet`.
 
 The current repository already includes:
 
@@ -138,6 +138,8 @@ Rules:
 - `--profile` sets default remote pace, explicit `--max-hosts`, `--max-concurrency` and `--timeout` override it
 - `--dry-run` performs no network I/O and prints the execution plan
 - `--json` is not supported with `--dry-run`
+- discovery and audit reports now carry explicit scope metadata, and remote runs also carry execution metadata
+- remote IP-target TLS results should be read as literal connection-path observations, not hostname-validation or virtual-host coverage claims
 - IPv6 targets must use bracket form, for example `[::1]:443`
 - if no output paths are given, Markdown is written to stdout
 
