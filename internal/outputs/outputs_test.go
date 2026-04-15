@@ -302,7 +302,7 @@ func sampleReport() core.Report {
 }
 
 func sampleDiscoveryReport() core.DiscoveryReport {
-	return BuildDiscoveryReport([]core.DiscoveredEndpoint{
+	return BuildDiscoveryReportWithMetadata([]core.DiscoveredEndpoint{
 		{
 			ScopeKind:   core.EndpointScopeKindLocal,
 			Host:        "0.0.0.0",
@@ -329,11 +329,13 @@ func sampleDiscoveryReport() core.DiscoveryReport {
 			PID:       9876,
 			Warnings:  []string{"process metadata unavailable"},
 		},
-	}, time.Date(2026, time.April, 15, 1, 45, 0, 0, time.UTC))
+	}, time.Date(2026, time.April, 15, 1, 45, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind: core.EndpointScopeKindLocal,
+	}, nil)
 }
 
 func sampleAuditReport() core.AuditReport {
-	return BuildAuditReport([]core.AuditResult{
+	return BuildAuditReportWithMetadata([]core.AuditResult{
 		{
 			DiscoveredEndpoint: core.DiscoveredEndpoint{
 				ScopeKind:   core.EndpointScopeKindLocal,
@@ -385,5 +387,7 @@ func sampleAuditReport() core.AuditReport {
 				Reason: "no supported scanner for udp endpoint",
 			},
 		},
-	}, time.Date(2026, time.April, 16, 2, 30, 0, 0, time.UTC))
+	}, time.Date(2026, time.April, 16, 2, 30, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind: core.EndpointScopeKindLocal,
+	}, nil)
 }

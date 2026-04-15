@@ -5,6 +5,19 @@
 - TCP endpoints: 3
 - UDP endpoints: 0
 
+## Scope
+
+- Scope kind: remote
+- CIDR: 10.0.0.0/30
+- Ports: 443,8443
+
+## Execution
+
+- Profile: cautious
+- Max hosts: 256
+- Max concurrency: 8
+- Timeout per attempt: 3s
+
 ## Hint summary
 
 - tls: 2

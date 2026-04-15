@@ -6,6 +6,10 @@
 - Scanned endpoints: 1
 - Skipped endpoints: 1
 
+## Scope
+
+- Scope kind: local
+
 ## Selection summary
 
 - tls: 1

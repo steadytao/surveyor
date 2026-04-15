@@ -3,6 +3,7 @@
 Remote inventory is now part of Surveyor's current repository surface.
 
 It extends the local discovery and audit model across an authorised remote boundary without changing the project's core discipline:
+
 - explicit scope first
 - conservative discovery second
 - conservative hints third
@@ -13,6 +14,7 @@ It extends the local discovery and audit model across an authorised remote bound
 ## Current command surface
 
 The current remote commands are:
+
 ```bash
 surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o discovery-subnet.md -j discovery-subnet.json
 surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o audit-subnet.md -j audit-subnet.json
@@ -20,11 +22,10 @@ surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o 
 
 For the current implementation, `--cidr` is the only supported remote scope input.
 
-`--targets-file` is reserved and validated, but it is still rejected explicitly with a clear error rather than being treated as implemented.
-
 ## Why this surface exists
 
 Surveyor already proved:
+
 - one verified deep scanner, TLS
 - one local discovery foundation
 - one local audit orchestration path
@@ -71,6 +72,7 @@ Profiles change pace, not scope.
 ## Current remote safety controls
 
 The current remote control surface is:
+
 - `--profile cautious|balanced|aggressive`
 - `--dry-run`
 - `--max-hosts`
@@ -79,12 +81,13 @@ The current remote control surface is:
 - `--ports`
 
 Rules:
+
 - `--profile` sets defaults
 - explicit flags override profile defaults
-  - `--dry-run` performs no network I/O at all
-  - `--max-hosts` is a hard stop after scope expansion
-  - `--timeout` applies per probe or connection attempt
-  - `--ports` is required for current CIDR mode
+- `--dry-run` performs no network I/O at all
+- `--max-hosts` is a hard stop after scope expansion
+- `--timeout` applies per probe or connection attempt
+- `--ports` is required for current CIDR mode
 
 Current defaults:
 - profile default: `cautious`
@@ -98,6 +101,7 @@ Current defaults:
 `--dry-run` validates the execution plan without touching the network.
 
 It prints:
+
 - command mode
 - resolved scope
 - expanded host count
@@ -119,7 +123,8 @@ It does:
 - probe only the declared ports
 - record responsive TCP endpoints as `state=responsive`
 - record failed attempts as `state=candidate` with explicit errors
-- attache conservative low-confidence hints only to responsive endpoints
+- attach conservative low-confidence hints only to responsive endpoints
+- record the declared scope and effective execution settings in the report metadata
 
 It does not:
 - perform verified protocol handshakes
@@ -136,12 +141,14 @@ It does:
 - require a conservative `tls` hint before TLS scanner handoff
 - invoke only the existing TLS scanner
 - skip everything else explicitly with a reason
+- record the declared scope and effective execution settings in the report metadata
 
 Important examples:
 - a failed `443` probe remains an attempted endpoint with explicit errors
 - a failed `443` probe is not a TLS candidate
 - a responsive `443` or `8443` endpoint may carry a low-confidence `tls` hint
 - only then can audit select it for verified TLS scanning
+- verified TLS results on remote runs reflect literal IP-target connection paths, not hostname validation or full virtual-host coverage
 
 ## Facts, hints, selections and scans
 

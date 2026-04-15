@@ -154,24 +154,7 @@ func TestParseSubnetScopeInvalidInput(t *testing.T) {
 			input: SubnetScopeInput{
 				Ports: "443",
 			},
-			wantErrText: "one of --cidr or --targets-file is required",
-		},
-		{
-			name: "both scope inputs",
-			input: SubnetScopeInput{
-				CIDR:        "10.0.0.0/24",
-				TargetsFile: "approved-targets.txt",
-				Ports:       "443",
-			},
-			wantErrText: "use either --cidr or --targets-file, not both",
-		},
-		{
-			name: "targets file deferred",
-			input: SubnetScopeInput{
-				TargetsFile: "approved-targets.txt",
-				Ports:       "443",
-			},
-			wantErrText: "--targets-file is not supported yet",
+			wantErrText: "--cidr is required",
 		},
 		{
 			name: "invalid cidr",

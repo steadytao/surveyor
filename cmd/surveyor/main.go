@@ -40,7 +40,7 @@ var newLocalAuditRunner = func(now func() time.Time) auditRunner {
 var newRemoteAuditRunner = func(scope config.SubnetScope, now func() time.Time) auditRunner {
 	return auditflow.RemoteRunner{
 		Scope:      scope,
-		TLSScanner: tlsinventory.Scanner{Now: now},
+		TLSScanner: tlsinventory.Scanner{Now: now, Timeout: scope.Timeout},
 	}
 }
 
@@ -261,7 +261,7 @@ func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer, now fun
 		return 1
 	}
 
-	return writeDiscoveryOutputs("discover local", results, discoverNow().UTC(), stdout, stderr, *markdownPath, *jsonPath)
+	return writeDiscoveryOutputs("discover local", results, discoverNow().UTC(), localReportScopeMetadata(), nil, stdout, stderr, *markdownPath, *jsonPath)
 }
 
 func runDiscoverSubnet(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
@@ -272,7 +272,6 @@ func runDiscoverSubnet(args []string, stdout io.Writer, stderr io.Writer, now fu
 	}
 
 	cidr := fs.String("cidr", "", "CIDR scope to discover, for example 10.0.0.0/24")
-	targetsFile := fs.String("targets-file", "", "Path to a newline-delimited approved targets file")
 	ports := fs.String("ports", "", "Comma-separated explicit remote ports, for example 443,8443")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
@@ -302,7 +301,6 @@ func runDiscoverSubnet(args []string, stdout io.Writer, stderr io.Writer, now fu
 
 	scope, err := config.ParseSubnetScope(config.SubnetScopeInput{
 		CIDR:           *cidr,
-		TargetsFile:    *targetsFile,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
@@ -349,11 +347,12 @@ func runDiscoverSubnet(args []string, stdout io.Writer, stderr io.Writer, now fu
 		return 1
 	}
 
-	return writeDiscoveryOutputs("discover subnet", results, discoverNow().UTC(), stdout, stderr, *markdownPath, *jsonPath)
+	reportScope, execution := subnetReportMetadata(scope)
+	return writeDiscoveryOutputs("discover subnet", results, discoverNow().UTC(), reportScope, execution, stdout, stderr, *markdownPath, *jsonPath)
 }
 
-func writeDiscoveryOutputs(commandName string, results []core.DiscoveredEndpoint, generatedAt time.Time, stdout io.Writer, stderr io.Writer, markdownPath string, jsonPath string) int {
-	report := outputs.BuildDiscoveryReport(results, generatedAt.UTC())
+func writeDiscoveryOutputs(commandName string, results []core.DiscoveredEndpoint, generatedAt time.Time, reportScope *core.ReportScope, execution *core.ReportExecution, stdout io.Writer, stderr io.Writer, markdownPath string, jsonPath string) int {
+	report := outputs.BuildDiscoveryReportWithMetadata(results, generatedAt.UTC(), reportScope, execution)
 
 	if jsonPath != "" {
 		jsonData, err := outputs.MarshalDiscoveryJSON(report)
@@ -425,7 +424,7 @@ func runAuditLocal(args []string, stdout io.Writer, stderr io.Writer, now func()
 		return 1
 	}
 
-	return writeAuditOutputs("audit local", results, auditNow().UTC(), stdout, stderr, *markdownPath, *jsonPath)
+	return writeAuditOutputs("audit local", results, auditNow().UTC(), localReportScopeMetadata(), nil, stdout, stderr, *markdownPath, *jsonPath)
 }
 
 func runAuditSubnet(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
@@ -436,7 +435,6 @@ func runAuditSubnet(args []string, stdout io.Writer, stderr io.Writer, now func(
 	}
 
 	cidr := fs.String("cidr", "", "CIDR scope to audit, for example 10.0.0.0/24")
-	targetsFile := fs.String("targets-file", "", "Path to a newline-delimited approved targets file")
 	ports := fs.String("ports", "", "Comma-separated explicit remote ports, for example 443,8443")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
@@ -466,7 +464,6 @@ func runAuditSubnet(args []string, stdout io.Writer, stderr io.Writer, now func(
 
 	scope, err := config.ParseSubnetScope(config.SubnetScopeInput{
 		CIDR:           *cidr,
-		TargetsFile:    *targetsFile,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
@@ -513,11 +510,12 @@ func runAuditSubnet(args []string, stdout io.Writer, stderr io.Writer, now func(
 		return 1
 	}
 
-	return writeAuditOutputs("audit subnet", results, auditNow().UTC(), stdout, stderr, *markdownPath, *jsonPath)
+	reportScope, execution := subnetReportMetadata(scope)
+	return writeAuditOutputs("audit subnet", results, auditNow().UTC(), reportScope, execution, stdout, stderr, *markdownPath, *jsonPath)
 }
 
-func writeAuditOutputs(commandName string, results []core.AuditResult, generatedAt time.Time, stdout io.Writer, stderr io.Writer, markdownPath string, jsonPath string) int {
-	report := outputs.BuildAuditReport(results, generatedAt.UTC())
+func writeAuditOutputs(commandName string, results []core.AuditResult, generatedAt time.Time, reportScope *core.ReportScope, execution *core.ReportExecution, stdout io.Writer, stderr io.Writer, markdownPath string, jsonPath string) int {
+	report := outputs.BuildAuditReportWithMetadata(results, generatedAt.UTC(), reportScope, execution)
 
 	if jsonPath != "" {
 		jsonData, err := outputs.MarshalAuditJSON(report)
@@ -698,7 +696,6 @@ func printAuditSubnetUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to audit, for example 10.0.0.0/24")
-	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited approved targets file, not yet supported")
 	fmt.Fprintln(w, "  --ports             Comma-separated explicit remote ports, for example 443,8443")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print the execution plan without performing network I/O")
@@ -740,7 +737,6 @@ func printDiscoverSubnetUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to discover, for example 10.0.0.0/24")
-	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited approved targets file, not yet supported")
 	fmt.Fprintln(w, "  --ports             Comma-separated explicit remote ports, for example 443,8443")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print the execution plan without performing network I/O")
@@ -768,6 +764,25 @@ func renderSubnetExecutionPlanMarkdown(commandName string, scope config.SubnetSc
 	builder.WriteString(fmt.Sprintf("- Supported scanners: %s\n", supportedScanners))
 
 	return builder.String()
+}
+
+func localReportScopeMetadata() *core.ReportScope {
+	return &core.ReportScope{
+		ScopeKind: core.EndpointScopeKindLocal,
+	}
+}
+
+func subnetReportMetadata(scope config.SubnetScope) (*core.ReportScope, *core.ReportExecution) {
+	return &core.ReportScope{
+			ScopeKind: core.EndpointScopeKindRemote,
+			CIDR:      scope.CIDR.String(),
+			Ports:     append([]int(nil), scope.Ports...),
+		}, &core.ReportExecution{
+			Profile:        string(scope.Profile),
+			MaxHosts:       scope.MaxHosts,
+			MaxConcurrency: scope.MaxConcurrency,
+			Timeout:        scope.Timeout.String(),
+		}
 }
 
 func joinPorts(ports []int) string {

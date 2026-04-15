@@ -36,7 +36,9 @@ type AuditSummary struct {
 
 // AuditReport is the top-level canonical audit report.
 type AuditReport struct {
-	GeneratedAt time.Time     `json:"generated_at"`
-	Results     []AuditResult `json:"results"`
-	Summary     AuditSummary  `json:"summary"`
+	GeneratedAt time.Time        `json:"generated_at"`
+	Scope       *ReportScope     `json:"scope,omitempty"`
+	Execution   *ReportExecution `json:"execution,omitempty"`
+	Results     []AuditResult    `json:"results"`
+	Summary     AuditSummary     `json:"summary"`
 }

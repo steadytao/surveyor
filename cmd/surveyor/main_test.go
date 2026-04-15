@@ -163,6 +163,9 @@ func TestRunAuditLocalWritesMarkdownToStdout(t *testing.T) {
 	if !strings.Contains(stdout.String(), "# Surveyor Audit Report") {
 		t.Fatalf("stdout = %q, want audit markdown output", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "## Scope") {
+		t.Fatalf("stdout = %q, want report scope metadata", stdout.String())
+	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
@@ -243,8 +246,8 @@ func TestRunAuditLocalWritesOutputs(t *testing.T) {
 	if !strings.Contains(string(markdownData), "# Surveyor Audit Report") {
 		t.Fatalf("markdown output missing audit heading\n%s", string(markdownData))
 	}
-	if !strings.Contains(string(jsonData), "\"total_endpoints\": 1") {
-		t.Fatalf("json output missing audit summary\n%s", string(jsonData))
+	if !strings.Contains(string(jsonData), "\"scope\": {") || !strings.Contains(string(jsonData), "\"scope_kind\": \"local\"") {
+		t.Fatalf("json output missing local audit scope metadata\n%s", string(jsonData))
 	}
 }
 
@@ -284,6 +287,9 @@ func TestRunAuditSubnetHelp(t *testing.T) {
 	if !strings.Contains(stderr.String(), "--cidr") {
 		t.Fatalf("stderr = %q, want subnet audit flags", stderr.String())
 	}
+	if strings.Contains(stderr.String(), "--targets-file") {
+		t.Fatalf("stderr = %q, want no targets-file flag in v0.4.0 help", stderr.String())
+	}
 }
 
 func TestRunAuditSubnetRejectsPositionalArguments(t *testing.T) {
@@ -313,7 +319,7 @@ func TestRunAuditSubnetRequiresScopeAndPorts(t *testing.T) {
 	if exitCode != 2 {
 		t.Fatalf("run() exitCode = %d, want 2", exitCode)
 	}
-	if !strings.Contains(stderr.String(), "one of --cidr or --targets-file is required") {
+	if !strings.Contains(stderr.String(), "--cidr is required") {
 		t.Fatalf("stderr = %q, want subnet scope validation error", stderr.String())
 	}
 }
@@ -358,8 +364,8 @@ func TestRunAuditSubnetWritesMarkdownToStdout(t *testing.T) {
 	if !strings.Contains(stdout.String(), "# Surveyor Audit Report") {
 		t.Fatalf("stdout = %q, want audit markdown output", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "Scope kind: remote") {
-		t.Fatalf("stdout = %q, want remote audit output", stdout.String())
+	if !strings.Contains(stdout.String(), "CIDR: 10.0.0.0/30") {
+		t.Fatalf("stdout = %q, want remote scope metadata", stdout.String())
 	}
 }
 
@@ -424,8 +430,8 @@ func TestRunAuditSubnetWritesOutputs(t *testing.T) {
 	if !strings.Contains(string(markdownData), "# Surveyor Audit Report") {
 		t.Fatalf("markdown output missing audit heading\n%s", string(markdownData))
 	}
-	if !strings.Contains(string(jsonData), "\"scope_kind\": \"remote\"") {
-		t.Fatalf("json output missing remote audit result\n%s", string(jsonData))
+	if !strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") || !strings.Contains(string(jsonData), "\"profile\": \"cautious\"") || !strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
+		t.Fatalf("json output missing remote audit metadata\n%s", string(jsonData))
 	}
 }
 
@@ -579,6 +585,9 @@ func TestRunDiscoverLocalWritesMarkdownToStdout(t *testing.T) {
 	if !strings.Contains(stdout.String(), "# Surveyor Discovery Report") {
 		t.Fatalf("stdout = %q, want discovery markdown output", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "## Scope") {
+		t.Fatalf("stdout = %q, want report scope metadata", stdout.String())
+	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
@@ -652,8 +661,8 @@ func TestRunDiscoverLocalWritesOutputs(t *testing.T) {
 	if !strings.Contains(string(markdownData), "# Surveyor Discovery Report") {
 		t.Fatalf("markdown output missing discovery heading\n%s", string(markdownData))
 	}
-	if !strings.Contains(string(jsonData), "\"total_endpoints\": 1") {
-		t.Fatalf("json output missing discovery summary\n%s", string(jsonData))
+	if !strings.Contains(string(jsonData), "\"scope\": {") || !strings.Contains(string(jsonData), "\"scope_kind\": \"local\"") {
+		t.Fatalf("json output missing local discovery scope metadata\n%s", string(jsonData))
 	}
 }
 
@@ -693,6 +702,9 @@ func TestRunDiscoverSubnetHelp(t *testing.T) {
 	if !strings.Contains(stderr.String(), "--cidr") {
 		t.Fatalf("stderr = %q, want subnet discovery flags", stderr.String())
 	}
+	if strings.Contains(stderr.String(), "--targets-file") {
+		t.Fatalf("stderr = %q, want no targets-file flag in v0.4.0 help", stderr.String())
+	}
 }
 
 func TestRunDiscoverSubnetRejectsPositionalArguments(t *testing.T) {
@@ -722,7 +734,7 @@ func TestRunDiscoverSubnetRequiresScopeAndPorts(t *testing.T) {
 	if exitCode != 2 {
 		t.Fatalf("run() exitCode = %d, want 2", exitCode)
 	}
-	if !strings.Contains(stderr.String(), "one of --cidr or --targets-file is required") {
+	if !strings.Contains(stderr.String(), "--cidr is required") {
 		t.Fatalf("stderr = %q, want subnet scope validation error", stderr.String())
 	}
 }
@@ -760,8 +772,8 @@ func TestRunDiscoverSubnetWritesMarkdownToStdout(t *testing.T) {
 	if !strings.Contains(stdout.String(), "# Surveyor Discovery Report") {
 		t.Fatalf("stdout = %q, want discovery markdown output", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "Scope kind: remote") {
-		t.Fatalf("stdout = %q, want remote discovery output", stdout.String())
+	if !strings.Contains(stdout.String(), "CIDR: 10.0.0.0/30") {
+		t.Fatalf("stdout = %q, want remote scope metadata", stdout.String())
 	}
 }
 
@@ -819,8 +831,8 @@ func TestRunDiscoverSubnetWritesOutputs(t *testing.T) {
 	if !strings.Contains(string(markdownData), "# Surveyor Discovery Report") {
 		t.Fatalf("markdown output missing discovery heading\n%s", string(markdownData))
 	}
-	if !strings.Contains(string(jsonData), "\"scope_kind\": \"remote\"") {
-		t.Fatalf("json output missing remote discovery result\n%s", string(jsonData))
+	if !strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") || !strings.Contains(string(jsonData), "\"profile\": \"cautious\"") || !strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
+		t.Fatalf("json output missing remote discovery metadata\n%s", string(jsonData))
 	}
 }
 

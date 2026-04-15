@@ -65,7 +65,6 @@ It does not currently support:
 - host-only config entries with an implied default port
 - IP-only config entries with an implied default port
 - undeclared remote scope
-- `--targets-file` for remote commands
 - automatic service discovery outside the current local and subnet commands
 - cloud inventory import
 
@@ -106,6 +105,8 @@ It does not:
 
 Hints remain hints. A failed `443` attempt is still not a TLS scan result.
 
+Remote discovery reports also carry the declared scope and effective execution settings so later readers can see what the command was actually allowed to touch.
+
 ## Local audit boundary
 
 `audit local` is:
@@ -137,6 +138,8 @@ It does not:
 - run non-TLS deep scanners
 - perform aggressive multi-protocol probing
 - imply that unsupported endpoints were fully assessed
+
+Remote audit reports carry the declared scope and effective execution settings for the same reason.
 
 ## Collection boundaries
 

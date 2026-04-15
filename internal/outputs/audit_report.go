@@ -9,12 +9,20 @@ import (
 
 // BuildAuditReport assembles the canonical audit report and its summary.
 func BuildAuditReport(results []core.AuditResult, generatedAt time.Time) core.AuditReport {
+	return BuildAuditReportWithMetadata(results, generatedAt, nil, nil)
+}
+
+// BuildAuditReportWithMetadata assembles the canonical audit report, including
+// any declared report scope and execution settings.
+func BuildAuditReportWithMetadata(results []core.AuditResult, generatedAt time.Time, scope *core.ReportScope, execution *core.ReportExecution) core.AuditReport {
 	// Copy the slice so report assembly does not retain caller-owned backing
 	// storage. Rendering should be a pure step over stable audit results.
 	reportResults := append([]core.AuditResult(nil), results...)
 
 	return core.AuditReport{
 		GeneratedAt: generatedAt.UTC(),
+		Scope:       cloneReportScope(scope),
+		Execution:   cloneReportExecution(execution),
 		Results:     reportResults,
 		Summary:     buildAuditSummary(reportResults),
 	}

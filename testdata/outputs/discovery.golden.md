@@ -5,6 +5,10 @@
 - TCP endpoints: 1
 - UDP endpoints: 1
 
+## Scope
+
+- Scope kind: local
+
 ## Hint summary
 
 - tls: 1
