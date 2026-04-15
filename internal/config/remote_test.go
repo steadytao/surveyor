@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -83,6 +85,65 @@ func TestParseRemoteScopeOverrides(t *testing.T) {
 	}
 }
 
+func TestParseRemoteScopeTargetsFile(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	targetsFile := filepath.Join(tempDir, "approved-hosts.txt")
+	if err := os.WriteFile(targetsFile, []byte(strings.Join([]string{
+		"# approved remote scope",
+		"10.0.0.10",
+		"",
+		"example.com",
+		"EXAMPLE.COM",
+		"10.0.0.10",
+		"2001:db8::10",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		TargetsFile:    targetsFile,
+		Ports:          "8443,443",
+		Profile:        "balanced",
+		MaxHosts:       10,
+		MaxConcurrency: 12,
+		Timeout:        5 * time.Second,
+		DryRun:         true,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.InputKind, RemoteScopeInputKindTargetsFile; got != want {
+		t.Fatalf("scope.InputKind = %q, want %q", got, want)
+	}
+	if got, want := scope.TargetsFile, targetsFile; got != want {
+		t.Fatalf("scope.TargetsFile = %q, want %q", got, want)
+	}
+	if got, want := scope.Hosts, []string{"10.0.0.10", "example.com", "2001:db8::10"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Hosts = %v, want %v", got, want)
+	}
+	if got, want := scope.HostCount, 3; got != want {
+		t.Fatalf("scope.HostCount = %d, want %d", got, want)
+	}
+	if got, want := scope.Ports, []int{443, 8443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Ports = %v, want %v", got, want)
+	}
+	if got, want := scope.Profile, RemoteProfileBalanced; got != want {
+		t.Fatalf("scope.Profile = %q, want %q", got, want)
+	}
+	if got, want := scope.MaxConcurrency, 12; got != want {
+		t.Fatalf("scope.MaxConcurrency = %d, want %d", got, want)
+	}
+	if got, want := scope.Timeout, 5*time.Second; got != want {
+		t.Fatalf("scope.Timeout = %s, want %s", got, want)
+	}
+	if !scope.DryRun {
+		t.Fatal("scope.DryRun = false, want true")
+	}
+}
+
 func TestParseRemoteScopeProfileDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -160,12 +221,29 @@ func TestParseRemoteScopeInvalidInput(t *testing.T) {
 			wantErrText: "--cidr is required",
 		},
 		{
+			name: "conflicting scope inputs",
+			input: RemoteScopeInput{
+				CIDR:        "10.0.0.0/24",
+				TargetsFile: "approved-hosts.txt",
+				Ports:       "443",
+			},
+			wantErrText: "use either --cidr or --targets-file, not both",
+		},
+		{
 			name: "invalid cidr",
 			input: RemoteScopeInput{
 				CIDR:  "10.0.0.0/99",
 				Ports: "443",
 			},
 			wantErrText: "invalid --cidr",
+		},
+		{
+			name: "missing targets file",
+			input: RemoteScopeInput{
+				TargetsFile: "missing-targets.txt",
+				Ports:       "443",
+			},
+			wantErrText: "read --targets-file",
 		},
 		{
 			name: "missing ports",
@@ -260,6 +338,57 @@ func TestParseRemoteScopeInvalidInput(t *testing.T) {
 			t.Parallel()
 
 			_, err := ParseRemoteScope(testCase.input)
+			if err == nil {
+				t.Fatal("ParseRemoteScope() error = nil, want non-nil")
+			}
+
+			if !strings.Contains(err.Error(), testCase.wantErrText) {
+				t.Fatalf("ParseRemoteScope() error = %q, want substring %q", err.Error(), testCase.wantErrText)
+			}
+		})
+	}
+}
+
+func TestParseRemoteScopeTargetsFileInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+
+	testCases := []struct {
+		name        string
+		fileContent string
+		maxHosts    int
+		wantErrText string
+	}{
+		{
+			name:        "empty after comments",
+			fileContent: "# nothing here\n\n   \n# still nothing\n",
+			wantErrText: "does not contain any hosts",
+		},
+		{
+			name:        "exceeds host cap",
+			fileContent: "10.0.0.10\n10.0.0.11\n10.0.0.12\n",
+			maxHosts:    2,
+			wantErrText: "exceeds --max-hosts=2",
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			targetsFile := filepath.Join(tempDir, testCase.name+".txt")
+			if err := os.WriteFile(targetsFile, []byte(testCase.fileContent), 0o644); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+
+			_, err := ParseRemoteScope(RemoteScopeInput{
+				TargetsFile: targetsFile,
+				Ports:       "443",
+				MaxHosts:    testCase.maxHosts,
+			})
 			if err == nil {
 				t.Fatal("ParseRemoteScope() error = nil, want non-nil")
 			}
