@@ -4,6 +4,17 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.3.0
+
+### Added
+- `surveyor audit local` now chains local discovery into the supported TLS scanner and emits one combined audit report
+- audit output now preserves discovered facts, protocol hints, scanner selection decisions, verified TLS results and explicit skip reasons in one canonical JSON-first model
+- canonical audit JSON and derived Markdown reports, including checked-in example outputs
+
+### Changed
+- README, audit docs, architecture docs, discovery docs, output schema docs, safety docs and release checklist now describe the implemented local audit workflow rather than a planned one
+- the repository now presents local audit, local discovery and explicit-target TLS inventory as the current shipped CLI surface
+
 ## v0.2.0
 
 ### Added
