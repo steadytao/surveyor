@@ -142,6 +142,7 @@ jobs:
 
           awk '
             /^## Changelog[[:space:]]*$/ { exit }
+            /^<!--[[:space:]]*changelog:/ { exit }
             { print }
           ' "$RELEASE_NOTES_FILE" > "$GENERATED_RELEASE_NOTES_FILE"
 

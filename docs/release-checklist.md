@@ -2,7 +2,7 @@
 
 This checklist exists to keep releases honest.
 
-`v0.1.0` used this checklist for the first public TLS inventory MVP release. Future releases should meet the same bar of coherence and verification.
+`v0.1.0` established this checklist around the initial TLS inventory MVP work. Future releases should meet the same bar of coherence and verification.
 
 ## Functional baseline
 
