@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/steadytao/surveyor/internal/config"
 	"github.com/steadytao/surveyor/internal/core"
 )
 
@@ -72,6 +73,9 @@ func TestRunHelp(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "discover local") {
 		t.Fatalf("stdout = %q, want discover command in top-level help", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "discover subnet") {
+		t.Fatalf("stdout = %q, want remote discovery command in top-level help", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "audit local") {
 		t.Fatalf("stdout = %q, want audit command in top-level help", stdout.String())
@@ -274,6 +278,9 @@ func TestRunDiscoverHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "surveyor discover local") {
 		t.Fatalf("stdout = %q, want discovery help text", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "surveyor discover subnet") {
+		t.Fatalf("stdout = %q, want subnet discovery help text", stdout.String())
+	}
 }
 
 func TestRunDiscoverLocalHelp(t *testing.T) {
@@ -297,7 +304,7 @@ func TestRunDiscoverLocalWritesMarkdownToStdout(t *testing.T) {
 	t.Cleanup(func() {
 		newLocalDiscoverer = originalDiscoverer
 	})
-	newLocalDiscoverer = func() localDiscoverer {
+	newLocalDiscoverer = func() discoverer {
 		return stubLocalDiscoverer{
 			results: []core.DiscoveredEndpoint{
 				{
@@ -351,7 +358,7 @@ func TestRunDiscoverLocalWritesOutputs(t *testing.T) {
 	t.Cleanup(func() {
 		newLocalDiscoverer = originalDiscoverer
 	})
-	newLocalDiscoverer = func() localDiscoverer {
+	newLocalDiscoverer = func() discoverer {
 		return stubLocalDiscoverer{
 			results: []core.DiscoveredEndpoint{
 				{
@@ -408,7 +415,7 @@ func TestRunDiscoverLocalFailsOnEnumeratorError(t *testing.T) {
 	t.Cleanup(func() {
 		newLocalDiscoverer = originalDiscoverer
 	})
-	newLocalDiscoverer = func() localDiscoverer {
+	newLocalDiscoverer = func() discoverer {
 		return stubLocalDiscoverer{err: errors.New("enumeration failed")}
 	}
 
@@ -422,6 +429,233 @@ func TestRunDiscoverLocalFailsOnEnumeratorError(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "discover local: enumeration failed") {
 		t.Fatalf("stderr = %q, want enumerator error", stderr.String())
+	}
+}
+
+func TestRunDiscoverSubnetHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"discover", "subnet", "--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "--cidr") {
+		t.Fatalf("stderr = %q, want subnet discovery flags", stderr.String())
+	}
+}
+
+func TestRunDiscoverSubnetRejectsPositionalArguments(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"discover", "subnet", "--cidr", "10.0.0.0/30", "--ports", "443", "extra"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "discover subnet does not accept positional arguments") {
+		t.Fatalf("stderr = %q, want positional argument rejection", stderr.String())
+	}
+}
+
+func TestRunDiscoverSubnetRequiresScopeAndPorts(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"discover", "subnet"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "one of --cidr or --targets-file is required") {
+		t.Fatalf("stderr = %q, want subnet scope validation error", stderr.String())
+	}
+}
+
+func TestRunDiscoverSubnetWritesMarkdownToStdout(t *testing.T) {
+	originalDiscoverer := newRemoteDiscoverer
+	t.Cleanup(func() {
+		newRemoteDiscoverer = originalDiscoverer
+	})
+	newRemoteDiscoverer = func(config.SubnetScope) discoverer {
+		return stubLocalDiscoverer{
+			results: []core.DiscoveredEndpoint{
+				{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "10.0.0.10",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Hints: []core.DiscoveryHint{
+						{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+					},
+				},
+			},
+		}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"discover", "subnet", "--cidr", "10.0.0.0/30", "--ports", "443"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Discovery Report") {
+		t.Fatalf("stdout = %q, want discovery markdown output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Scope kind: remote") {
+		t.Fatalf("stdout = %q, want remote discovery output", stdout.String())
+	}
+}
+
+func TestRunDiscoverSubnetWritesOutputs(t *testing.T) {
+	originalDiscoverer := newRemoteDiscoverer
+	t.Cleanup(func() {
+		newRemoteDiscoverer = originalDiscoverer
+	})
+	newRemoteDiscoverer = func(config.SubnetScope) discoverer {
+		return stubLocalDiscoverer{
+			results: []core.DiscoveredEndpoint{
+				{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "10.0.0.10",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+				},
+			},
+		}
+	}
+
+	tempDir := t.TempDir()
+	markdownPath := filepath.Join(tempDir, "subnet.md")
+	jsonPath := filepath.Join(tempDir, "subnet.json")
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"discover",
+		"subnet",
+		"--cidr", "10.0.0.0/30",
+		"--ports", "443",
+		"--output", markdownPath,
+		"--json", jsonPath,
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty when file outputs are requested", stdout.String())
+	}
+
+	markdownData, err := os.ReadFile(markdownPath)
+	if err != nil {
+		t.Fatalf("ReadFile(markdown) error = %v", err)
+	}
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile(json) error = %v", err)
+	}
+
+	if !strings.Contains(string(markdownData), "# Surveyor Discovery Report") {
+		t.Fatalf("markdown output missing discovery heading\n%s", string(markdownData))
+	}
+	if !strings.Contains(string(jsonData), "\"scope_kind\": \"remote\"") {
+		t.Fatalf("json output missing remote discovery result\n%s", string(jsonData))
+	}
+}
+
+func TestRunDiscoverSubnetFailsOnEnumeratorError(t *testing.T) {
+	originalDiscoverer := newRemoteDiscoverer
+	t.Cleanup(func() {
+		newRemoteDiscoverer = originalDiscoverer
+	})
+	newRemoteDiscoverer = func(config.SubnetScope) discoverer {
+		return stubLocalDiscoverer{err: errors.New("remote enumeration failed")}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"discover", "subnet", "--cidr", "10.0.0.0/30", "--ports", "443"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "discover subnet: remote enumeration failed") {
+		t.Fatalf("stderr = %q, want enumerator error", stderr.String())
+	}
+}
+
+func TestRunDiscoverSubnetDryRunWritesPlan(t *testing.T) {
+	originalDiscoverer := newRemoteDiscoverer
+	t.Cleanup(func() {
+		newRemoteDiscoverer = originalDiscoverer
+	})
+
+	called := false
+	newRemoteDiscoverer = func(config.SubnetScope) discoverer {
+		called = true
+		return stubLocalDiscoverer{}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"discover",
+		"subnet",
+		"--cidr", "10.0.0.0/30",
+		"--ports", "443,8443",
+		"--dry-run",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if called {
+		t.Fatal("newRemoteDiscoverer was called during dry run, want no network execution path")
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Execution Plan") {
+		t.Fatalf("stdout = %q, want execution plan output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Network I/O: disabled (dry run)") {
+		t.Fatalf("stdout = %q, want dry-run safety text", stdout.String())
+	}
+}
+
+func TestRunDiscoverSubnetDryRunRejectsJSON(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"discover",
+		"subnet",
+		"--cidr", "10.0.0.0/30",
+		"--ports", "443",
+		"--dry-run",
+		"--json", "plan.json",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "does not support --json") {
+		t.Fatalf("stderr = %q, want dry-run json rejection", stderr.String())
 	}
 }
 
