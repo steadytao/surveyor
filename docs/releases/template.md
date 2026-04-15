@@ -18,6 +18,4 @@ One or two sentences summarising the release in plain English. Keep this editori
 - Call out any important behavioural changes, verification changes or release-process changes.
 - Mention dependency or toolchain changes only if they materially matter to users or operators.
 
-## Changelog
-
-- Commit history goes here.
+<!-- changelog: do not remove this line or add a changelog -->
