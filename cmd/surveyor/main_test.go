@@ -113,22 +113,47 @@ func TestRunAuditLocalHelp(t *testing.T) {
 	}
 }
 
-func TestRunAuditLocalReturnsNotImplemented(t *testing.T) {
-	t.Parallel()
+func TestRunAuditLocalWritesMarkdownToStdout(t *testing.T) {
+	originalRunner := newLocalAuditRunner
+	t.Cleanup(func() {
+		newLocalAuditRunner = originalRunner
+	})
+	newLocalAuditRunner = func(func() time.Time) localAuditRunner {
+		return stubLocalAuditRunner{
+			results: []core.AuditResult{
+				{
+					DiscoveredEndpoint: core.DiscoveredEndpoint{
+						Address:   "127.0.0.1",
+						Port:      443,
+						Transport: "tcp",
+						State:     "listening",
+						Hints: []core.DiscoveryHint{
+							{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+						},
+					},
+					Selection: core.AuditSelection{
+						Status:          core.AuditSelectionStatusSelected,
+						SelectedScanner: "tls",
+						Reason:          "tls hint on tcp/443",
+					},
+				},
+			},
+		}
+	}
 
 	var stdout strings.Builder
 	var stderr strings.Builder
 
 	exitCode := run([]string{"audit", "local"}, &stdout, &stderr, fixedNow)
 
-	if exitCode != 1 {
-		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
 	}
-	if stdout.Len() != 0 {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
+	if !strings.Contains(stdout.String(), "# Surveyor Local Audit Report") {
+		t.Fatalf("stdout = %q, want audit markdown output", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "audit local is not implemented yet") {
-		t.Fatalf("stderr = %q, want explicit not implemented message", stderr.String())
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
 }
 
@@ -145,6 +170,91 @@ func TestRunAuditLocalRejectsPositionalArguments(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "does not accept positional arguments") {
 		t.Fatalf("stderr = %q, want positional argument rejection", stderr.String())
+	}
+}
+
+func TestRunAuditLocalWritesOutputs(t *testing.T) {
+	originalRunner := newLocalAuditRunner
+	t.Cleanup(func() {
+		newLocalAuditRunner = originalRunner
+	})
+	newLocalAuditRunner = func(func() time.Time) localAuditRunner {
+		return stubLocalAuditRunner{
+			results: []core.AuditResult{
+				{
+					DiscoveredEndpoint: core.DiscoveredEndpoint{
+						Address:   "0.0.0.0",
+						Port:      443,
+						Transport: "tcp",
+						State:     "listening",
+					},
+					Selection: core.AuditSelection{
+						Status:          core.AuditSelectionStatusSelected,
+						SelectedScanner: "tls",
+						Reason:          "tls hint on tcp/443",
+					},
+				},
+			},
+		}
+	}
+
+	tempDir := t.TempDir()
+	markdownPath := filepath.Join(tempDir, "audit.md")
+	jsonPath := filepath.Join(tempDir, "audit.json")
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"local",
+		"--output", markdownPath,
+		"--json", jsonPath,
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty when file outputs are requested", stdout.String())
+	}
+
+	markdownData, err := os.ReadFile(markdownPath)
+	if err != nil {
+		t.Fatalf("ReadFile(markdown) error = %v", err)
+	}
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile(json) error = %v", err)
+	}
+
+	if !strings.Contains(string(markdownData), "# Surveyor Local Audit Report") {
+		t.Fatalf("markdown output missing audit heading\n%s", string(markdownData))
+	}
+	if !strings.Contains(string(jsonData), "\"total_endpoints\": 1") {
+		t.Fatalf("json output missing audit summary\n%s", string(jsonData))
+	}
+}
+
+func TestRunAuditLocalFailsOnRunnerError(t *testing.T) {
+	originalRunner := newLocalAuditRunner
+	t.Cleanup(func() {
+		newLocalAuditRunner = originalRunner
+	})
+	newLocalAuditRunner = func(func() time.Time) localAuditRunner {
+		return stubLocalAuditRunner{err: errors.New("audit failed")}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "local"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "audit local: audit failed") {
+		t.Fatalf("stderr = %q, want runner error", stderr.String())
 	}
 }
 
@@ -514,4 +624,17 @@ func (d stubLocalDiscoverer) Enumerate(context.Context) ([]core.DiscoveredEndpoi
 	}
 
 	return d.results, nil
+}
+
+type stubLocalAuditRunner struct {
+	results []core.AuditResult
+	err     error
+}
+
+func (r stubLocalAuditRunner) Run(context.Context) ([]core.AuditResult, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+
+	return r.results, nil
 }
