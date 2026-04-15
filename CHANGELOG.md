@@ -4,6 +4,12 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.4.1
+
+### Changed
+- report assembly and audit-selection cloning now deep-copy nested report data such as discovery hint evidence, certificate metadata and finding evidence so canonical reports cannot alias caller-owned slice storage
+- added regression coverage around report cloning so the JSON-first and Markdown-derived reporting paths keep stable copied data rather than depending on mutable upstream inputs
+
 ## v0.4.0
 
 ### Added

@@ -146,6 +146,35 @@ func TestBuildAuditReportSummary(t *testing.T) {
 	}
 }
 
+func TestBuildDiscoveryReportClonesNestedEvidence(t *testing.T) {
+	t.Parallel()
+
+	input := []core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "10.0.0.10",
+			Port:      443,
+			Transport: "tcp",
+			State:     "responsive",
+			Hints: []core.DiscoveryHint{
+				{
+					Protocol:   "tls",
+					Confidence: "low",
+					Evidence:   []string{"transport=tcp", "port=443"},
+				},
+			},
+		},
+	}
+
+	report := BuildDiscoveryReport(input, time.Date(2026, time.April, 18, 1, 0, 0, 0, time.UTC))
+
+	input[0].Hints[0].Evidence[0] = "mutated"
+
+	if got, want := report.Results[0].Hints[0].Evidence[0], "transport=tcp"; got != want {
+		t.Fatalf("report.Results[0].Hints[0].Evidence[0] = %q, want %q", got, want)
+	}
+}
+
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
 

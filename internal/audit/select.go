@@ -13,7 +13,7 @@ func SelectEndpoints(endpoints []core.DiscoveredEndpoint) []core.AuditResult {
 
 	for _, endpoint := range endpoints {
 		results = append(results, core.AuditResult{
-			DiscoveredEndpoint: cloneDiscoveredEndpoint(endpoint),
+			DiscoveredEndpoint: core.CloneDiscoveredEndpoint(endpoint),
 			Selection:          selectEndpoint(endpoint),
 		})
 	}
@@ -76,15 +76,4 @@ func isEligibleTCPState(endpoint core.DiscoveredEndpoint) bool {
 	default:
 		return false
 	}
-}
-
-func cloneDiscoveredEndpoint(endpoint core.DiscoveredEndpoint) core.DiscoveredEndpoint {
-	cloned := endpoint
-	// Preserve discovery output as report data, not as aliases back into any
-	// caller-owned slice storage that may later change.
-	cloned.Hints = append([]core.DiscoveryHint(nil), endpoint.Hints...)
-	cloned.Warnings = append([]string(nil), endpoint.Warnings...)
-	cloned.Errors = append([]string(nil), endpoint.Errors...)
-
-	return cloned
 }
