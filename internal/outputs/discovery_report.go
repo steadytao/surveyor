@@ -1,0 +1,67 @@
+package outputs
+
+import (
+	"sort"
+	"time"
+
+	"github.com/steadytao/surveyor/internal/core"
+)
+
+func BuildDiscoveryReport(results []core.DiscoveredEndpoint, generatedAt time.Time) core.DiscoveryReport {
+	reportResults := append([]core.DiscoveredEndpoint(nil), results...)
+
+	return core.DiscoveryReport{
+		GeneratedAt: generatedAt.UTC(),
+		Results:     reportResults,
+		Summary:     buildDiscoverySummary(reportResults),
+	}
+}
+
+func buildDiscoverySummary(results []core.DiscoveredEndpoint) core.DiscoverySummary {
+	summary := core.DiscoverySummary{
+		TotalEndpoints: len(results),
+		HintBreakdown:  map[string]int{},
+	}
+
+	for _, result := range results {
+		switch result.Transport {
+		case "tcp":
+			summary.TCPEndpoints += 1
+		case "udp":
+			summary.UDPEndpoints += 1
+		}
+
+		seenProtocols := make(map[string]struct{}, len(result.Hints))
+		for _, hint := range result.Hints {
+			if hint.Protocol == "" {
+				continue
+			}
+			if _, ok := seenProtocols[hint.Protocol]; ok {
+				continue
+			}
+
+			seenProtocols[hint.Protocol] = struct{}{}
+			summary.HintBreakdown[hint.Protocol] += 1
+		}
+	}
+
+	if len(summary.HintBreakdown) == 0 {
+		summary.HintBreakdown = nil
+	}
+
+	return summary
+}
+
+func sortedHintKeys(summary core.DiscoverySummary) []string {
+	if len(summary.HintBreakdown) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(summary.HintBreakdown))
+	for key := range summary.HintBreakdown {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+	return keys
+}
