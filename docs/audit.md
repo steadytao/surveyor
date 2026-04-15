@@ -1,38 +1,34 @@
 # Audit
 
-Audit is the current orchestration layer built on top of the discovery foundation.
+Audit is the current orchestration layer built on top of discovery and the existing TLS scanner.
 
-It exists to answer a different question from `surveyor discover local`:
+It answers a different question from discovery:
 
-given the endpoints this machine is exposing locally, which of them should Surveyor hand off to a supported scanner, what was actually verified, and what was skipped?
+given the endpoints Surveyor already found, which of them should be handed to a supported scanner, what was actually verified, and what was skipped?
 
-## Why audit exists
+## Current commands
 
-Surveyor now has two separate implemented primitives:
-
-- `surveyor discover local`
-- `surveyor scan tls`
-
-That is enough to collect local endpoint facts and to run verified TLS inventory against explicit targets.
-
-Surveyor now has the workflow that joins them together:
-
-- run local discovery first
-- decide which discovered endpoints are worth TLS scanning
-- hand the supported subset into the existing TLS scanner
-- emit one combined report
-
-That is the purpose of `audit local`.
-
-## Command
-
-The audit command is:
+The audit commands are:
 
 ```bash
 surveyor audit local
+surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443
 ```
 
-This command turns the current discovery and TLS slices into one usable local audit workflow.
+## Why audit exists
+
+Surveyor already has two distinct implemented primitives:
+
+- discovery
+- explicit-target TLS inventory
+
+Audit exists to join them together while keeping the result honest:
+
+- run discovery first
+- preserve discovered endpoint facts and hints
+- decide which endpoints are worth TLS scanning
+- hand only the supported subset into the existing TLS scanner
+- emit one combined report
 
 ## Command semantics
 
@@ -46,17 +42,29 @@ The semantics of `surveyor audit local` are:
 - record skipped endpoints and the reason they were skipped
 - emit canonical JSON and derived Markdown
 
-This command should follow the same output conventions as the existing CLI:
+The semantics of `surveyor audit subnet` are:
+
+- validate explicit remote scope first
+- run remote discovery within that declared scope
+- preserve discovered endpoint facts and protocol hints
+- select supported scanners conservatively
+- hand only the supported TLS-like subset into the existing TLS scanner
+- record verified TLS results separately from discovery and selection
+- record skipped endpoints and the reason they were skipped
+- emit canonical JSON and derived Markdown
+
+Both commands follow the same output conventions:
 
 - `-o, --output` for Markdown output
 - `-j, --json` for JSON output
 - Markdown to stdout when no output path is given
 
-## Scope
+## Current scope
 
 The current audit flow covers:
 
-- local-only execution
+- local-only audit orchestration
+- remote subnet audit within explicitly declared CIDR scope and explicit ports
 - discovery-first orchestration
 - conservative TLS-candidate selection
 - automatic handoff only to the existing TLS scanner
@@ -65,10 +73,9 @@ The current audit flow covers:
 
 The current audit flow does not cover:
 
-- remote discovery
-- subnet or range scanning
+- undeclared remote scope
 - non-TLS deep scanners
-- aggressive probing
+- aggressive protocol probing
 - broad vulnerability-scanner behaviour
 - enterprise-wide orchestration
 
@@ -76,19 +83,21 @@ The current audit flow does not cover:
 
 The current selection layer is intentionally narrow.
 
-At the moment, `audit local` will:
+At the moment, audit will:
 
 - skip discovery results that already contain endpoint-level errors
-- consider only TCP endpoints in `listening` state
+  - for remote discovery failures this becomes the explicit skip reason `endpoint did not respond during remote discovery`
+- consider only TCP endpoints
+- treat local `state=listening` as eligible
+- treat remote `state=responsive` as eligible
 - select only endpoints that already carry a conservative `tls` hint
 - skip everything else explicitly with a reason
 
-That keeps automatic handoff aligned with the currently supported scanner set
-and makes the report explain why something was or was not scanned.
+That keeps automatic handoff aligned with the currently supported scanner set and makes the report explain why something was or was not scanned.
 
 ## Facts, hints, selections and scans
 
-Audit must keep five things separate:
+Audit keeps five things separate:
 
 1. discovered endpoint facts
 2. protocol hints
@@ -98,17 +107,17 @@ Audit must keep five things separate:
 
 Examples:
 
-- `scope_kind=local`, `host=0.0.0.0`, `transport=tcp`, `port=443` are discovered facts
+- `scope_kind=remote`, `host=10.0.0.10`, `transport=tcp`, `port=443` are discovered facts
 - `protocol=tls` with low confidence is a hint
 - `selected_scanner=tls` is a selection decision
 - negotiated TLS version, cipher suite and certificate metadata are verified scan results
-- `skip_reason=no supported scanner for udp endpoint` is a skip outcome
+- `reason=endpoint did not respond during remote discovery` is a skip outcome
 
 Hints are not scans, and scanner selection is not verification.
 
 ## Audit schema
 
-Audit should follow the same output philosophy as the current TLS and discovery slices:
+Audit follows the same output philosophy as the TLS and discovery slices:
 
 - JSON is canonical
 - Markdown is derived from the canonical model
@@ -163,8 +172,8 @@ Current selection shape:
 
 Fields:
 
-- `status`: selection outcome, initially `selected` or `skipped`
-- `selected_scanner`: scanner identifier when selected, initially `tls`
+- `status`: selection outcome, currently `selected` or `skipped`
+- `selected_scanner`: scanner identifier when selected, currently `tls`
 - `reason`: explicit explanation for the decision
 
 Skipped example:
@@ -172,15 +181,15 @@ Skipped example:
 ```json
 {
   "status": "skipped",
-  "reason": "no supported scanner for udp endpoint"
+  "reason": "endpoint did not respond during remote discovery"
 }
 ```
 
 ### Verified TLS result
 
-When an endpoint is selected for TLS scanning, `tls_result` should embed the current canonical TLS result model rather than inventing a parallel TLS schema.
+When an endpoint is selected for TLS scanning, `tls_result` reuses the current canonical TLS result model rather than inventing a parallel TLS schema.
 
-That means audit should reuse the existing target-result contract documented in [docs/output-schema.md](output-schema.md).
+That means audit reuses the target-result contract documented in [docs/output-schema.md](output-schema.md).
 
 ### Summary
 
@@ -189,14 +198,14 @@ Current summary shape:
 ```json
 {
   "total_endpoints": 3,
-  "tls_candidates": 1,
-  "scanned_endpoints": 1,
-  "skipped_endpoints": 2,
+  "tls_candidates": 2,
+  "scanned_endpoints": 2,
+  "skipped_endpoints": 1,
   "selection_breakdown": {
-    "tls": 1
+    "tls": 2
   },
   "verified_classification_breakdown": {
-    "modern_tls_classical_identity": 1
+    "modern_tls_classical_identity": 2
   }
 }
 ```
@@ -212,26 +221,29 @@ Fields:
 
 ## Safety model
 
-`audit local` should stay conservative.
+Audit stays conservative.
 
-It should:
+It:
 
-- rely on local discovery rather than remote probing
-- only hand off to supported scanners intentionally
-- preserve the difference between hinting and verification
-- avoid implying that unsupported endpoints were fully assessed
+- relies on discovery rather than inventing its own endpoint model
+- only hands off to supported scanners intentionally
+- preserves the difference between hinting and verification
+- keeps unsupported or failed endpoints explicit in the report instead of silently dropping them
 
-The audit flow performs real scanner activity on selected endpoints, but only within the scope of the scanners it explicitly invokes.
+## Current examples
+
+Representative example outputs live in:
+
+- [examples/audit.json](../examples/audit.json)
+- [examples/audit.md](../examples/audit.md)
+- [examples/audit-subnet.json](../examples/audit-subnet.json)
+- [examples/audit-subnet.md](../examples/audit-subnet.md)
 
 ## Relationship to future work
 
-`audit local` is the first complete workflow in Surveyor.
+Audit currently proves two orchestration shapes:
 
-After that, future work may expand into:
+- local discovery into TLS scanning
+- scoped remote discovery into TLS scanning
 
-- additional supported scanners
-- stronger candidate-selection logic
-- richer combined reporting
-- later, broader orchestration models
-
-The current boundary should stay focused on local discovery chained into the existing TLS scanner.
+The next steps can build on that shared model instead of inventing parallel command paths.

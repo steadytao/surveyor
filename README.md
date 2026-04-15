@@ -15,13 +15,15 @@ Surveyor is in early development.
 
 The first milestone was intentionally narrow. It completed as a TLS inventory MVP for explicitly provided targets.
 
-The current repository now includes the local audit foundation around `surveyor audit local`.
+The current repository now includes the scoped remote inventory foundation around `surveyor discover subnet` and `surveyor audit subnet`.
 
 The current repository already includes:
 
-- local audit orchestration for supported TLS-like endpoints
+- local and remote audit orchestration for supported TLS-like endpoints
 - local endpoint discovery
+- scoped remote subnet discovery
 - conservative protocol hints for discovery results
+- remote subnet scope parsing and validation
 - target parsing and validation
 - TLS connection and protocol inspection
 - certificate chain parsing
@@ -29,7 +31,7 @@ The current repository already includes:
 - conservative readiness classification
 - machine-readable and human-readable reporting
 
-The repository now includes usable CLI paths for local audit, local discovery and the explicit-target TLS inventory slice.
+The repository now includes usable CLI paths for local audit, remote audit, local discovery, remote discovery and the explicit-target TLS inventory slice.
 
 ## Releases
 
@@ -60,8 +62,10 @@ The current repository is still intentionally narrow.
 That means Surveyor currently aims to:
 
 - run local audit by chaining discovery into the existing TLS scanner conservatively
+- run remote subnet audit within explicitly declared CIDR scope and explicit port set
 - enumerate local listening or bound endpoints without active probing
-- attach conservative protocol hints to discovered local endpoints
+- enumerate remote TCP reachability within explicitly declared CIDR scope and explicit port set
+- attach conservative protocol hints to discovery results
 - connect to explicit TLS targets
 - collect handshake and certificate facts
 - classify migration posture conservatively
@@ -71,7 +75,7 @@ It does not currently aim to:
 
 - implement post-quantum cryptography
 - replace PKI systems
-- scan arbitrary address ranges by default
+- scan undeclared or implicit address ranges
 - act as a general-purpose vulnerability scanner
 - produce exploit tooling
 - flatten complex migration work into a binary “quantum-safe” label
@@ -80,7 +84,9 @@ It does not currently aim to:
 
 Surveyor currently has implemented internal slices for:
 
-- local audit orchestration for discovery-to-TLS handoff
+- local and remote audit orchestration for discovery-to-TLS handoff
+- local discovery and scoped remote subnet discovery
+- remote subnet scope parsing and validation
 - YAML config parsing and validation for explicit TLS targets
 - TLS handshake collection against explicit targets
 - X.509 certificate and chain metadata extraction
@@ -92,18 +98,20 @@ The current code and docs are organised around JSON as the canonical result cont
 
 ## CLI
 
-The current CLI supports local audit, local discovery and explicit-target TLS inventory.
+The current CLI supports local audit, remote audit, local discovery, remote discovery and explicit-target TLS inventory.
 
 Audit:
 
 ```bash
 surveyor audit local -o audit.md -j audit.json
+surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 -o audit-subnet.md -j audit-subnet.json
 ```
 
 Discovery:
 
 ```bash
 surveyor discover local -o discovery.md -j discovery.json
+surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 -o discovery-subnet.md -j discovery-subnet.json
 ```
 
 TLS inventory:
@@ -121,18 +129,26 @@ surveyor scan tls -t example.com:443,127.0.0.1:8000,[::1]:443
 Rules:
 
 - `audit local` only hands supported TLS-like endpoints into the current TLS scanner and keeps discovered facts, hints and verified scan results separate
+- `audit subnet` only walks explicitly declared CIDR scope and explicit ports, then hands supported TLS-like remote endpoints into the current TLS scanner
 - `discover local` is observational only, it does not perform active probing or verified protocol scans
+- `discover subnet` performs bounded remote TCP reachability probing within explicitly declared scope, and it does not perform verified protocol scans
 - use exactly one of `--config` or `--targets`
 - `--targets` requires explicit `host:port` entries
+- `--cidr` and `--ports` are required for the current remote subnet commands
+- `--profile` sets default remote pace, explicit `--max-hosts`, `--max-concurrency` and `--timeout` override it
+- `--dry-run` performs no network I/O and prints the execution plan
+- `--json` is not supported with `--dry-run`
 - IPv6 targets must use bracket form, for example `[::1]:443`
 - if no output paths are given, Markdown is written to stdout
 
-Example local verification:
+Example verification:
 
 ```bash
 go build -o surveyor ./cmd/surveyor
 ./surveyor audit local -o audit.md -j audit.json
 ./surveyor discover local -o discovery.md -j discovery.json
+./surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
+./surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 
@@ -149,24 +165,23 @@ For the current implementation boundaries, see:
 
 ## Roadmap
 
-`Local Audit MVP` is now part of the shipped surface.
+`Scoped Remote Inventory MVP` is now part of the current repository surface.
 
-The next planned milestone is `Scoped Remote Inventory MVP`.
+The current remote boundary is still intentionally narrow:
 
-That work is intended to add `surveyor discover subnet` and `surveyor audit subnet` for explicitly declared remote scope while keeping the current discipline:
-
-- explicit scope required
+- explicit CIDR scope required
+- explicit ports required
 - cautious by default
 - existing TLS scanner only for verified remote scanning
 - discovered facts, hints, selection decisions and verified scan results kept separate
 
-See [docs/remote-inventory.md](docs/remote-inventory.md) for the current `v0.4.0` contract.
+Future work remains open. See [docs/remote-inventory.md](docs/remote-inventory.md) for the current remote boundary and non-goals.
 
 ## Development
 
 Surveyor is written in Go.
 
-The repository currently contains a working `cmd/surveyor` entrypoint for the audit, discovery and TLS inventory slices, plus the internal packages and tests behind them.
+The repository currently contains a working `cmd/surveyor` entrypoint for the local and remote audit and discovery slices, plus the explicit-target TLS inventory path and the internal packages and tests behind them.
 
 For now, the most useful verification command is:
 
@@ -189,6 +204,8 @@ Then run:
 ```bash
 ./surveyor audit local -o audit.md -j audit.json
 ./surveyor discover local -o discovery.md -j discovery.json
+./surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
+./surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 

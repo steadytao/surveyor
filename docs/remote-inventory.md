@@ -1,11 +1,8 @@
 # Remote Inventory
 
-Remote inventory is the planned `v0.4.0` milestone.
+Remote inventory is now part of Surveyor's current repository surface.
 
-It is not part of the current shipped CLI surface yet.
-
-The goal of `v0.4.0` is to extend Surveyor's proved local model across an authorised remote boundary without changing the project's core discipline:
-
+It extends the local discovery and audit model across an authorised remote boundary without changing the project's core discipline:
 - explicit scope first
 - conservative discovery second
 - conservative hints third
@@ -13,52 +10,41 @@ The goal of `v0.4.0` is to extend Surveyor's proved local model across an author
 - verified TLS scanning only for the supported subset
 - canonical JSON first, Markdown derived from it
 
-## Why this milestone exists
+## Current command surface
 
-Surveyor already has three shipped surfaces:
-
-- `surveyor scan tls`
-- `surveyor discover local`
-- `surveyor audit local`
-
-That means the project has already proved:
-
-- one verified deep scanner, TLS
-- one discovery foundation
-- one audit orchestration path
-- one JSON-first reporting model
-
-The next missing capability is authorised remote scope.
-
-The next step is not another protocol scanner. It is remote inventory built on the same separation between facts, hints, selection and verified results.
-
-## Planned command surface
-
-The planned remote commands are:
-
+The current remote commands are:
 ```bash
-surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o subnet.md -j subnet.json
-surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o audit.md -j audit.json
+surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o discovery-subnet.md -j discovery-subnet.json
+surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o audit-subnet.md -j audit-subnet.json
 ```
 
-For the MVP, `--cidr` is the primary remote scope input.
+For the current implementation, `--cidr` is the only supported remote scope input.
 
-`--targets-file` may be added later, but it is not required to define the first remote release cleanly. The MVP should prove one explicit remote scope path well before adding more input forms.
+`--targets-file` is reserved and validated, but it is still rejected explicitly with a clear error rather than being treated as implemented.
 
-## Command semantics
+## Why this surface exists
 
-Planned semantics for `surveyor discover subnet`:
+Surveyor already proved:
+- one verified deep scanner, TLS
+- one local discovery foundation
+- one local audit orchestration path
+- one JSON-first reporting model
 
-- require explicit remote scope
-- require an explicit remote port set for CIDR mode
+Remote inventory compounds that architecture instead of widening it sideways into new protocol scanners.
+
+## Current command semantics
+
+Current semantics for `surveyor discover subnet`:
+- require explicit remote CIDR scope
+- require an explicit remote port set
 - stay within the declared scope only
-- record observed endpoint facts before hinting
-- attach conservative protocol hints only where justified
+- perform bounded TCP reachability probing
+- record one result per attempted host:port
+- attach conservative protocol hints only to responsive endpoints
 - avoid implying verified protocol identification
 - emit canonical JSON and derived Markdown
 
-Planned semantics for `surveyor audit subnet`:
-
+Current semantics for `surveyor audit subnet`:
 - run remote discovery first
 - preserve observed endpoint facts and hints
 - select supported scanners conservatively
@@ -69,30 +55,22 @@ Planned semantics for `surveyor audit subnet`:
 
 ## Scope and pace are separate
 
-Remote scope and remote pace must stay separate concepts.
+Remote scope and remote pace remain separate concepts.
 
 Scope is defined by:
-
 - `--cidr`
-- later, potentially `--targets-file`
 - `--ports`
 
 Pace is defined by:
-
 - `--profile`
 - `--max-concurrency`
 - `--timeout`
 
-This distinction matters.
+Profiles change pace, not scope.
 
-Surveyor should not use fuzzy mode names such as `--noisy`, `--quiet` or `--silent`.
+## Current remote safety controls
 
-Profiles should change pace, not scope.
-
-## Planned remote safety controls
-
-The planned remote control surface is:
-
+The current remote control surface is:
 - `--profile cautious|balanced|aggressive`
 - `--dry-run`
 - `--max-hosts`
@@ -101,76 +79,73 @@ The planned remote control surface is:
 - `--ports`
 
 Rules:
-
 - `--profile` sets defaults
 - explicit flags override profile defaults
-- `--dry-run` performs no network I/O at all
-- `--max-hosts` is a hard stop after scope expansion
-- `--timeout` applies per probe or connection attempt
-- `--ports` is required for CIDR mode in the MVP
+  - `--dry-run` performs no network I/O at all
+  - `--max-hosts` is a hard stop after scope expansion
+  - `--timeout` applies per probe or connection attempt
+  - `--ports` is required for current CIDR mode
 
-Recommended defaults:
-
+Current defaults:
 - profile default: `cautious`
 - `--max-hosts` default: `256`
+- `cautious`: `max-concurrency=8`, `timeout=3s`
+- `balanced`: `max-concurrency=24`, `timeout=2s`
+- `aggressive`: `max-concurrency=64`, `timeout=1s`
 
-### `--dry-run`
+## Dry-run behaviour
 
-`--dry-run` should print the execution plan without touching the network.
+`--dry-run` validates the execution plan without touching the network.
 
-It should show:
-
-- resolved scope summary
-- host count after expansion
+It prints:
+- command mode
+- resolved scope
+- expanded host count
 - selected ports
 - effective profile
+- effective host cap
 - effective concurrency
 - effective timeout
-- command mode, discover or audit
-- supported scanner set that would be used
+- supported scanner set
 
-### Profile meanings
+It does not emit canonical discovery or audit JSON. That is deliberate. The dry-run output is an execution plan, not a report of observed or verified facts.
 
-`cautious`:
+## Discovery boundary
 
-- low concurrency
-- conservative timeouts
-- intended safe default for approved scope
+Remote discovery stays conservative.
 
-`balanced`:
-
-- moderate concurrency
-- normal operational mode once scope is clearly authorised
-
-`aggressive`:
-
-- higher concurrency
-- still within declared scope, but intended for tightly controlled environments
-
-## Discovery and audit boundaries
-
-Remote discovery must stay conservative.
-
-It should:
-
-- walk only the declared scope
+It does:
+- walk only the declared CIDR scope
 - probe only the declared ports
-- record observed facts and explicit failures
-- avoid implying verified protocol identity
+- record responsive TCP endpoints as `state=responsive`
+- record failed attempts as `state=candidate` with explicit errors
+- attache conservative low-confidence hints only to responsive endpoints
 
-Remote audit must stay narrow.
+It does not:
+- perform verified protocol handshakes
+- widen scope implicitly
+- infer protocol identity from failed attempts
 
-It should:
+## Audit boundary
 
-- select only TCP candidates that carry conservative TLS evidence
+Remote audit also stays narrow.
+
+It does:
+- consume the remote discovery results first
+- select only remote `tcp` endpoints in `responsive` state
+- require a conservative `tls` hint before TLS scanner handoff
 - invoke only the existing TLS scanner
 - skip everything else explicitly with a reason
 
-This keeps the remote workflow explainable and aligned with the current local audit model.
+Important examples:
+- a failed `443` probe remains an attempted endpoint with explicit errors
+- a failed `443` probe is not a TLS candidate
+- a responsive `443` or `8443` endpoint may carry a low-confidence `tls` hint
+- only then can audit select it for verified TLS scanning
 
 ## Facts, hints, selections and scans
 
-Remote inventory must preserve the same separation already used locally:
+Remote inventory preserves the same separation already used locally:
 
 1. observed endpoint facts
 2. protocol hints
@@ -184,40 +159,18 @@ Selection is not verification.
 
 Markdown must not introduce facts that are absent from the canonical JSON model.
 
-## Required architecture change
+## Current examples
 
-The current discovery model is too local-socket-shaped for remote inventory.
+Representative remote example outputs live in:
 
-`v0.4.0` should generalise the discovery model from:
+- [examples/discovery-subnet.json](../examples/discovery-subnet.json)
+- [examples/discovery-subnet.md](../examples/discovery-subnet.md)
+- [examples/audit-subnet.json](../examples/audit-subnet.json)
+- [examples/audit-subnet.md](../examples/audit-subnet.md)
 
-- local socket inspection
+## Non-goals
 
-to:
-
-- observed endpoint within declared scope
-
-That means the core model should be able to represent both local and remote observations without pretending remote endpoints are local sockets with local process metadata.
-
-Local-only enrichments such as:
-
-- `pid`
-- `process_name`
-- `executable`
-
-must remain optional.
-
-The model still needs to preserve:
-
-- transport
-- port
-- observed state
-- hints
-- warnings
-- errors
-
-## Non-goals for `v0.4.0`
-
-`v0.4.0` should not include:
+The current remote inventory surface does not include:
 
 - non-TLS deep scanners such as RDP, SSH or SMTP
 - STARTTLS or multi-protocol probing
@@ -230,27 +183,8 @@ The model still needs to preserve:
 - cloud connectors
 - enterprise-wide orchestration beyond explicitly declared scope
 
-## Definition of done
-
-`v0.4.0` is done when all of this is true:
-
-- `surveyor discover subnet` works against explicitly declared scope
-- `surveyor audit subnet` works against explicitly declared scope
-- remote discovery output clearly distinguishes facts from hints
-- remote audit output clearly distinguishes facts, hints, selection, verified TLS results and skips
-- remote audit invokes only the existing TLS scanner
-- JSON and Markdown outputs are representative and checked in
-- docs match shipped behaviour
-- tests cover scope parsing, discovery, selection, audit handoff and outputs
-
 ## Relationship to future work
 
-Remote inventory should be proved before Surveyor chooses the second deep scanner.
+Remote inventory should be hardened through real use before Surveyor chooses the second deep scanner.
 
-After `v0.4.0`, the next decision can be made from actual use:
-
-- harden remote inventory further
-- add history or policy work
-- or choose the second scanner deliberately
-
-That is the right order because it grows Surveyor upward before it grows sideways.
+That keeps the project growing upward before it grows sideways.

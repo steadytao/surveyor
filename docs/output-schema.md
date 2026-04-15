@@ -268,7 +268,7 @@ Fields:
 ### `results`
 
 - type: array of discovered endpoints
-- meaning: one entry per observed endpoint in the discovery report
+- meaning: one entry per observed endpoint in the discovery report, whether observed locally or within declared remote scope
 
 ### `summary`
 
@@ -281,14 +281,11 @@ Current discovered-endpoint shape:
 
 ```json
 {
-  "scope_kind": "local",
-  "host": "0.0.0.0",
+  "scope_kind": "remote",
+  "host": "10.0.0.10",
   "port": 443,
   "transport": "tcp",
-  "state": "listening",
-  "pid": 4321,
-  "process_name": "local-service",
-  "executable": "C:\\Program Files\\Surveyor Test\\local-service.exe",
+  "state": "responsive",
   "hints": [],
   "warnings": [],
   "errors": []
@@ -307,13 +304,13 @@ Fields:
 
 - type: string
 - optional: no
-- meaning: observed host or IP within the declared scope; for local discovery this is the local bound address
+- meaning: observed host or IP within the declared scope; for local discovery this is the local bound address, for remote discovery this is the attempted remote host or IP
 
 ### `port`
 
 - type: integer
 - optional: no
-- meaning: local port number
+- meaning: observed or attempted port within the declared scope
 
 ### `transport`
 
@@ -325,25 +322,27 @@ Fields:
 
 - type: string
 - optional: no
-- meaning: observed endpoint state; currently `listening` or `bound` for local discovery
+- meaning: observed endpoint state
+  - local discovery currently uses `listening` or `bound`
+  - remote discovery currently uses `responsive` or `candidate`
 
 ### `pid`
 
 - type: integer
 - optional: yes
-- meaning: process identifier where available without requiring elevation
+- meaning: process identifier where available without requiring elevation, currently local-only
 
 ### `process_name`
 
 - type: string
 - optional: yes
-- meaning: best-effort process name where available
+- meaning: best-effort process name where available, currently local-only
 
 ### `executable`
 
 - type: string
 - optional: yes
-- meaning: best-effort executable path where available
+- meaning: best-effort executable path where available, currently local-only
 
 ### `hints`
 
@@ -361,7 +360,7 @@ Fields:
 
 - type: array of strings
 - optional: yes
-- meaning: endpoint-level discovery failures
+- meaning: endpoint-level discovery failures, including failed remote probe attempts
 
 ## Discovery hint
 
@@ -430,7 +429,7 @@ Fields:
 ### `results`
 
 - type: array of audit results
-- meaning: one entry per discovered endpoint considered by the audit flow
+- meaning: one entry per discovered endpoint considered by the local or remote audit flow
 
 ### `summary`
 
