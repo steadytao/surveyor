@@ -19,9 +19,10 @@ import (
 type endpointProber func(context.Context, string, int, time.Duration) error
 
 type remoteProbeTask struct {
-	index int
-	host  string
-	port  int
+	index     int
+	host      string
+	port      int
+	inventory *core.InventoryAnnotation
 }
 
 type indexedEndpoint struct {
@@ -42,9 +43,6 @@ type RemoteEnumerator struct {
 // attempts within that scope.
 func (e RemoteEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpoint, error) {
 	scope := e.Scope
-	if len(scope.Ports) == 0 {
-		return nil, fmt.Errorf("remote scope ports must not be empty")
-	}
 	if scope.MaxConcurrency <= 0 {
 		return nil, fmt.Errorf("remote scope max concurrency must be greater than 0")
 	}
@@ -52,11 +50,11 @@ func (e RemoteEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpo
 		return nil, fmt.Errorf("remote scope timeout must be greater than 0")
 	}
 
-	hosts, err := resolveRemoteHosts(scope)
+	tasksList, err := compileRemoteProbeTasks(scope)
 	if err != nil {
 		return nil, err
 	}
-	if len(hosts) == 0 {
+	if len(tasksList) == 0 {
 		return nil, nil
 	}
 
@@ -65,7 +63,7 @@ func (e RemoteEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpo
 		probeEndpoint = defaultEndpointProber
 	}
 
-	taskCount := len(hosts) * len(scope.Ports)
+	taskCount := len(tasksList)
 	workerCount := scope.MaxConcurrency
 	if workerCount > taskCount {
 		workerCount = taskCount
@@ -97,7 +95,7 @@ func (e RemoteEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpo
 		}
 	}()
 
-	sendErr := enqueueRemoteTasks(ctx, tasks, hosts, scope.Ports)
+	sendErr := enqueueRemoteTasks(ctx, tasks, tasksList)
 	close(tasks)
 	workerGroup.Wait()
 	close(results)
@@ -141,6 +139,76 @@ func resolveRemoteHosts(scope config.RemoteScope) ([]string, error) {
 	}
 }
 
+func compileRemoteProbeTasks(scope config.RemoteScope) ([]remoteProbeTask, error) {
+	switch scope.InputKind {
+	case config.RemoteScopeInputKindCIDR:
+		if len(scope.Ports) == 0 {
+			return nil, fmt.Errorf("remote scope ports must not be empty")
+		}
+
+		hosts, err := resolveRemoteHosts(scope)
+		if err != nil {
+			return nil, err
+		}
+
+		return buildRemoteProbeTasks(hosts, scope.Ports), nil
+	case config.RemoteScopeInputKindTargetsFile:
+		if len(scope.Ports) == 0 {
+			return nil, fmt.Errorf("remote scope ports must not be empty")
+		}
+
+		hosts, err := resolveRemoteHosts(scope)
+		if err != nil {
+			return nil, err
+		}
+
+		return buildRemoteProbeTasks(hosts, scope.Ports), nil
+	case config.RemoteScopeInputKindInventoryFile:
+		if len(scope.Targets) == 0 {
+			return nil, fmt.Errorf("remote scope targets must not be empty")
+		}
+
+		tasks := make([]remoteProbeTask, 0)
+		taskIndex := 0
+		for _, target := range scope.Targets {
+			if len(target.Ports) == 0 {
+				return nil, fmt.Errorf("remote scope target ports must not be empty")
+			}
+
+			for _, port := range target.Ports {
+				tasks = append(tasks, remoteProbeTask{
+					index:     taskIndex,
+					host:      target.Host,
+					port:      port,
+					inventory: cloneInventoryAnnotation(target.Inventory),
+				})
+				taskIndex++
+			}
+		}
+
+		return tasks, nil
+	default:
+		return nil, fmt.Errorf("unsupported remote scope input kind %q", scope.InputKind)
+	}
+}
+
+func buildRemoteProbeTasks(hosts []string, ports []int) []remoteProbeTask {
+	tasks := make([]remoteProbeTask, 0, len(hosts)*len(ports))
+	taskIndex := 0
+	for _, host := range hosts {
+		for _, port := range ports {
+			tasks = append(tasks, remoteProbeTask{
+				index: taskIndex,
+				host:  host,
+				port:  port,
+			})
+			taskIndex++
+		}
+	}
+
+	return tasks
+}
+
 func defaultEndpointProber(ctx context.Context, host string, port int, timeout time.Duration) error {
 	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -153,23 +221,12 @@ func defaultEndpointProber(ctx context.Context, host string, port int, timeout t
 	return conn.Close()
 }
 
-func enqueueRemoteTasks(ctx context.Context, tasks chan<- remoteProbeTask, hosts []string, ports []int) error {
-	taskIndex := 0
-
-	for _, host := range hosts {
-		for _, port := range ports {
-			task := remoteProbeTask{
-				index: taskIndex,
-				host:  host,
-				port:  port,
-			}
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case tasks <- task:
-				taskIndex++
-			}
+func enqueueRemoteTasks(ctx context.Context, tasks chan<- remoteProbeTask, probeTasks []remoteProbeTask) error {
+	for _, task := range probeTasks {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case tasks <- task:
 		}
 	}
 
@@ -183,6 +240,7 @@ func probeRemoteEndpoint(ctx context.Context, probe endpointProber, task remoteP
 		Port:      task.port,
 		Transport: "tcp",
 		State:     "candidate",
+		Inventory: cloneInventoryAnnotation(task.inventory),
 	}
 
 	// Remote discovery records reachability facts first. A successful TCP
@@ -199,6 +257,18 @@ func probeRemoteEndpoint(ctx context.Context, probe endpointProber, task remoteP
 		index:    task.index,
 		endpoint: endpoint,
 	}
+}
+
+func cloneInventoryAnnotation(annotation *core.InventoryAnnotation) *core.InventoryAnnotation {
+	if annotation == nil {
+		return nil
+	}
+
+	cloned := *annotation
+	cloned.Ports = append([]int(nil), annotation.Ports...)
+	cloned.Tags = append([]string(nil), annotation.Tags...)
+	cloned.Provenance = append([]core.InventoryProvenance(nil), annotation.Provenance...)
+	return &cloned
 }
 
 func normaliseProbeError(err error) string {

@@ -504,11 +504,6 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 		return 0
 	}
 
-	if scope.InputKind == config.RemoteScopeInputKindInventoryFile {
-		fmt.Fprintf(stderr, "%s --inventory-file execution is not implemented yet; use --dry-run for planning\n", opts.commandName)
-		return 2
-	}
-
 	discoverNow := now
 	if discoverNow == nil {
 		discoverNow = time.Now
@@ -1077,7 +1072,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  diff            Compare two compatible Surveyor JSON reports and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  prioritize      Rank a current Surveyor JSON report; prioritise is supported as a CLI alias")
 	fmt.Fprintln(w, "  audit local     Audit local endpoints by chaining discovery into supported scanners")
-	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR, host-list and structured inventory inputs")
+	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR and host-list inputs, plus structured inventory planning")
 	fmt.Fprintln(w, "  audit subnet    CIDR-only compatibility alias for remote audit during v0.5.x")
 	fmt.Fprintln(w, "  discover local  Enumerate local endpoints and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  discover remote Enumerate declared remote scope across CIDR, host-list and structured inventory inputs")
@@ -1249,13 +1244,13 @@ func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  Canonical remote discovery command. It executes against CIDR-backed scope and simple file-backed host scope, and currently supports structured inventory manifests for dry-run planning only.")
+	fmt.Fprintln(w, "  Canonical remote discovery command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
 	fmt.Fprintln(w, "  This command records observed reachability facts and conservative hints only; it does not run verified scanners.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443")
-	fmt.Fprintln(w, "  surveyor discover remote --inventory-file inventory.yaml --dry-run")
+	fmt.Fprintln(w, "  surveyor discover remote --inventory-file inventory.yaml")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to discover, for example 10.0.0.0/24")
@@ -1346,10 +1341,15 @@ func explicitReportScopeMetadata(configPath string, targetsArg string) *core.Rep
 }
 
 func remoteReportMetadata(scope config.RemoteScope) (*core.ReportScope, *core.ReportExecution) {
+	cidr := ""
+	if scope.CIDR.IsValid() {
+		cidr = scope.CIDR.String()
+	}
+
 	return &core.ReportScope{
 			ScopeKind:     core.ReportScopeKindRemote,
 			InputKind:     core.ReportInputKind(scope.InputKind),
-			CIDR:          scope.CIDR.String(),
+			CIDR:          cidr,
 			TargetsFile:   scope.TargetsFile,
 			InventoryFile: scope.InventoryFile,
 			Ports:         append([]int(nil), scope.Ports...),

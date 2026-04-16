@@ -1634,7 +1634,7 @@ func TestRunDiscoverRemoteInventoryFileDryRunWritesPlan(t *testing.T) {
 	}
 }
 
-func TestRunDiscoverRemoteInventoryFileRejectsExecutionForNow(t *testing.T) {
+func TestRunDiscoverRemoteInventoryFileWritesOutputs(t *testing.T) {
 	t.Parallel()
 
 	originalDiscoverer := newRemoteDiscoverer
@@ -1642,10 +1642,25 @@ func TestRunDiscoverRemoteInventoryFileRejectsExecutionForNow(t *testing.T) {
 		newRemoteDiscoverer = originalDiscoverer
 	})
 
-	called := false
-	newRemoteDiscoverer = func(config.RemoteScope) discoverer {
-		called = true
-		return stubLocalDiscoverer{}
+	var gotScope config.RemoteScope
+	newRemoteDiscoverer = func(scope config.RemoteScope) discoverer {
+		gotScope = scope
+		return stubLocalDiscoverer{
+			results: []core.DiscoveredEndpoint{
+				{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Ports:       []int{443},
+						Owner:       "Platform",
+						Environment: "prod",
+					},
+				},
+			},
+		}
 	}
 
 	tempDir := t.TempDir()
@@ -1659,6 +1674,7 @@ func TestRunDiscoverRemoteInventoryFileRejectsExecutionForNow(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
+	jsonPath := filepath.Join(tempDir, "discovery.json")
 	var stdout strings.Builder
 	var stderr strings.Builder
 
@@ -1666,16 +1682,32 @@ func TestRunDiscoverRemoteInventoryFileRejectsExecutionForNow(t *testing.T) {
 		"discover",
 		"remote",
 		"--inventory-file", inventoryFile,
+		"--json", jsonPath,
 	}, &stdout, &stderr, fixedNow)
 
-	if exitCode != 2 {
-		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
 	}
-	if called {
-		t.Fatal("newRemoteDiscoverer was called, want inventory execution rejected before runtime")
+	if gotScope.InputKind != config.RemoteScopeInputKindInventoryFile {
+		t.Fatalf("scope.InputKind = %q, want inventory_file", gotScope.InputKind)
 	}
-	if !strings.Contains(stderr.String(), "discover remote --inventory-file execution is not implemented yet; use --dry-run for planning") {
-		t.Fatalf("stderr = %q, want explicit inventory execution boundary", stderr.String())
+	if gotScope.InventoryFile != inventoryFile {
+		t.Fatalf("scope.InventoryFile = %q, want %q", gotScope.InventoryFile, inventoryFile)
+	}
+	if len(gotScope.Targets) != 1 {
+		t.Fatalf("len(scope.Targets) = %d, want 1", len(gotScope.Targets))
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty when only JSON output is requested", stdout.String())
+	}
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile(json) error = %v", err)
+	}
+	if !strings.Contains(string(jsonData), "\"input_kind\": \"inventory_file\"") ||
+		!strings.Contains(string(jsonData), "\"inventory_file\": ") ||
+		!strings.Contains(string(jsonData), "\"owner\": \"Platform\"") {
+		t.Fatalf("json output = %s, want inventory-backed discovery metadata and annotation", string(jsonData))
 	}
 }
 
