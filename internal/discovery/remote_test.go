@@ -3,6 +3,8 @@ package discovery
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -167,6 +169,60 @@ func TestRemoteEnumeratorEnumerateBoundsConcurrency(t *testing.T) {
 	}
 }
 
+func TestRemoteEnumeratorEnumerateTargetsFilePreservesDeclaredHostOrder(t *testing.T) {
+	t.Parallel()
+
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
+		TargetsFile:    writeTargetsFile(t, "example.com\n10.0.0.10\n"),
+		Ports:          "8443,443",
+		MaxConcurrency: 2,
+		Timeout:        time.Second,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	enumerator := RemoteEnumerator{
+		Scope: scope,
+		probeEndpoint: func(_ context.Context, host string, port int, timeout time.Duration) error {
+			if timeout != time.Second {
+				t.Fatalf("timeout = %s, want 1s", timeout)
+			}
+			if host == "example.com" && port == 443 {
+				return nil
+			}
+
+			return errors.New("connection refused")
+		},
+	}
+
+	got, err := enumerator.Enumerate(context.Background())
+	if err != nil {
+		t.Fatalf("Enumerate() error = %v", err)
+	}
+
+	wantOrder := []struct {
+		host  string
+		port  int
+		state string
+	}{
+		{host: "example.com", port: 443, state: "responsive"},
+		{host: "example.com", port: 8443, state: "candidate"},
+		{host: "10.0.0.10", port: 443, state: "candidate"},
+		{host: "10.0.0.10", port: 8443, state: "candidate"},
+	}
+
+	if len(got) != len(wantOrder) {
+		t.Fatalf("len(Enumerate()) = %d, want %d", len(got), len(wantOrder))
+	}
+
+	for index, want := range wantOrder {
+		if got[index].Host != want.host || got[index].Port != want.port || got[index].State != want.state {
+			t.Fatalf("got[%d] = %#v, want host=%q port=%d state=%q", index, got[index], want.host, want.port, want.state)
+		}
+	}
+}
+
 func TestRemoteEnumeratorEnumerateReturnsContextCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -226,6 +282,17 @@ func TestExpandRemoteHostsReturnsCanonicalAddressOrder(t *testing.T) {
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("expandRemoteHosts() = %v, want %v", got, want)
 	}
+}
+
+func writeTargetsFile(t *testing.T, contents string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "targets.txt")
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	return path
 }
 
 func itoa(value int) string {

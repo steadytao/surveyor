@@ -42,9 +42,6 @@ type RemoteEnumerator struct {
 // attempts within that scope.
 func (e RemoteEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpoint, error) {
 	scope := e.Scope
-	if !scope.CIDR.IsValid() {
-		return nil, fmt.Errorf("remote scope CIDR must be valid")
-	}
 	if len(scope.Ports) == 0 {
 		return nil, fmt.Errorf("remote scope ports must not be empty")
 	}
@@ -55,7 +52,7 @@ func (e RemoteEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpo
 		return nil, fmt.Errorf("remote scope timeout must be greater than 0")
 	}
 
-	hosts, err := expandRemoteHosts(scope.CIDR)
+	hosts, err := resolveRemoteHosts(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +120,25 @@ func (e RemoteEnumerator) Enumerate(ctx context.Context) ([]core.DiscoveredEndpo
 	}
 
 	return endpoints, nil
+}
+
+func resolveRemoteHosts(scope config.RemoteScope) ([]string, error) {
+	switch scope.InputKind {
+	case config.RemoteScopeInputKindCIDR:
+		if !scope.CIDR.IsValid() {
+			return nil, fmt.Errorf("remote scope CIDR must be valid")
+		}
+
+		return expandRemoteHosts(scope.CIDR)
+	case config.RemoteScopeInputKindTargetsFile:
+		if len(scope.Hosts) == 0 {
+			return nil, fmt.Errorf("remote scope hosts must not be empty")
+		}
+
+		return append([]string(nil), scope.Hosts...), nil
+	default:
+		return nil, fmt.Errorf("unsupported remote scope input kind %q", scope.InputKind)
+	}
 }
 
 func defaultEndpointProber(ctx context.Context, host string, port int, timeout time.Duration) error {
