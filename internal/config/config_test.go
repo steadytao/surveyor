@@ -56,6 +56,23 @@ targets:
 	}
 }
 
+func TestParseValidConfigNormalizesBracketedIPv6Host(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]byte(`
+targets:
+  - host: "[2001:db8::1]"
+    port: 443
+`))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	if got, want := cfg.Targets[0].Host, "2001:db8::1"; got != want {
+		t.Fatalf("cfg.Targets[0].Host = %q, want %q", got, want)
+	}
+}
+
 func TestParseInvalidConfig(t *testing.T) {
 	t.Parallel()
 

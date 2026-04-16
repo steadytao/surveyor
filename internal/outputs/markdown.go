@@ -2,6 +2,8 @@ package outputs
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -101,11 +103,12 @@ func RenderMarkdown(report core.Report) string {
 }
 
 func targetHeading(result core.TargetResult) string {
+	endpoint := net.JoinHostPort(result.Host, strconv.Itoa(result.Port))
 	if result.Name != "" {
-		return result.Name
+		return result.Name + " (" + endpoint + ")"
 	}
 
-	return netJoinHostPort(result.Host, result.Port)
+	return endpoint
 }
 
 func defaultString(value string, fallback string) string {
@@ -114,8 +117,4 @@ func defaultString(value string, fallback string) string {
 	}
 
 	return value
-}
-
-func netJoinHostPort(host string, port int) string {
-	return fmt.Sprintf("%s:%d", host, port)
 }

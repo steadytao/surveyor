@@ -59,6 +59,20 @@ Current target model:
 
 This package should stay strict. It is better for config files to be explicit than clever.
 
+### `internal/inventory`
+
+Owns structured imported-inventory parsing and normalisation.
+
+Current responsibilities:
+
+- parse YAML, JSON and constrained CSV inventory files
+- validate the narrow manifest schema
+- normalise hosts, ports and tags deterministically
+- preserve source provenance
+- collapse exact duplicates and reject conflicting duplicate metadata
+
+This package should stay import-focused. It should normalise approved external inventory into one stable internal shape rather than grow vendor-specific adapter logic into the core.
+
 ### `internal/core`
 
 Owns the canonical result model shared across the rest of the project.
@@ -296,7 +310,7 @@ The current architecture still does not include:
 - trust-store validation
 - hostname validation semantics
 - STARTTLS or multi-protocol probing
-- remote scope inputs beyond the current explicit CIDR path and simple file-backed host path
+- platform-specific inventory import adapters
 - organisation-wide or cloud inventory discovery
 - discovery-only diffing
 - diff-input prioritisation
@@ -304,10 +318,6 @@ The current architecture still does not include:
 - stateful storage
 
 Those are separate steps and should only be added once the current TLS path remains coherent.
-
-The next planned extension for remote input is structured imported inventory
-via `--inventory-file`. See
-[docs/inventory-inputs.md](inventory-inputs.md) for that future contract.
 
 Scoped remote inventory with canonical `remote` commands is now part of the current repository surface. See [docs/remote-inventory.md](remote-inventory.md) and [docs/remote-scope.md](remote-scope.md) for the current boundary.
 
@@ -329,14 +339,12 @@ That boundary should remain intact. The current audit flows coordinate discovery
 The current remote model is:
 
 - canonical `discover remote` and `audit remote` commands
-- support for both `--cidr` and `--targets-file`
-- `discover subnet` and `audit subnet` retained as CIDR-only compatibility aliases during `v0.5.x`
+- support for `--cidr`, `--targets-file` and `--inventory-file`
+- `discover subnet` and `audit subnet` retained as CIDR-only compatibility aliases from `v0.4.x`
 
 That widens the remote scope model without weakening the existing discovery, hinting, selection and verified-scanning boundaries.
 
-The next planned extension is structured imported inventory on top of the same
-remote model, not a second remote command family. That design is documented in
-[inventory-inputs.md](inventory-inputs.md) and is not implemented yet.
+Structured imported inventory now sits on top of the same remote model rather than introducing a second remote command family. See [inventory-inputs.md](inventory-inputs.md) for the current contract.
 
 ## Current analysis layer
 

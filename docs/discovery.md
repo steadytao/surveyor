@@ -17,9 +17,10 @@ The discovery commands are:
 surveyor discover local
 surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443
 surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443
+surveyor discover remote --inventory-file inventory.yaml
 ```
 
-`surveyor discover subnet` remains as a CIDR-only compatibility alias during `v0.5.x`.
+`surveyor discover subnet` remains as a CIDR-only compatibility alias from `v0.4.x`.
 
 ## Why discovery exists
 
@@ -48,10 +49,12 @@ The semantics of `surveyor discover local` are:
 
 The semantics of `surveyor discover remote` are:
 
-- require explicit remote scope and explicit ports
+- require explicit remote scope
+- require explicit ports for `--cidr` and `--targets-file`, or use imported per-entry ports for `--inventory-file`
 - perform bounded TCP reachability probing within that declared scope
 - report one observed result per attempted host:port
 - attach conservative protocol hints only where justified
+- preserve imported inventory annotations where remote scope came from `--inventory-file`
 - emit canonical JSON and derived Markdown
 - avoid verified protocol scanning
 
@@ -72,6 +75,7 @@ Discovery currently covers:
 - TCP reachability probing for remote discovery
 - CIDR-backed remote scope
 - simple file-backed host scope
+- structured inventory-backed remote scope
 - best-effort process metadata where available for local discovery
 - conservative protocol hints with explicit confidence and evidence
 
@@ -165,9 +169,10 @@ Current report-scope shape:
 Fields:
 
 - `scope_kind`: `local` or `remote`
-- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr` or `targets_file`
+- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr`, `targets_file` or `inventory_file`
 - `cidr`: declared remote CIDR when the report covers CIDR-backed remote scope
 - `targets_file`: declared remote targets-file path when the report covers file-backed remote scope
+- `inventory_file`: declared structured inventory-file path when the report covers inventory-backed remote scope
 - `ports`: declared remote port set when the report covers remote scope
 
 ### Report execution
@@ -295,6 +300,8 @@ Representative example outputs live in:
 
 - [examples/discovery.json](../examples/discovery.json)
 - [examples/discovery.md](../examples/discovery.md)
+- [examples/discovery-inventory.json](../examples/discovery-inventory.json)
+- [examples/discovery-inventory.md](../examples/discovery-inventory.md)
 - [examples/discovery-remote.json](../examples/discovery-remote.json)
 - [examples/discovery-remote.md](../examples/discovery-remote.md)
 - [examples/discovery-subnet.json](../examples/discovery-subnet.json)

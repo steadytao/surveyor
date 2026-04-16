@@ -77,6 +77,25 @@ func TestParseJSONInventorySupportsAddressAlias(t *testing.T) {
 	}
 }
 
+func TestParseInventoryNormalizesBracketedIPv6(t *testing.T) {
+	t.Parallel()
+
+	document, err := Parse([]byte(`
+version: 1
+entries:
+  - host: "[2001:DB8::1]"
+    ports: [443]
+`), core.InventorySourceFormatYAML, "inventory.yaml")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	entry := document.Entries[0]
+	if got, want := entry.Host, "2001:db8::1"; got != want {
+		t.Fatalf("entry.Host = %q, want %q", got, want)
+	}
+}
+
 func TestParseCSVInventory(t *testing.T) {
 	t.Parallel()
 

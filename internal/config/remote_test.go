@@ -144,6 +144,31 @@ func TestParseRemoteScopeTargetsFile(t *testing.T) {
 	}
 }
 
+func TestParseRemoteScopeTargetsFileNormalizesBracketedIPv6(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	targetsFile := filepath.Join(tempDir, "approved-hosts.txt")
+	if err := os.WriteFile(targetsFile, []byte(strings.Join([]string{
+		"[2001:DB8::10]",
+		"2001:db8::10",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		TargetsFile: targetsFile,
+		Ports:       "443",
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.Hosts, []string{"2001:db8::10"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Hosts = %v, want %v", got, want)
+	}
+}
+
 func TestParseRemoteScopeInventoryFile(t *testing.T) {
 	t.Parallel()
 

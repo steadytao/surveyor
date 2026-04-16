@@ -12,10 +12,12 @@ Before a release, confirm that Surveyor can:
 - support `surveyor prioritise` as a CLI alias
 - run `surveyor audit local`
 - run `surveyor audit remote`
+- run inventory-backed `surveyor audit remote --inventory-file ...`
 - chain discovery into the supported TLS scanner conservatively
 - produce canonical JSON and derived Markdown for audit output
 - enumerate local endpoints through `surveyor discover local`
 - enumerate explicitly declared remote scope through `surveyor discover remote`
+- enumerate structured inventory-backed remote scope through `surveyor discover remote --inventory-file ...`
 - attach conservative protocol hints without treating them as verified scans
 - produce canonical JSON and derived Markdown for discovery output
 - validate remote scope and dry-run plans without network I/O
@@ -36,6 +38,7 @@ Before a release, confirm that:
 - `docs/discovery.md` matches the implemented discovery slice
 - `docs/remote-inventory.md` matches the implemented remote slice
 - `docs/remote-scope.md` matches the implemented remote scope model
+- `docs/inventory-inputs.md` matches the implemented structured inventory input layer
 - `docs/architecture.md` matches the code
 - `docs/output-schema.md` matches the current JSON contract
 - `docs/baselines.md` matches the implemented baseline layer
@@ -44,7 +47,7 @@ Before a release, confirm that:
 - `docs/classification.md` matches the implemented rule set
 - `docs/references.md` exists and is still the right reference set
 - `docs/safety.md` still matches the tool's actual behaviour
-- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-remote.json`, `examples/discovery-remote.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-remote.json`, `examples/audit-remote.md`, `examples/audit-subnet.json`, `examples/audit-subnet.md`, `examples/diff.json`, `examples/diff.md`, `examples/priorities.json`, `examples/priorities.md` and `examples/approved-hosts.txt` reflect the current implementation
+- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-remote.json`, `examples/discovery-remote.md`, `examples/discovery-inventory.json`, `examples/discovery-inventory.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-remote.json`, `examples/audit-remote.md`, `examples/audit-inventory.json`, `examples/audit-inventory.md`, `examples/audit-subnet.json`, `examples/audit-subnet.md`, `examples/diff.json`, `examples/diff.md`, `examples/priorities.json`, `examples/priorities.md`, `examples/approved-hosts.txt` and `examples/inventory.yaml` reflect the current implementation
 
 ## Verification
 

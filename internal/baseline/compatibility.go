@@ -114,7 +114,8 @@ func scopesDiffer(left *core.ReportScope, right *core.ReportScope) bool {
 	if left.ScopeKind != right.ScopeKind ||
 		left.InputKind != right.InputKind ||
 		left.CIDR != right.CIDR ||
-		left.TargetsFile != right.TargetsFile {
+		left.TargetsFile != right.TargetsFile ||
+		left.InventoryFile != right.InventoryFile {
 		return true
 	}
 

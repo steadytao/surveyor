@@ -4,6 +4,17 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.7.0
+
+### Added
+- canonical `surveyor discover remote` and `surveyor audit remote` now support structured imported inventory through `--inventory-file`
+- structured inventory parsing now supports YAML, JSON and constrained CSV, with provenance, host normalisation and deterministic deduplication
+- inventory-backed discovery and audit reports now include checked-in examples and golden outputs, including endpoint-level imported inventory context
+
+### Changed
+- README, architecture, remote inventory, remote scope, audit, discovery, safety, inventory-inputs and release-checklist docs now describe the shipped structured inventory surface rather than the earlier milestone plan
+- release artefacts now include `docs/releases/v0.7.0.md`, and the current release notes explicitly document inventory-backed remote scope, per-entry ports and the continued absence of platform-specific adapters
+
 ## v0.6.0
 
 ### Added

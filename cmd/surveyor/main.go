@@ -103,11 +103,11 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer, now func() time.
 		printDiffUsage(stderr)
 	}
 
-	markdownPath := fs.String("output", "", "Write Markdown output to this path")
-	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+	markdownPath := fs.String("output", "", "Write Markdown report output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown report output to this path")
 
-	jsonPath := fs.String("json", "", "Write JSON output to this path")
-	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
 
 	if err := fs.Parse(normalizedArgs); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -156,11 +156,11 @@ func runPrioritize(args []string, stdout io.Writer, stderr io.Writer, now func()
 
 	profileText := fs.String("profile", "", "Prioritization profile: migration-readiness or change-risk")
 
-	markdownPath := fs.String("output", "", "Write Markdown output to this path")
-	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+	markdownPath := fs.String("output", "", "Write Markdown report output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown report output to this path")
 
-	jsonPath := fs.String("json", "", "Write JSON output to this path")
-	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
 
 	if err := fs.Parse(normalizedArgs); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -275,11 +275,11 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 	targetsArg := fs.String("targets", "", "Comma-separated explicit host:port targets")
 	fs.StringVar(targetsArg, "t", "", "Comma-separated explicit host:port targets")
 
-	markdownPath := fs.String("output", "", "Write Markdown output to this path")
-	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+	markdownPath := fs.String("output", "", "Write Markdown report output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown report output to this path")
 
-	jsonPath := fs.String("json", "", "Write JSON output to this path")
-	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -350,11 +350,11 @@ func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer, now fun
 		printDiscoverLocalUsage(stderr)
 	}
 
-	markdownPath := fs.String("output", "", "Write Markdown output to this path")
-	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+	markdownPath := fs.String("output", "", "Write Markdown report output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown report output to this path")
 
-	jsonPath := fs.String("json", "", "Write JSON output to this path")
-	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -432,11 +432,11 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	maxConcurrency := fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts")
 	timeout := fs.Duration("timeout", 0, "Per probe or connection attempt timeout")
 
-	markdownPath := fs.String("output", "", "Write Markdown output to this path")
-	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+	markdownPath := fs.String("output", "", "Write Markdown report output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown report output to this path")
 
-	jsonPath := fs.String("json", "", "Write JSON output to this path")
-	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -561,11 +561,11 @@ func runAuditLocal(args []string, stdout io.Writer, stderr io.Writer, now func()
 		printAuditLocalUsage(stderr)
 	}
 
-	markdownPath := fs.String("output", "", "Write Markdown output to this path")
-	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+	markdownPath := fs.String("output", "", "Write Markdown report output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown report output to this path")
 
-	jsonPath := fs.String("json", "", "Write JSON output to this path")
-	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -636,11 +636,11 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 	maxConcurrency := fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts")
 	timeout := fs.Duration("timeout", 0, "Per probe or connection attempt timeout")
 
-	markdownPath := fs.String("output", "", "Write Markdown output to this path")
-	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+	markdownPath := fs.String("output", "", "Write Markdown report output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown report output to this path")
 
-	jsonPath := fs.String("json", "", "Write JSON output to this path")
-	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -1052,26 +1052,28 @@ func normalizePrioritizeArgs(args []string) ([]string, error) {
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Surveyor")
 	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Description:")
+	fmt.Fprintln(w, "  Inventory, audit, compare and prioritise transport-facing cryptographic exposure from explicit targets, local endpoints and declared remote scope.")
+	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor diff baseline.json current.json [-o diff.md] [-j diff.json]")
-	fmt.Fprintln(w, "  surveyor prioritize current.json [--profile migration-readiness] [-o priorities.md] [-j priorities.json]")
-	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor <command> [<args>...]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Examples:")
+	fmt.Fprintln(w, "  surveyor scan tls --config examples/targets.yaml -o report.md -j report.json")
+	fmt.Fprintln(w, "  surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run")
+	fmt.Fprintln(w, "  surveyor audit remote --inventory-file examples/inventory.yaml -o audit.md -j audit.json")
+	fmt.Fprintln(w, "  surveyor diff baseline.json current.json -o diff.md -j diff.json")
+	fmt.Fprintln(w, "  surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
 	fmt.Fprintln(w, "  diff            Compare two compatible Surveyor JSON reports and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  prioritize      Rank a current Surveyor JSON report; prioritise is supported as a CLI alias")
 	fmt.Fprintln(w, "  audit local     Audit local endpoints by chaining discovery into supported scanners")
 	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR, host-list and structured inventory inputs")
-	fmt.Fprintln(w, "  audit subnet    CIDR-only compatibility alias for remote audit during v0.5.x")
+	fmt.Fprintln(w, "  audit subnet    CIDR-only compatibility alias for remote audit from v0.4.x")
 	fmt.Fprintln(w, "  discover local  Enumerate local endpoints and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  discover remote Enumerate declared remote scope across CIDR, host-list and structured inventory inputs")
-	fmt.Fprintln(w, "  discover subnet CIDR-only compatibility alias for remote discovery during v0.5.x")
+	fmt.Fprintln(w, "  discover subnet CIDR-only compatibility alias for remote discovery from v0.4.x")
 	fmt.Fprintln(w, "  scan tls        Scan explicit TLS targets and emit Markdown and optional JSON output")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor audit local --help' for audit-specific help.")
@@ -1089,7 +1091,7 @@ func printDiffUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor diff baseline.json current.json [-o diff.md] [-j diff.json]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Compare two compatible canonical Surveyor JSON reports.")
 	fmt.Fprintln(w, "  The first release supports tls_scan-to-tls_scan and audit-to-audit comparisons only.")
 	fmt.Fprintln(w)
@@ -1098,8 +1100,8 @@ func printDiffUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor diff baseline.json current.json -o diff.md -j diff.json")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
-	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
-	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown report output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write canonical JSON report output to this path")
 }
 
 func printPrioritizeUsage(w io.Writer) {
@@ -1107,7 +1109,7 @@ func printPrioritizeUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor prioritize current.json [--profile migration-readiness] [-o priorities.md] [-j priorities.json]")
 	fmt.Fprintln(w, "  surveyor prioritise current.json [--profile migration-readiness] [-o priorities.md] [-j priorities.json]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Rank a current canonical Surveyor JSON report for human attention.")
 	fmt.Fprintln(w, "  The first release supports tls_scan and audit input only.")
 	fmt.Fprintln(w)
@@ -1117,15 +1119,21 @@ func printPrioritizeUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --profile      Prioritisation profile: migration-readiness or change-risk")
-	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
-	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown report output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write canonical JSON report output to this path")
 }
 
 func printAuditUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor audit <subcommand> [flags]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Description:")
+	fmt.Fprintln(w, "  Audit local or declared remote scope, preserving the current inventory-first and TLS-only verified-scanner boundaries.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Subcommands:")
+	fmt.Fprintln(w, "  local     Audit local endpoints by chaining discovery into supported TLS scanning")
+	fmt.Fprintln(w, "  remote    Audit declared remote scope from CIDR, host-list or inventory inputs")
+	fmt.Fprintln(w, "  subnet    CIDR-only compatibility alias for remote audit from v0.4.x")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor audit local --help' for local audit help.")
 	fmt.Fprintln(w, "Run 'surveyor audit remote --help' for canonical remote audit help.")
@@ -1134,9 +1142,15 @@ func printAuditUsage(w io.Writer) {
 
 func printDiscoverUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor discover <subcommand> [flags]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Description:")
+	fmt.Fprintln(w, "  Enumerate local or declared remote scope, recording observed endpoint facts and conservative hints without verified scanner execution.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Subcommands:")
+	fmt.Fprintln(w, "  local     Enumerate local endpoints")
+	fmt.Fprintln(w, "  remote    Enumerate declared remote scope from CIDR, host-list or inventory inputs")
+	fmt.Fprintln(w, "  subnet    CIDR-only compatibility alias for remote discovery from v0.4.x")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor discover local --help' for local discovery help.")
 	fmt.Fprintln(w, "Run 'surveyor discover remote --help' for canonical remote discovery help.")
@@ -1145,7 +1159,13 @@ func printDiscoverUsage(w io.Writer) {
 
 func printScanUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor scan <subcommand> [flags]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Description:")
+	fmt.Fprintln(w, "  Run explicit scanner-oriented inventory commands.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Subcommands:")
+	fmt.Fprintln(w, "  tls       Scan explicit TLS targets from --config or --targets")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for flags and examples.")
 }
@@ -1153,7 +1173,8 @@ func printScanUsage(w io.Writer) {
 func printAuditLocalUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Run local discovery, select supported TLS-like endpoints conservatively and emit local audit output.")
 	fmt.Fprintln(w, "  This command does not imply aggressive probing or non-TLS scanner support.")
 	fmt.Fprintln(w)
@@ -1162,16 +1183,17 @@ func printAuditLocalUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor audit local -o audit.md -j audit.json")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
-	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
-	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown report output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write canonical JSON report output to this path")
 }
 
 func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Canonical remote audit command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
+	fmt.Fprintln(w, "  Exactly one of --cidr, --targets-file or --inventory-file is required.")
 	fmt.Fprintln(w, "  This command only hands selected TLS candidates into the existing TLS scanner.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
@@ -1181,24 +1203,24 @@ func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to audit, for example 10.0.0.0/24")
-	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file")
-	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file")
-	fmt.Fprintln(w, "  --ports             Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
+	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file; blank lines and # comments are ignored")
+	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file (.yaml, .yml, .json or .csv)")
+	fmt.Fprintln(w, "  --ports             Explicit remote ports, required for --cidr and --targets-file; overrides inventory entry ports when set")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
-	fmt.Fprintln(w, "  --dry-run           Print the execution plan without performing network I/O")
+	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
 	fmt.Fprintln(w, "  --max-concurrency   Maximum concurrent remote probe attempts")
 	fmt.Fprintln(w, "  --timeout           Per probe or connection attempt timeout")
-	fmt.Fprintln(w, "  -o, --output        Write Markdown output to this path")
-	fmt.Fprintln(w, "  -j, --json          Write JSON output to this path")
+	fmt.Fprintln(w, "  -o, --output        Write Markdown report output to this path")
+	fmt.Fprintln(w, "  -j, --json          Write canonical JSON report output to this path")
 }
 
 func printAuditSubnetUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  CIDR-only compatibility alias for remote audit during v0.5.x.")
+	fmt.Fprintln(w, "Description:")
+	fmt.Fprintln(w, "  CIDR-only compatibility alias for remote audit from v0.4.x.")
 	fmt.Fprintln(w, "  This command only accepts --cidr, not --targets-file, and only hands selected TLS candidates into the existing TLS scanner.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
@@ -1210,18 +1232,19 @@ func printAuditSubnetUsage(w io.Writer) {
 	fmt.Fprintln(w, "  --cidr              CIDR scope to audit, for example 10.0.0.0/24")
 	fmt.Fprintln(w, "  --ports             Comma-separated explicit remote ports, for example 443,8443")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
-	fmt.Fprintln(w, "  --dry-run           Print the execution plan without performing network I/O")
+	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
 	fmt.Fprintln(w, "  --max-concurrency   Maximum concurrent remote probe attempts")
 	fmt.Fprintln(w, "  --timeout           Per probe or connection attempt timeout")
-	fmt.Fprintln(w, "  -o, --output        Write Markdown output to this path")
-	fmt.Fprintln(w, "  -j, --json          Write JSON output to this path")
+	fmt.Fprintln(w, "  -o, --output        Write Markdown report output to this path")
+	fmt.Fprintln(w, "  -j, --json          Write canonical JSON report output to this path")
 }
 
 func printDiscoverLocalUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Enumerate local endpoints and emit discovery output.")
 	fmt.Fprintln(w, "  This command does not perform active probing or verified protocol scans.")
 	fmt.Fprintln(w)
@@ -1230,16 +1253,17 @@ func printDiscoverLocalUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor discover local -o discovery.md -j discovery.json")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
-	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
-	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown report output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write canonical JSON report output to this path")
 }
 
 func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Canonical remote discovery command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
+	fmt.Fprintln(w, "  Exactly one of --cidr, --targets-file or --inventory-file is required.")
 	fmt.Fprintln(w, "  This command records observed reachability facts and conservative hints only; it does not run verified scanners.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
@@ -1249,24 +1273,24 @@ func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to discover, for example 10.0.0.0/24")
-	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file")
-	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file")
-	fmt.Fprintln(w, "  --ports             Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
+	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file; blank lines and # comments are ignored")
+	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file (.yaml, .yml, .json or .csv)")
+	fmt.Fprintln(w, "  --ports             Explicit remote ports, required for --cidr and --targets-file; overrides inventory entry ports when set")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
-	fmt.Fprintln(w, "  --dry-run           Print the execution plan without performing network I/O")
+	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
 	fmt.Fprintln(w, "  --max-concurrency   Maximum concurrent remote probe attempts")
 	fmt.Fprintln(w, "  --timeout           Per probe or connection attempt timeout")
-	fmt.Fprintln(w, "  -o, --output        Write Markdown output to this path")
-	fmt.Fprintln(w, "  -j, --json          Write JSON output to this path")
+	fmt.Fprintln(w, "  -o, --output        Write Markdown report output to this path")
+	fmt.Fprintln(w, "  -j, --json          Write canonical JSON report output to this path")
 }
 
 func printDiscoverSubnetUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  CIDR-only compatibility alias for remote discovery during v0.5.x.")
+	fmt.Fprintln(w, "Description:")
+	fmt.Fprintln(w, "  CIDR-only compatibility alias for remote discovery from v0.4.x.")
 	fmt.Fprintln(w, "  This command only accepts --cidr, not --targets-file, and records observed reachability facts and conservative hints only.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
@@ -1278,12 +1302,12 @@ func printDiscoverSubnetUsage(w io.Writer) {
 	fmt.Fprintln(w, "  --cidr              CIDR scope to discover, for example 10.0.0.0/24")
 	fmt.Fprintln(w, "  --ports             Comma-separated explicit remote ports, for example 443,8443")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
-	fmt.Fprintln(w, "  --dry-run           Print the execution plan without performing network I/O")
+	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
 	fmt.Fprintln(w, "  --max-concurrency   Maximum concurrent remote probe attempts")
 	fmt.Fprintln(w, "  --timeout           Per probe or connection attempt timeout")
-	fmt.Fprintln(w, "  -o, --output        Write Markdown output to this path")
-	fmt.Fprintln(w, "  -j, --json          Write JSON output to this path")
+	fmt.Fprintln(w, "  -o, --output        Write Markdown report output to this path")
+	fmt.Fprintln(w, "  -j, --json          Write canonical JSON report output to this path")
 }
 
 func renderRemoteExecutionPlanMarkdown(commandName string, scope config.RemoteScope, supportedScanners string) string {
@@ -1384,10 +1408,10 @@ func printScanTLSUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Input:")
+	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Exactly one of --config or --targets is required.")
-	fmt.Fprintln(w, "  --targets requires explicit host:port entries.")
-	fmt.Fprintln(w, "  IPv6 targets must use bracket form, for example [::1]:443.")
+	fmt.Fprintln(w, "  --targets requires explicit host:port entries. Config files accept explicit host and port fields.")
+	fmt.Fprintln(w, "  IPv6 targets on the command line must use bracket form, for example [::1]:443.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor scan tls --config examples/targets.yaml -o report.md -j report.json")
@@ -1396,6 +1420,6 @@ func printScanTLSUsage(w io.Writer) {
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  -c, --config   Path to a YAML config file with explicit TLS targets")
 	fmt.Fprintln(w, "  -t, --targets  Comma-separated explicit host:port targets")
-	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
-	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown report output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write canonical JSON report output to this path")
 }

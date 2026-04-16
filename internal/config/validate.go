@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
 	"strings"
 )
 
@@ -39,7 +40,7 @@ func ValidateTarget(target Target) (Target, error) {
 }
 
 func normalizeTargetFields(name string, host string, port int, tags []string, pathPrefix string) (Target, error) {
-	trimmedHost := strings.TrimSpace(host)
+	trimmedHost := normalizeExplicitTargetHost(host)
 	trimmedName := strings.TrimSpace(name)
 
 	if trimmedHost == "" {
@@ -62,6 +63,17 @@ func normalizeTargetFields(name string, host string, port int, tags []string, pa
 		Port: port,
 		Tags: normalizedTags,
 	}, nil
+}
+
+func normalizeExplicitTargetHost(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if len(trimmed) >= 2 && strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		if address, err := netip.ParseAddr(strings.TrimSpace(trimmed[1 : len(trimmed)-1])); err == nil {
+			return address.String()
+		}
+	}
+
+	return trimmed
 }
 
 func normalizeTags(tags []string) []string {

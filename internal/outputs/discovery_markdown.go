@@ -2,6 +2,7 @@ package outputs
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -33,9 +34,7 @@ func RenderDiscoveryMarkdown(report core.DiscoveryReport) string {
 			builder.WriteString(fmt.Sprintf("- Targets file: %s\n", report.Scope.TargetsFile))
 		}
 		renderInventoryFileScope(&builder, report.Scope)
-		if len(report.Scope.Ports) > 0 {
-			builder.WriteString(fmt.Sprintf("- Ports: %s\n", renderPortsList(report.Scope.Ports)))
-		}
+		renderScopePorts(&builder, report.Scope)
 		builder.WriteString("\n")
 	}
 
@@ -125,7 +124,7 @@ func RenderDiscoveryMarkdown(report core.DiscoveryReport) string {
 }
 
 func discoveryEndpointHeading(result core.DiscoveredEndpoint) string {
-	return fmt.Sprintf("%s:%d/%s", result.Host, result.Port, result.Transport)
+	return net.JoinHostPort(result.Host, strconv.Itoa(result.Port)) + "/" + result.Transport
 }
 
 func renderPortsList(ports []int) string {
