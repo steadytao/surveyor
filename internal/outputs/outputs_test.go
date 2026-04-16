@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/steadytao/surveyor/internal/core"
+	diffreport "github.com/steadytao/surveyor/internal/diff"
 )
 
 func TestBuildReportSummary(t *testing.T) {
@@ -255,6 +256,22 @@ func TestMarshalRemoteAuditJSON(t *testing.T) {
 	}
 }
 
+func TestMarshalDiffJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleDiffReport(t)
+
+	data, err := MarshalDiffJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalDiffJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "diff.golden.json")
+	if string(data) != want {
+		t.Fatalf("diff json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
 func TestRenderMarkdown(t *testing.T) {
 	t.Parallel()
 
@@ -312,6 +329,18 @@ func TestRenderRemoteAuditMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "audit-remote.golden.md")
 	if markdown != want {
 		t.Fatalf("remote audit markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderDiffMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleDiffReport(t)
+
+	markdown := RenderDiffMarkdown(report)
+	want := readGoldenFile(t, "diff.golden.md")
+	if markdown != want {
+		t.Fatalf("diff markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
 	}
 }
 
@@ -577,4 +606,141 @@ func sampleRemoteAuditReport() core.AuditReport {
 		MaxConcurrency: 8,
 		Timeout:        "3s",
 	})
+}
+
+func sampleDiffReport(t *testing.T) diffreport.Report {
+	t.Helper()
+
+	baselineReport := BuildAuditReportWithMetadata([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Hints: []core.DiscoveryHint{
+					{
+						Protocol:   "tls",
+						Confidence: "low",
+						Evidence:   []string{"transport=tcp", "port=443"},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:                   "example.com",
+				Port:                   443,
+				ScannedAt:              time.Date(2026, time.April, 20, 1, 20, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.2",
+				CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafKeySize:            2048,
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "legacy_tls_exposure",
+				Findings: []core.Finding{
+					{
+						Code:     "legacy-tls-version",
+						Severity: core.SeverityHigh,
+						Summary:  "The service negotiated a legacy TLS version.",
+					},
+					{
+						Code:     "classical-certificate-identity",
+						Severity: core.SeverityMedium,
+						Summary:  "The observed certificate identity remains classical.",
+					},
+				},
+				Warnings: []string{"baseline-warning"},
+			},
+		},
+	}, time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind: core.ReportScopeKindRemote,
+		InputKind: core.ReportInputKindCIDR,
+		CIDR:      "10.0.0.0/30",
+		Ports:     []int{443},
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+
+	currentReport := BuildAuditReportWithMetadata([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Hints: []core.DiscoveryHint{
+					{
+						Protocol:   "tls",
+						Confidence: "low",
+						Evidence:   []string{"transport=tcp", "port=443"},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:                   "example.com",
+				Port:                   443,
+				ScannedAt:              time.Date(2026, time.April, 21, 1, 20, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.3",
+				CipherSuite:            "TLS_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafKeySize:            2048,
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+				Findings: []core.Finding{
+					{
+						Code:     "classical-certificate-identity",
+						Severity: core.SeverityMedium,
+						Summary:  "The observed certificate identity remains classical.",
+					},
+				},
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "10.0.0.10",
+				Port:      443,
+				Transport: "tcp",
+				State:     "candidate",
+				Errors:    []string{"connection refused"},
+			},
+			Selection: core.AuditSelection{
+				Status: core.AuditSelectionStatusSkipped,
+				Reason: "endpoint did not respond during remote discovery",
+			},
+		},
+	}, time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind: core.ReportScopeKindRemote,
+		InputKind: core.ReportInputKindCIDR,
+		CIDR:      "10.0.1.0/30",
+		Ports:     []int{443},
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+
+	report, err := diffreport.BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	return report
 }

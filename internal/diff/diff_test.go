@@ -6,28 +6,32 @@ import (
 	"time"
 
 	"github.com/steadytao/surveyor/internal/core"
-	"github.com/steadytao/surveyor/internal/outputs"
 )
 
 func TestBuildTLSReportIdentical(t *testing.T) {
 	t.Parallel()
 
-	report := outputs.BuildReportWithMetadata([]core.TargetResult{
-		{
-			Host:                   "example.com",
-			Port:                   443,
-			Reachable:              true,
-			ScannedAt:              time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
-			TLSVersion:             "TLS 1.2",
-			CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-			LeafKeyAlgorithm:       "rsa",
-			LeafSignatureAlgorithm: "sha256-rsa",
-			Classification:         "modern_tls_classical_identity",
+	report := core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets from config"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
 		},
-	}, time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind: core.ReportScopeKindExplicit,
-		InputKind: core.ReportInputKindConfig,
-	})
+		Results: []core.TargetResult{
+			{
+				Host:                   "example.com",
+				Port:                   443,
+				Reachable:              true,
+				ScannedAt:              time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
+				TLSVersion:             "TLS 1.2",
+				CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+			},
+		},
+	}
 
 	diffReport, err := BuildTLSReport(report, report, time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC))
 	if err != nil {
@@ -54,66 +58,76 @@ func TestBuildTLSReportIdentical(t *testing.T) {
 func TestBuildTLSReportDetectsAddedRemovedAndChanged(t *testing.T) {
 	t.Parallel()
 
-	baselineReport := outputs.BuildReportWithMetadata([]core.TargetResult{
-		{
-			Host:                   "example.com",
-			Port:                   443,
-			Reachable:              true,
-			ScannedAt:              time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
-			TLSVersion:             "TLS 1.2",
-			CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-			LeafKeyAlgorithm:       "rsa",
-			LeafSignatureAlgorithm: "sha256-rsa",
-			Classification:         "legacy_tls_exposure",
-			Findings: []core.Finding{
-				{Code: "legacy-tls-version", Severity: core.SeverityHigh, Summary: "legacy"},
-				{Code: "classical-certificate-identity", Severity: core.SeverityMedium, Summary: "classical"},
+	baselineReport := core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets from config"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+		Results: []core.TargetResult{
+			{
+				Host:                   "example.com",
+				Port:                   443,
+				Reachable:              true,
+				ScannedAt:              time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
+				TLSVersion:             "TLS 1.2",
+				CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "legacy_tls_exposure",
+				Findings: []core.Finding{
+					{Code: "legacy-tls-version", Severity: core.SeverityHigh, Summary: "legacy"},
+					{Code: "classical-certificate-identity", Severity: core.SeverityMedium, Summary: "classical"},
+				},
+				Warnings: []string{"baseline-warning"},
 			},
-			Warnings: []string{"baseline-warning"},
+			{
+				Host:                   "old.example.com",
+				Port:                   443,
+				Reachable:              true,
+				ScannedAt:              time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
+				TLSVersion:             "TLS 1.2",
+				CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+			},
 		},
-		{
-			Host:                   "old.example.com",
-			Port:                   443,
-			Reachable:              true,
-			ScannedAt:              time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
-			TLSVersion:             "TLS 1.2",
-			CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-			LeafKeyAlgorithm:       "rsa",
-			LeafSignatureAlgorithm: "sha256-rsa",
-			Classification:         "modern_tls_classical_identity",
-		},
-	}, time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind: core.ReportScopeKindExplicit,
-		InputKind: core.ReportInputKindConfig,
-	})
+	}
 
-	currentReport := outputs.BuildReportWithMetadata([]core.TargetResult{
-		{
-			Host:                   "example.com",
-			Port:                   443,
-			Reachable:              true,
-			ScannedAt:              time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
-			TLSVersion:             "TLS 1.3",
-			CipherSuite:            "TLS_AES_128_GCM_SHA256",
-			LeafKeyAlgorithm:       "rsa",
-			LeafSignatureAlgorithm: "sha256-rsa",
-			Classification:         "modern_tls_classical_identity",
-			Findings: []core.Finding{
-				{Code: "classical-certificate-identity", Severity: core.SeverityMedium, Summary: "classical"},
+	currentReport := core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets from config"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+		Results: []core.TargetResult{
+			{
+				Host:                   "example.com",
+				Port:                   443,
+				Reachable:              true,
+				ScannedAt:              time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
+				TLSVersion:             "TLS 1.3",
+				CipherSuite:            "TLS_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+				Findings: []core.Finding{
+					{Code: "classical-certificate-identity", Severity: core.SeverityMedium, Summary: "classical"},
+				},
+			},
+			{
+				Host:           "new.example.com",
+				Port:           443,
+				Reachable:      false,
+				ScannedAt:      time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
+				Classification: "unreachable",
+				Errors:         []string{"dial timeout"},
 			},
 		},
-		{
-			Host:           "new.example.com",
-			Port:           443,
-			Reachable:      false,
-			ScannedAt:      time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
-			Classification: "unreachable",
-			Errors:         []string{"dial timeout"},
-		},
-	}, time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind: core.ReportScopeKindExplicit,
-		InputKind: core.ReportInputKindConfig,
-	})
+	}
 
 	diffReport, err := BuildTLSReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
 	if err != nil {
@@ -175,76 +189,88 @@ func TestBuildTLSReportDetectsAddedRemovedAndChanged(t *testing.T) {
 func TestBuildAuditReportDetectsRemoteChangeAndScopeDifference(t *testing.T) {
 	t.Parallel()
 
-	baselineReport := outputs.BuildAuditReportWithMetadata([]core.AuditResult{
-		{
-			DiscoveredEndpoint: core.DiscoveredEndpoint{
-				ScopeKind: core.EndpointScopeKindRemote,
-				Host:      "10.0.0.10",
-				Port:      443,
-				Transport: "tcp",
-				State:     "responsive",
-				Hints: []core.DiscoveryHint{
-					{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+	baselineReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit within CIDR 10.0.0.0/30 over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindRemote,
+			InputKind: core.ReportInputKindCIDR,
+			CIDR:      "10.0.0.0/30",
+			Ports:     []int{443},
+		},
+		Execution: &core.ReportExecution{
+			Profile:        "cautious",
+			MaxHosts:       256,
+			MaxConcurrency: 8,
+			Timeout:        "3s",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "10.0.0.10",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Hints: []core.DiscoveryHint{
+						{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+					},
 				},
-			},
-			Selection: core.AuditSelection{
-				Status:          core.AuditSelectionStatusSelected,
-				SelectedScanner: "tls",
-				Reason:          "tls hint on tcp/443",
-			},
-			TLSResult: &core.TargetResult{
-				Host:                   "10.0.0.10",
-				Port:                   443,
-				Reachable:              true,
-				ScannedAt:              time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
-				TLSVersion:             "TLS 1.2",
-				CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-				LeafKeyAlgorithm:       "rsa",
-				LeafSignatureAlgorithm: "sha256-rsa",
-				Classification:         "modern_tls_classical_identity",
-				Findings: []core.Finding{
-					{Code: "classical-certificate-identity", Severity: core.SeverityMedium, Summary: "classical"},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host:                   "10.0.0.10",
+					Port:                   443,
+					Reachable:              true,
+					ScannedAt:              time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
+					TLSVersion:             "TLS 1.2",
+					CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+					LeafKeyAlgorithm:       "rsa",
+					LeafSignatureAlgorithm: "sha256-rsa",
+					Classification:         "modern_tls_classical_identity",
+					Findings: []core.Finding{
+						{Code: "classical-certificate-identity", Severity: core.SeverityMedium, Summary: "classical"},
+					},
 				},
 			},
 		},
-	}, time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind: core.ReportScopeKindRemote,
-		InputKind: core.ReportInputKindCIDR,
-		CIDR:      "10.0.0.0/30",
-		Ports:     []int{443},
-	}, &core.ReportExecution{
-		Profile:        "cautious",
-		MaxHosts:       256,
-		MaxConcurrency: 8,
-		Timeout:        "3s",
-	})
+	}
 
-	currentReport := outputs.BuildAuditReportWithMetadata([]core.AuditResult{
-		{
-			DiscoveredEndpoint: core.DiscoveredEndpoint{
-				ScopeKind: core.EndpointScopeKindRemote,
-				Host:      "10.0.0.10",
-				Port:      443,
-				Transport: "tcp",
-				State:     "candidate",
-				Errors:    []string{"connection refused"},
-			},
-			Selection: core.AuditSelection{
-				Status: core.AuditSelectionStatusSkipped,
-				Reason: "endpoint did not respond during remote discovery",
+	currentReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit within CIDR 10.0.1.0/30 over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindRemote,
+			InputKind: core.ReportInputKindCIDR,
+			CIDR:      "10.0.1.0/30",
+			Ports:     []int{443},
+		},
+		Execution: &core.ReportExecution{
+			Profile:        "cautious",
+			MaxHosts:       256,
+			MaxConcurrency: 8,
+			Timeout:        "3s",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "10.0.0.10",
+					Port:      443,
+					Transport: "tcp",
+					State:     "candidate",
+					Errors:    []string{"connection refused"},
+				},
+				Selection: core.AuditSelection{
+					Status: core.AuditSelectionStatusSkipped,
+					Reason: "endpoint did not respond during remote discovery",
+				},
 			},
 		},
-	}, time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind: core.ReportScopeKindRemote,
-		InputKind: core.ReportInputKindCIDR,
-		CIDR:      "10.0.1.0/30",
-		Ports:     []int{443},
-	}, &core.ReportExecution{
-		Profile:        "cautious",
-		MaxHosts:       256,
-		MaxConcurrency: 8,
-		Timeout:        "3s",
-	})
+	}
 
 	diffReport, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
 	if err != nil {
@@ -278,57 +304,67 @@ func TestBuildAuditReportDetectsRemoteChangeAndScopeDifference(t *testing.T) {
 func TestBuildAuditReportIsDeterministic(t *testing.T) {
 	t.Parallel()
 
-	baselineReport := outputs.BuildAuditReportWithMetadata([]core.AuditResult{
-		{
-			DiscoveredEndpoint: core.DiscoveredEndpoint{
-				ScopeKind: core.EndpointScopeKindRemote,
-				Host:      "10.0.0.20",
-				Port:      443,
-				Transport: "tcp",
-				State:     "responsive",
-			},
-			Selection: core.AuditSelection{Status: core.AuditSelectionStatusSelected, SelectedScanner: "tls", Reason: "tls hint on tcp/443"},
-			TLSResult: &core.TargetResult{
-				Host:           "10.0.0.20",
-				Port:           443,
-				Reachable:      true,
-				ScannedAt:      time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
-				TLSVersion:     "TLS 1.2",
-				Classification: "legacy_tls_exposure",
+	baselineReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit within CIDR 10.0.0.0/30 over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindRemote,
+			InputKind: core.ReportInputKindCIDR,
+			CIDR:      "10.0.0.0/30",
+			Ports:     []int{443},
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "10.0.0.20",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+				},
+				Selection: core.AuditSelection{Status: core.AuditSelectionStatusSelected, SelectedScanner: "tls", Reason: "tls hint on tcp/443"},
+				TLSResult: &core.TargetResult{
+					Host:           "10.0.0.20",
+					Port:           443,
+					Reachable:      true,
+					ScannedAt:      time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
+					TLSVersion:     "TLS 1.2",
+					Classification: "legacy_tls_exposure",
+				},
 			},
 		},
-	}, time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind: core.ReportScopeKindRemote,
-		InputKind: core.ReportInputKindCIDR,
-		CIDR:      "10.0.0.0/30",
-		Ports:     []int{443},
-	}, nil)
+	}
 
-	currentReport := outputs.BuildAuditReportWithMetadata([]core.AuditResult{
-		{
-			DiscoveredEndpoint: core.DiscoveredEndpoint{
-				ScopeKind: core.EndpointScopeKindRemote,
-				Host:      "10.0.0.20",
-				Port:      443,
-				Transport: "tcp",
-				State:     "responsive",
-			},
-			Selection: core.AuditSelection{Status: core.AuditSelectionStatusSelected, SelectedScanner: "tls", Reason: "tls hint on tcp/443"},
-			TLSResult: &core.TargetResult{
-				Host:           "10.0.0.20",
-				Port:           443,
-				Reachable:      true,
-				ScannedAt:      time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
-				TLSVersion:     "TLS 1.3",
-				Classification: "modern_tls_classical_identity",
+	currentReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit within CIDR 10.0.0.0/30 over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindRemote,
+			InputKind: core.ReportInputKindCIDR,
+			CIDR:      "10.0.0.0/30",
+			Ports:     []int{443},
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "10.0.0.20",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+				},
+				Selection: core.AuditSelection{Status: core.AuditSelectionStatusSelected, SelectedScanner: "tls", Reason: "tls hint on tcp/443"},
+				TLSResult: &core.TargetResult{
+					Host:           "10.0.0.20",
+					Port:           443,
+					Reachable:      true,
+					ScannedAt:      time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
+					TLSVersion:     "TLS 1.3",
+					Classification: "modern_tls_classical_identity",
+				},
 			},
 		},
-	}, time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind: core.ReportScopeKindRemote,
-		InputKind: core.ReportInputKindCIDR,
-		CIDR:      "10.0.0.0/30",
-		Ports:     []int{443},
-	}, nil)
+	}
 
 	first, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/steadytao/surveyor/internal/config"
 	"github.com/steadytao/surveyor/internal/core"
+	"github.com/steadytao/surveyor/internal/outputs"
 )
 
 func TestParseTargetsArg(t *testing.T) {
@@ -74,6 +75,9 @@ func TestRunHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "discover local") {
 		t.Fatalf("stdout = %q, want discover command in top-level help", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "surveyor diff baseline.json current.json") {
+		t.Fatalf("stdout = %q, want diff command in top-level help", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "discover remote") {
 		t.Fatalf("stdout = %q, want canonical remote discovery command in top-level help", stdout.String())
 	}
@@ -91,6 +95,308 @@ func TestRunHelp(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunDiffHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"diff", "--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "surveyor diff baseline.json current.json") {
+		t.Fatalf("stderr = %q, want diff help text", stderr.String())
+	}
+}
+
+func TestRunDiffRejectsMissingInputs(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"diff", "baseline.json"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "diff requires exactly two input files") {
+		t.Fatalf("stderr = %q, want diff positional validation", stderr.String())
+	}
+}
+
+func TestRunDiffWritesMarkdownToStdout(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	baselinePath := filepath.Join(tempDir, "baseline.json")
+	currentPath := filepath.Join(tempDir, "current.json")
+
+	writeTempAuditReport(t, baselinePath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit within CIDR 10.0.0.0/30 over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindRemote,
+			InputKind: core.ReportInputKindCIDR,
+			CIDR:      "10.0.0.0/30",
+			Ports:     []int{443},
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Hints: []core.DiscoveryHint{
+						{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host:                   "example.com",
+					Port:                   443,
+					ScannedAt:              time.Date(2026, time.April, 20, 1, 20, 0, 0, time.UTC),
+					Reachable:              true,
+					TLSVersion:             "TLS 1.2",
+					CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+					LeafKeyAlgorithm:       "rsa",
+					LeafSignatureAlgorithm: "sha256-rsa",
+					Classification:         "legacy_tls_exposure",
+					Findings: []core.Finding{
+						{Code: "legacy-tls-version", Severity: core.SeverityHigh, Summary: "legacy"},
+						{Code: "classical-certificate-identity", Severity: core.SeverityMedium, Summary: "classical"},
+					},
+					Warnings: []string{"baseline-warning"},
+				},
+			},
+		},
+		Summary: core.AuditSummary{
+			TotalEndpoints:   1,
+			TLSCandidates:    1,
+			ScannedEndpoints: 1,
+			SelectionBreakdown: map[string]int{
+				"tls": 1,
+			},
+			VerifiedClassificationBreakdown: map[string]int{
+				"legacy_tls_exposure": 1,
+			},
+		},
+	})
+	writeTempAuditReport(t, currentPath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit within CIDR 10.0.1.0/30 over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindRemote,
+			InputKind: core.ReportInputKindCIDR,
+			CIDR:      "10.0.1.0/30",
+			Ports:     []int{443},
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Hints: []core.DiscoveryHint{
+						{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host:                   "example.com",
+					Port:                   443,
+					ScannedAt:              time.Date(2026, time.April, 21, 1, 20, 0, 0, time.UTC),
+					Reachable:              true,
+					TLSVersion:             "TLS 1.3",
+					CipherSuite:            "TLS_AES_128_GCM_SHA256",
+					LeafKeyAlgorithm:       "rsa",
+					LeafSignatureAlgorithm: "sha256-rsa",
+					Classification:         "modern_tls_classical_identity",
+					Findings: []core.Finding{
+						{Code: "classical-certificate-identity", Severity: core.SeverityMedium, Summary: "classical"},
+					},
+				},
+			},
+		},
+		Summary: core.AuditSummary{
+			TotalEndpoints:   1,
+			TLSCandidates:    1,
+			ScannedEndpoints: 1,
+			SelectionBreakdown: map[string]int{
+				"tls": 1,
+			},
+			VerifiedClassificationBreakdown: map[string]int{
+				"modern_tls_classical_identity": 1,
+			},
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"diff", baselinePath, currentPath}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Diff Report") {
+		t.Fatalf("stdout = %q, want diff markdown output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "classification_changed") || !strings.Contains(stdout.String(), "tls_version_changed") {
+		t.Fatalf("stdout = %q, want rendered diff changes", stdout.String())
+	}
+}
+
+func TestRunDiffSupportsTrailingFlagsAfterInputs(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	baselinePath := filepath.Join(tempDir, "baseline.json")
+	currentPath := filepath.Join(tempDir, "current.json")
+	markdownPath := filepath.Join(tempDir, "diff.md")
+	jsonPath := filepath.Join(tempDir, "diff.json")
+
+	writeTempTLSReport(t, baselinePath, core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets from config"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 1, 30, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+		Results: []core.TargetResult{
+			{
+				Host:                   "example.com",
+				Port:                   443,
+				ScannedAt:              time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.2",
+				CipherSuite:            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "legacy_tls_exposure",
+			},
+		},
+		Summary: core.Summary{
+			TotalTargets:       1,
+			ReachableTargets:   1,
+			UnreachableTargets: 0,
+			ClassificationBreakdown: map[string]int{
+				"legacy_tls_exposure": 1,
+			},
+		},
+	})
+	writeTempTLSReport(t, currentPath, core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets from config"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 1, 30, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+		Results: []core.TargetResult{
+			{
+				Host:                   "example.com",
+				Port:                   443,
+				ScannedAt:              time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.3",
+				CipherSuite:            "TLS_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+			},
+		},
+		Summary: core.Summary{
+			TotalTargets:       1,
+			ReachableTargets:   1,
+			UnreachableTargets: 0,
+			ClassificationBreakdown: map[string]int{
+				"modern_tls_classical_identity": 1,
+			},
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"diff", baselinePath, currentPath, "-o", markdownPath, "-j", jsonPath}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty when file outputs are requested", stdout.String())
+	}
+
+	markdownData, err := os.ReadFile(markdownPath)
+	if err != nil {
+		t.Fatalf("ReadFile(markdown) error = %v", err)
+	}
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile(json) error = %v", err)
+	}
+
+	if !strings.Contains(string(markdownData), "# Surveyor Diff Report") {
+		t.Fatalf("markdown output missing diff heading\n%s", string(markdownData))
+	}
+	if !strings.Contains(string(jsonData), "\"report_kind\": \"diff\"") || !strings.Contains(string(jsonData), "\"changes\": [") {
+		t.Fatalf("json output missing diff contract\n%s", string(jsonData))
+	}
+}
+
+func TestRunDiffRejectsIncompatibleReports(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	baselinePath := filepath.Join(tempDir, "baseline.json")
+	currentPath := filepath.Join(tempDir, "current.json")
+
+	writeTempTLSReport(t, baselinePath, core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets from config"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 1, 30, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+	})
+	writeTempAuditReport(t, currentPath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit within CIDR 10.0.0.0/30 over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 1, 30, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindRemote,
+			InputKind: core.ReportInputKindCIDR,
+			CIDR:      "10.0.0.0/30",
+			Ports:     []int{443},
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"diff", baselinePath, currentPath}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "report kind mismatch") {
+		t.Fatalf("stderr = %q, want compatibility failure", stderr.String())
 	}
 }
 
@@ -1426,6 +1732,30 @@ func splitServerAddress(t *testing.T, address string) (string, string) {
 	}
 
 	return host, port
+}
+
+func writeTempTLSReport(t *testing.T, path string, report core.Report) {
+	t.Helper()
+
+	data, err := outputs.MarshalJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalJSON() error = %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+}
+
+func writeTempAuditReport(t *testing.T, path string, report core.AuditReport) {
+	t.Helper()
+
+	data, err := outputs.MarshalAuditJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalAuditJSON() error = %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
 }
 
 type stubLocalDiscoverer struct {
