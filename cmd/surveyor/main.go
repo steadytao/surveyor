@@ -372,11 +372,6 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 		return 0
 	}
 
-	if scope.InputKind == config.RemoteScopeInputKindTargetsFile {
-		fmt.Fprintf(stderr, "%s --targets-file is not implemented yet\n", opts.commandName)
-		return 2
-	}
-
 	discoverNow := now
 	if discoverNow == nil {
 		discoverNow = time.Now
@@ -705,7 +700,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  audit remote    Audit declared remote scope, CIDR today and file-backed scope later")
 	fmt.Fprintln(w, "  audit subnet    CIDR-only compatibility alias for remote audit during v0.5.x")
 	fmt.Fprintln(w, "  discover local  Enumerate local endpoints and emit Markdown and optional JSON output")
-	fmt.Fprintln(w, "  discover remote Enumerate declared remote scope, CIDR today and file-backed scope later")
+	fmt.Fprintln(w, "  discover remote Enumerate declared remote scope across CIDR and file-backed host inputs")
 	fmt.Fprintln(w, "  discover subnet CIDR-only compatibility alias for remote discovery during v0.5.x")
 	fmt.Fprintln(w, "  scan tls        Scan explicit TLS targets and emit Markdown and optional JSON output")
 	fmt.Fprintln(w)
@@ -834,12 +829,12 @@ func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  Canonical remote discovery command. CIDR-backed scope runs today; file-backed scope is accepted for dry-run planning and remains a later execution step.")
+	fmt.Fprintln(w, "  Canonical remote discovery command. It executes against CIDR-backed scope and simple file-backed host scope.")
 	fmt.Fprintln(w, "  This command records observed reachability facts and conservative hints only; it does not run verified scanners.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443")
-	fmt.Fprintln(w, "  surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443 --dry-run")
+	fmt.Fprintln(w, "  surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to discover, for example 10.0.0.0/24")
