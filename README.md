@@ -190,6 +190,7 @@ For the current implementation boundaries, see:
 - [docs/references.md](docs/references.md)
 - [docs/safety.md](docs/safety.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/inventory-inputs.md](docs/inventory-inputs.md) for the planned `v0.7.0` structured inventory input layer
 
 ## Remote boundary
 
@@ -208,6 +209,11 @@ See:
 
 - [docs/remote-inventory.md](docs/remote-inventory.md) for the current remote inventory boundary
 - [docs/remote-scope.md](docs/remote-scope.md) for the current remote scope model
+
+The next planned remote input layer is structured imported inventory via
+`--inventory-file`. That future contract is documented in
+[docs/inventory-inputs.md](docs/inventory-inputs.md) and is not current
+repository surface yet.
 
 ## Current analysis layer
 
