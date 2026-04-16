@@ -386,24 +386,27 @@ func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer, now fun
 
 func runDiscoverRemote(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
 	return runRemoteDiscoveryCommand(args, stdout, stderr, now, remoteCommandOptions{
-		commandName:      "discover remote",
-		printUsage:       printDiscoverRemoteUsage,
-		allowTargetsFile: true,
+		commandName:        "discover remote",
+		printUsage:         printDiscoverRemoteUsage,
+		allowTargetsFile:   true,
+		allowInventoryFile: true,
 	})
 }
 
 func runDiscoverSubnet(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
 	return runRemoteDiscoveryCommand(args, stdout, stderr, now, remoteCommandOptions{
-		commandName:      "discover subnet",
-		printUsage:       printDiscoverSubnetUsage,
-		allowTargetsFile: false,
+		commandName:        "discover subnet",
+		printUsage:         printDiscoverSubnetUsage,
+		allowTargetsFile:   false,
+		allowInventoryFile: false,
 	})
 }
 
 type remoteCommandOptions struct {
-	commandName      string
-	printUsage       func(io.Writer)
-	allowTargetsFile bool
+	commandName        string
+	printUsage         func(io.Writer)
+	allowTargetsFile   bool
+	allowInventoryFile bool
 }
 
 func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time, opts remoteCommandOptions) int {
@@ -415,10 +418,14 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 
 	cidr := fs.String("cidr", "", "CIDR scope to discover, for example 10.0.0.0/24")
 	var targetsFile *string
+	var inventoryFile *string
 	if opts.allowTargetsFile {
 		targetsFile = fs.String("targets-file", "", "Path to a newline-delimited host or IP scope file")
 	}
-	ports := fs.String("ports", "", "Comma-separated explicit remote ports, for example 443,8443")
+	if opts.allowInventoryFile {
+		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
+	}
+	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
 	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the profile-safe command default")
@@ -449,6 +456,10 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	if targetsFile != nil {
 		targetsFileValue = *targetsFile
 	}
+	inventoryFileValue := ""
+	if inventoryFile != nil {
+		inventoryFileValue = *inventoryFile
+	}
 	if !opts.allowTargetsFile && strings.TrimSpace(*cidr) == "" {
 		fmt.Fprintln(stderr, "--cidr is required")
 		return 2
@@ -457,6 +468,7 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
 		CIDR:           *cidr,
 		TargetsFile:    targetsFileValue,
+		InventoryFile:  inventoryFileValue,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
@@ -490,6 +502,11 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 		}
 
 		return 0
+	}
+
+	if scope.InputKind == config.RemoteScopeInputKindInventoryFile {
+		fmt.Fprintf(stderr, "%s --inventory-file execution is not implemented yet; use --dry-run for planning\n", opts.commandName)
+		return 2
 	}
 
 	discoverNow := now
@@ -585,17 +602,19 @@ func runAuditLocal(args []string, stdout io.Writer, stderr io.Writer, now func()
 
 func runAuditRemote(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
 	return runRemoteAuditCommand(args, stdout, stderr, now, remoteCommandOptions{
-		commandName:      "audit remote",
-		printUsage:       printAuditRemoteUsage,
-		allowTargetsFile: true,
+		commandName:        "audit remote",
+		printUsage:         printAuditRemoteUsage,
+		allowTargetsFile:   true,
+		allowInventoryFile: true,
 	})
 }
 
 func runAuditSubnet(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
 	return runRemoteAuditCommand(args, stdout, stderr, now, remoteCommandOptions{
-		commandName:      "audit subnet",
-		printUsage:       printAuditSubnetUsage,
-		allowTargetsFile: false,
+		commandName:        "audit subnet",
+		printUsage:         printAuditSubnetUsage,
+		allowTargetsFile:   false,
+		allowInventoryFile: false,
 	})
 }
 
@@ -608,10 +627,14 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 
 	cidr := fs.String("cidr", "", "CIDR scope to audit, for example 10.0.0.0/24")
 	var targetsFile *string
+	var inventoryFile *string
 	if opts.allowTargetsFile {
 		targetsFile = fs.String("targets-file", "", "Path to a newline-delimited host or IP scope file")
 	}
-	ports := fs.String("ports", "", "Comma-separated explicit remote ports, for example 443,8443")
+	if opts.allowInventoryFile {
+		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
+	}
+	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
 	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the profile-safe command default")
@@ -642,6 +665,10 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 	if targetsFile != nil {
 		targetsFileValue = *targetsFile
 	}
+	inventoryFileValue := ""
+	if inventoryFile != nil {
+		inventoryFileValue = *inventoryFile
+	}
 	if !opts.allowTargetsFile && strings.TrimSpace(*cidr) == "" {
 		fmt.Fprintln(stderr, "--cidr is required")
 		return 2
@@ -650,6 +677,7 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
 		CIDR:           *cidr,
 		TargetsFile:    targetsFileValue,
+		InventoryFile:  inventoryFileValue,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
@@ -683,6 +711,11 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 		}
 
 		return 0
+	}
+
+	if scope.InputKind == config.RemoteScopeInputKindInventoryFile {
+		fmt.Fprintf(stderr, "%s --inventory-file execution is not implemented yet; use --dry-run for planning\n", opts.commandName)
+		return 2
 	}
 
 	auditNow := now
@@ -1033,10 +1066,10 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor diff baseline.json current.json [-o diff.md] [-j diff.json]")
 	fmt.Fprintln(w, "  surveyor prioritize current.json [--profile migration-readiness] [-o priorities.md] [-j priorities.json]")
 	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
@@ -1044,10 +1077,10 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  diff            Compare two compatible Surveyor JSON reports and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  prioritize      Rank a current Surveyor JSON report; prioritise is supported as a CLI alias")
 	fmt.Fprintln(w, "  audit local     Audit local endpoints by chaining discovery into supported scanners")
-	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR and file-backed host inputs")
+	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR, host-list and structured inventory inputs")
 	fmt.Fprintln(w, "  audit subnet    CIDR-only compatibility alias for remote audit during v0.5.x")
 	fmt.Fprintln(w, "  discover local  Enumerate local endpoints and emit Markdown and optional JSON output")
-	fmt.Fprintln(w, "  discover remote Enumerate declared remote scope across CIDR and file-backed host inputs")
+	fmt.Fprintln(w, "  discover remote Enumerate declared remote scope across CIDR, host-list and structured inventory inputs")
 	fmt.Fprintln(w, "  discover subnet CIDR-only compatibility alias for remote discovery during v0.5.x")
 	fmt.Fprintln(w, "  scan tls        Scan explicit TLS targets and emit Markdown and optional JSON output")
 	fmt.Fprintln(w)
@@ -1101,7 +1134,7 @@ func printPrioritizeUsage(w io.Writer) {
 func printAuditUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor audit local --help' for local audit help.")
@@ -1112,7 +1145,7 @@ func printAuditUsage(w io.Writer) {
 func printDiscoverUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor discover local [-o report.md] [-j report.json]")
-	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [-o report.md] [-j report.json]")
+	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run 'surveyor discover local --help' for local discovery help.")
@@ -1145,20 +1178,22 @@ func printAuditLocalUsage(w io.Writer) {
 
 func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
+	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  Canonical remote audit command. It executes against CIDR-backed scope and simple file-backed host scope.")
+	fmt.Fprintln(w, "  Canonical remote audit command. It executes against CIDR-backed scope and simple file-backed host scope, and currently supports structured inventory manifests for dry-run planning only.")
 	fmt.Fprintln(w, "  This command only hands selected TLS candidates into the existing TLS scanner.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443")
+	fmt.Fprintln(w, "  surveyor audit remote --inventory-file inventory.yaml --dry-run")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to audit, for example 10.0.0.0/24")
 	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file")
-	fmt.Fprintln(w, "  --ports             Comma-separated explicit remote ports, for example 443,8443")
+	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file")
+	fmt.Fprintln(w, "  --ports             Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print the execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
@@ -1211,20 +1246,22 @@ func printDiscoverLocalUsage(w io.Writer) {
 
 func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
+	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  Canonical remote discovery command. It executes against CIDR-backed scope and simple file-backed host scope.")
+	fmt.Fprintln(w, "  Canonical remote discovery command. It executes against CIDR-backed scope and simple file-backed host scope, and currently supports structured inventory manifests for dry-run planning only.")
 	fmt.Fprintln(w, "  This command records observed reachability facts and conservative hints only; it does not run verified scanners.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443")
+	fmt.Fprintln(w, "  surveyor discover remote --inventory-file inventory.yaml --dry-run")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to discover, for example 10.0.0.0/24")
 	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file")
-	fmt.Fprintln(w, "  --ports             Comma-separated explicit remote ports, for example 443,8443")
+	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file")
+	fmt.Fprintln(w, "  --ports             Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print the execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
@@ -1272,8 +1309,11 @@ func renderRemoteExecutionPlanMarkdown(commandName string, scope config.RemoteSc
 	if scope.TargetsFile != "" {
 		builder.WriteString(fmt.Sprintf("- Targets file: %s\n", scope.TargetsFile))
 	}
+	if scope.InventoryFile != "" {
+		builder.WriteString(fmt.Sprintf("- Inventory file: %s\n", scope.InventoryFile))
+	}
 	builder.WriteString(fmt.Sprintf("- Host count: %d\n", scope.HostCount))
-	builder.WriteString(fmt.Sprintf("- Ports: %s\n", joinPorts(scope.Ports)))
+	builder.WriteString(fmt.Sprintf("- Ports: %s\n", describeRemotePlanPorts(scope)))
 	builder.WriteString(fmt.Sprintf("- Profile: %s\n", scope.Profile))
 	builder.WriteString(fmt.Sprintf("- Max hosts: %d\n", scope.MaxHosts))
 	builder.WriteString(fmt.Sprintf("- Max concurrency: %d\n", scope.MaxConcurrency))
@@ -1307,17 +1347,29 @@ func explicitReportScopeMetadata(configPath string, targetsArg string) *core.Rep
 
 func remoteReportMetadata(scope config.RemoteScope) (*core.ReportScope, *core.ReportExecution) {
 	return &core.ReportScope{
-			ScopeKind:   core.ReportScopeKindRemote,
-			InputKind:   core.ReportInputKind(scope.InputKind),
-			CIDR:        scope.CIDR.String(),
-			TargetsFile: scope.TargetsFile,
-			Ports:       append([]int(nil), scope.Ports...),
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKind(scope.InputKind),
+			CIDR:          scope.CIDR.String(),
+			TargetsFile:   scope.TargetsFile,
+			InventoryFile: scope.InventoryFile,
+			Ports:         append([]int(nil), scope.Ports...),
 		}, &core.ReportExecution{
 			Profile:        string(scope.Profile),
 			MaxHosts:       scope.MaxHosts,
 			MaxConcurrency: scope.MaxConcurrency,
 			Timeout:        scope.Timeout.String(),
 		}
+}
+
+func describeRemotePlanPorts(scope config.RemoteScope) string {
+	if len(scope.Ports) > 0 {
+		return joinPorts(scope.Ports)
+	}
+	if scope.InputKind == config.RemoteScopeInputKindInventoryFile {
+		return "per-entry inventory ports"
+	}
+
+	return ""
 }
 
 func joinPorts(ports []int) string {
