@@ -193,7 +193,7 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 		results = append(results, scanner.ScanTarget(context.Background(), target))
 	}
 
-	report := outputs.BuildReport(results, scannerNow().UTC())
+	report := outputs.BuildReportWithMetadata(results, scannerNow().UTC(), explicitReportScopeMetadata(*configPath, *targetsArg))
 
 	if *jsonPath != "" {
 		jsonData, err := outputs.MarshalJSON(report)
@@ -896,14 +896,29 @@ func renderRemoteExecutionPlanMarkdown(commandName string, scope config.RemoteSc
 
 func localReportScopeMetadata() *core.ReportScope {
 	return &core.ReportScope{
-		ScopeKind: core.EndpointScopeKindLocal,
+		ScopeKind: core.ReportScopeKindLocal,
 	}
+}
+
+func explicitReportScopeMetadata(configPath string, targetsArg string) *core.ReportScope {
+	scope := &core.ReportScope{
+		ScopeKind: core.ReportScopeKindExplicit,
+	}
+
+	switch {
+	case strings.TrimSpace(configPath) != "":
+		scope.InputKind = core.ReportInputKindConfig
+	case strings.TrimSpace(targetsArg) != "":
+		scope.InputKind = core.ReportInputKindTargets
+	}
+
+	return scope
 }
 
 func remoteReportMetadata(scope config.RemoteScope) (*core.ReportScope, *core.ReportExecution) {
 	return &core.ReportScope{
-			ScopeKind:   core.EndpointScopeKindRemote,
-			InputKind:   core.ReportScopeInputKind(scope.InputKind),
+			ScopeKind:   core.ReportScopeKindRemote,
+			InputKind:   core.ReportInputKind(scope.InputKind),
 			CIDR:        scope.CIDR.String(),
 			TargetsFile: scope.TargetsFile,
 			Ports:       append([]int(nil), scope.Ports...),

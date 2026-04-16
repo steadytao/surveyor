@@ -1,4 +1,9 @@
 {
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "discovery",
+  "scope_kind": "remote",
+  "scope_description": "remote discovery within CIDR 10.0.0.0/30 over ports 443,8443",
   "generated_at": "2026-04-18T01:15:00Z",
   "scope": {
     "scope_kind": "remote",

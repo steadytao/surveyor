@@ -330,7 +330,7 @@ func readGoldenFile(t *testing.T, name string) string {
 }
 
 func sampleReport() core.Report {
-	return BuildReport([]core.TargetResult{
+	return BuildReportWithMetadata([]core.TargetResult{
 		{
 			Name:                   "primary-site",
 			Host:                   "example.com",
@@ -383,7 +383,10 @@ func sampleReport() core.Report {
 				},
 			},
 		},
-	}, time.Date(2026, time.April, 14, 1, 30, 0, 0, time.UTC))
+	}, time.Date(2026, time.April, 14, 1, 30, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind: core.ReportScopeKindExplicit,
+		InputKind: core.ReportInputKindConfig,
+	})
 }
 
 func sampleDiscoveryReport() core.DiscoveryReport {
@@ -415,7 +418,7 @@ func sampleDiscoveryReport() core.DiscoveryReport {
 			Warnings:  []string{"process metadata unavailable"},
 		},
 	}, time.Date(2026, time.April, 15, 1, 45, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind: core.EndpointScopeKindLocal,
+		ScopeKind: core.ReportScopeKindLocal,
 	}, nil)
 }
 
@@ -473,7 +476,7 @@ func sampleAuditReport() core.AuditReport {
 			},
 		},
 	}, time.Date(2026, time.April, 16, 2, 30, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind: core.EndpointScopeKindLocal,
+		ScopeKind: core.ReportScopeKindLocal,
 	}, nil)
 }
 
@@ -502,8 +505,8 @@ func sampleRemoteDiscoveryReport() core.DiscoveryReport {
 			Errors:    []string{"connection refused"},
 		},
 	}, time.Date(2026, time.April, 20, 1, 15, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind:   core.EndpointScopeKindRemote,
-		InputKind:   core.ReportScopeInputKindTargetsFile,
+		ScopeKind:   core.ReportScopeKindRemote,
+		InputKind:   core.ReportInputKindTargetsFile,
 		TargetsFile: "examples/approved-hosts.txt",
 		Ports:       []int{443},
 	}, &core.ReportExecution{
@@ -564,8 +567,8 @@ func sampleRemoteAuditReport() core.AuditReport {
 			},
 		},
 	}, time.Date(2026, time.April, 20, 1, 30, 0, 0, time.UTC), &core.ReportScope{
-		ScopeKind:   core.EndpointScopeKindRemote,
-		InputKind:   core.ReportScopeInputKindTargetsFile,
+		ScopeKind:   core.ReportScopeKindRemote,
+		InputKind:   core.ReportInputKindTargetsFile,
 		TargetsFile: "examples/approved-hosts.txt",
 		Ports:       []int{443},
 	}, &core.ReportExecution{

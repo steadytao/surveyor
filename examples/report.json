@@ -1,5 +1,14 @@
 {
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "tls_scan",
+  "scope_kind": "explicit",
+  "scope_description": "explicit TLS targets from config",
   "generated_at": "2026-04-14T01:45:00Z",
+  "scope": {
+    "scope_kind": "explicit",
+    "input_kind": "config"
+  },
   "results": [
     {
       "name": "primary-site",

@@ -113,6 +113,11 @@ Current top-level discovery report shape:
 
 ```json
 {
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "discovery",
+  "scope_kind": "remote",
+  "scope_description": "remote discovery from targets file examples/approved-hosts.txt over ports 443",
   "generated_at": "2026-04-15T03:00:00Z",
   "scope": {
     "scope_kind": "remote",
@@ -133,6 +138,11 @@ Current top-level discovery report shape:
 
 Fields:
 
+- `schema_version`: current baseline-compatible schema version for report comparison
+- `tool_version`: emitting Surveyor build version, currently `dev` for ordinary builds and tests
+- `report_kind`: semantic top-level report kind, here `discovery`
+- `scope_kind`: high-level scope the report covers, here `local` or `remote`
+- `scope_description`: human-readable summary of the discovery scope represented by the report
 - `generated_at`: RFC3339 UTC timestamp for report assembly time
 - `scope`: declared scope metadata for the report
 - `execution`: execution settings that materially shaped the run, currently present for remote discovery

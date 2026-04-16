@@ -1,4 +1,9 @@
 {
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "audit",
+  "scope_kind": "remote",
+  "scope_description": "remote audit from targets file examples/approved-hosts.txt over ports 443",
   "generated_at": "2026-04-20T01:30:00Z",
   "scope": {
     "scope_kind": "remote",

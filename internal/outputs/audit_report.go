@@ -23,11 +23,12 @@ func BuildAuditReportWithMetadata(results []core.AuditResult, generatedAt time.T
 	}
 
 	return core.AuditReport{
-		GeneratedAt: generatedAt.UTC(),
-		Scope:       cloneReportScope(scope),
-		Execution:   cloneReportExecution(execution),
-		Results:     reportResults,
-		Summary:     buildAuditSummary(reportResults),
+		ReportMetadata: buildAuditReportMetadata(scope),
+		GeneratedAt:    generatedAt.UTC(),
+		Scope:          cloneReportScope(scope),
+		Execution:      cloneReportExecution(execution),
+		Results:        reportResults,
+		Summary:        buildAuditSummary(reportResults),
 	}
 }
 
