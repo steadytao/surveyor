@@ -227,8 +227,10 @@ The current architecture still does not include:
 - STARTTLS or multi-protocol probing
 - remote scope inputs beyond the current explicit CIDR path and simple file-backed host path
 - organisation-wide or cloud inventory discovery
+- baseline-compatible report metadata
+- diffing and prioritisation over saved reports
 - policy engines
-- stateful storage or diffing
+- stateful storage
 
 Those are separate steps and should only be added once the current TLS path remains coherent.
 
@@ -256,3 +258,28 @@ The current remote model is:
 - `discover subnet` and `audit subnet` retained as CIDR-only compatibility aliases during `v0.5.x`
 
 That widens the remote scope model without weakening the existing discovery, hinting, selection and verified-scanning boundaries.
+
+## Next planned layer
+
+The next planned layer is baselines, diffing and prioritisation over the existing canonical JSON reports.
+
+That layer should add:
+
+- baseline-compatible metadata on current report shapes
+- compatibility validation for supported report comparisons
+- `surveyor diff`
+- `surveyor prioritize`
+- `surveyor prioritise` as a CLI alias
+
+It should not introduce:
+
+- a database
+- a dashboard
+- another deep scanner in the same milestone
+- a policy engine
+
+See:
+
+- [baselines.md](baselines.md)
+- [diffing.md](diffing.md)
+- [prioritisation.md](prioritisation.md)
