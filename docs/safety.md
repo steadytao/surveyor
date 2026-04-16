@@ -10,7 +10,8 @@ The current implementation is intentionally narrow:
 
 - `surveyor audit local` only hands supported TLS-like endpoints into the current TLS scanner
 - `surveyor discover local` is observational only
-- `surveyor discover subnet` and `surveyor audit subnet` require explicit CIDR scope and explicit ports
+- `surveyor discover remote` and `surveyor audit remote` require explicit declared remote scope and explicit ports
+- `surveyor discover subnet` and `surveyor audit subnet` remain CIDR-only compatibility aliases during `v0.5.x`
 - remote pace is bounded by profile defaults, host caps, concurrency caps and per-attempt timeouts
 - `--dry-run` exists for the remote commands and performs no network I/O
 - the scanner performs standard TLS client behaviour
@@ -36,11 +37,12 @@ That applies to both:
 - YAML config input
 - command-line `--targets`
 
-### Explicit remote subnet scope
+### Explicit remote scope
 
-The current remote commands require:
+The canonical remote commands require exactly one of:
 
 - `--cidr`
+- `--targets-file`
 - `--ports`
 
 Optional pace controls:
@@ -59,13 +61,14 @@ This means Surveyor currently supports:
 - public hostnames with explicit ports, for example `google.com:443`
 - internal IPs with explicit ports, for example `10.0.0.5:443`
 - explicitly declared remote subnet scope such as `--cidr 10.0.0.0/24 --ports 443,8443`
+- explicitly declared file-backed host scope such as `--targets-file examples/approved-hosts.txt --ports 443`
 
 It does not currently support:
 
 - host-only config entries with an implied default port
 - IP-only config entries with an implied default port
 - undeclared remote scope
-- automatic service discovery outside the current local and subnet commands
+- automatic service discovery outside the current local and remote commands
 - cloud inventory import
 
 That strictness is deliberate. Safety improves when the tool is explicit about what it will touch.
@@ -87,11 +90,11 @@ It does not perform:
 
 ## Remote discovery boundary
 
-`surveyor discover subnet` is active, but still conservative.
+`surveyor discover remote` is active, but still conservative.
 
 It is:
 
-- limited to explicitly declared CIDR scope
+- limited to explicitly declared remote scope
 - limited to explicitly declared ports
 - bounded by host caps, concurrency and timeout
 - limited to TCP reachability probing
@@ -119,9 +122,9 @@ Remote discovery reports also carry the declared scope and effective execution s
 
 ## Remote audit boundary
 
-`audit subnet` is:
+`audit remote` is:
 
-- limited to explicitly declared CIDR scope and explicit ports
+- limited to explicitly declared remote scope and explicit ports
 - discovery first
 - conservative about scanner selection
 - limited to automatic handoff into the existing TLS scanner

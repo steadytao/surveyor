@@ -8,11 +8,11 @@ This checklist exists to keep releases honest.
 
 Before a release, confirm that Surveyor can:
 - run `surveyor audit local`
-- run `surveyor audit subnet`
+- run `surveyor audit remote`
 - chain discovery into the supported TLS scanner conservatively
 - produce canonical JSON and derived Markdown for audit output
 - enumerate local endpoints through `surveyor discover local`
-- enumerate explicitly declared remote scope through `surveyor discover subnet`
+- enumerate explicitly declared remote scope through `surveyor discover remote`
 - attach conservative protocol hints without treating them as verified scans
 - produce canonical JSON and derived Markdown for discovery output
 - validate remote scope and dry-run plans without network I/O
@@ -30,12 +30,13 @@ Before a release, confirm that:
 - `docs/audit.md` matches the implemented audit slice
 - `docs/discovery.md` matches the implemented discovery slice
 - `docs/remote-inventory.md` matches the implemented remote slice
+- `docs/remote-scope.md` matches the implemented remote scope model
 - `docs/architecture.md` matches the code
 - `docs/output-schema.md` matches the current JSON contract
 - `docs/classification.md` matches the implemented rule set
 - `docs/references.md` exists and is still the right reference set
 - `docs/safety.md` still matches the tool's actual behaviour
-- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-subnet.json` and `examples/audit-subnet.md` reflect the current implementation
+- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-remote.json`, `examples/discovery-remote.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-remote.json`, `examples/audit-remote.md`, `examples/audit-subnet.json`, `examples/audit-subnet.md` and `examples/approved-hosts.txt` reflect the current implementation
 
 ## Verification
 

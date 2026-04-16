@@ -4,7 +4,7 @@ Surveyor is intentionally small at this stage.
 
 The current codebase is organised around one narrow family of flows:
 
-1. enumerate local endpoints, enumerate explicitly declared remote subnet scope, or accept explicit TLS targets from config or direct CLI input
+1. enumerate local endpoints, enumerate explicitly declared remote scope, or accept explicit TLS targets from config or direct CLI input
 2. collect observed endpoint facts or raw TLS and X.509 observations
 3. attach conservative hints or classify the observed posture conservatively
 4. derive canonical JSON and human-readable Markdown from the same result model
@@ -20,14 +20,16 @@ Owns the thin executable wrapper.
 Current responsibilities:
 
 - expose `surveyor audit local`
-- expose `surveyor audit subnet`
+- expose `surveyor audit remote`
+- preserve `surveyor audit subnet` as a CIDR-only compatibility alias from `v0.4.x`
 - expose `surveyor discover local`
-- expose `surveyor discover subnet`
+- expose `surveyor discover remote`
+- preserve `surveyor discover subnet` as a CIDR-only compatibility alias from `v0.4.x`
 - expose `surveyor scan tls`
 - run the audit flow end to end
 - run the discovery flow end to end
 - accept either config-driven targets or explicit `--targets` input
-- validate remote subnet scope and dry-run plans
+- validate remote scope and dry-run plans
 - run the TLS inventory flow end to end
 - write Markdown and JSON outputs
 
@@ -42,7 +44,7 @@ Current responsibilities:
 - parse YAML configuration
 - validate required fields
 - normalise target data into one in-memory representation
-- parse and validate remote subnet scope
+- parse and validate remote scope
 - enforce remote pace and safety controls such as host caps, concurrency and timeout defaults
 
 Current target model:
@@ -223,23 +225,18 @@ The current architecture still does not include:
 - trust-store validation
 - hostname validation semantics
 - STARTTLS or multi-protocol probing
-- remote scope inputs beyond the current explicit CIDR path
+- remote scope inputs beyond the current explicit CIDR path and simple file-backed host path
 - organisation-wide or cloud inventory discovery
 - policy engines
 - stateful storage or diffing
 
 Those are separate steps and should only be added once the current TLS path remains coherent.
 
-Scoped remote inventory is now part of the current repository surface. See [docs/remote-inventory.md](remote-inventory.md) for the current boundary and non-goals.
-
-The next planned architectural step is to generalise the current subnet-only
-remote path into a broader remote scope model around `surveyor discover remote`
-and `surveyor audit remote`. See [docs/remote-scope.md](remote-scope.md) for
-that planned contract.
+Scoped remote inventory with canonical `remote` commands is now part of the current repository surface. See [docs/remote-inventory.md](remote-inventory.md) and [docs/remote-scope.md](remote-scope.md) for the current boundary.
 
 ## Current architectural boundary
 
-The current discovery layer around `surveyor discover local` and `surveyor discover subnet` sits beside scanner-specific execution, not inside it.
+The current discovery layer around `surveyor discover local`, `surveyor discover remote` and the `surveyor discover subnet` compatibility alias sits beside scanner-specific execution, not inside it.
 
 Its job is to:
 
@@ -250,14 +247,12 @@ Its job is to:
 
 That boundary should remain intact. The current audit flows coordinate discovery, selection and verified scanning without collapsing them into one indistinguishable result type.
 
-## Next planned step
+## Current remote scope model
 
-The next planned step after the current `v0.4.x` remote surface is:
+The current remote model is:
 
-- keep the current CIDR-backed remote behaviour working
-- introduce canonical `discover remote` and `audit remote` commands
-- support both `--cidr` and `--targets-file`
-- preserve `discover subnet` and `audit subnet` as compatibility aliases during `v0.5.x`
+- canonical `discover remote` and `audit remote` commands
+- support for both `--cidr` and `--targets-file`
+- `discover subnet` and `audit subnet` retained as CIDR-only compatibility aliases during `v0.5.x`
 
-That should widen the remote scope model without weakening the existing
-discovery, hinting, selection and verified-scanning boundaries.
+That widens the remote scope model without weakening the existing discovery, hinting, selection and verified-scanning boundaries.

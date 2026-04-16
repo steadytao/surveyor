@@ -15,8 +15,11 @@ The discovery commands are:
 
 ```bash
 surveyor discover local
-surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443
+surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443
+surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443
 ```
+
+`surveyor discover subnet` remains as a CIDR-only compatibility alias during `v0.5.x`.
 
 ## Why discovery exists
 
@@ -43,9 +46,9 @@ The semantics of `surveyor discover local` are:
 - emit canonical JSON and derived Markdown
 - avoid active probing or scanner-specific verification
 
-The semantics of `surveyor discover subnet` are:
+The semantics of `surveyor discover remote` are:
 
-- require explicit CIDR scope and explicit ports
+- require explicit remote scope and explicit ports
 - perform bounded TCP reachability probing within that declared scope
 - report one observed result per attempted host:port
 - attach conservative protocol hints only where justified
@@ -63,10 +66,12 @@ Both commands follow the same output conventions:
 Discovery currently covers:
 
 - local-only listener enumeration
-- explicit remote subnet discovery
+- explicit remote discovery
 - TCP listening endpoints for local discovery
 - UDP bound endpoints for local discovery
 - TCP reachability probing for remote discovery
+- CIDR-backed remote scope
+- simple file-backed host scope
 - best-effort process metadata where available for local discovery
 - conservative protocol hints with explicit confidence and evidence
 
@@ -111,9 +116,9 @@ Current top-level discovery report shape:
   "generated_at": "2026-04-15T03:00:00Z",
   "scope": {
     "scope_kind": "remote",
-    "input_kind": "cidr",
-    "cidr": "10.0.0.0/30",
-    "ports": [443, 8443]
+    "input_kind": "targets_file",
+    "targets_file": "examples/approved-hosts.txt",
+    "ports": [443]
   },
   "execution": {
     "profile": "cautious",
@@ -141,17 +146,18 @@ Current report-scope shape:
 ```json
 {
   "scope_kind": "remote",
-  "input_kind": "cidr",
-  "cidr": "10.0.0.0/30",
-  "ports": [443, 8443]
+  "input_kind": "targets_file",
+  "targets_file": "examples/approved-hosts.txt",
+  "ports": [443]
 }
 ```
 
 Fields:
 
 - `scope_kind`: `local` or `remote`
-- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr`
-- `cidr`: declared remote CIDR when the report covers remote scope
+- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr` or `targets_file`
+- `cidr`: declared remote CIDR when the report covers CIDR-backed remote scope
+- `targets_file`: declared remote targets-file path when the report covers file-backed remote scope
 - `ports`: declared remote port set when the report covers remote scope
 
 ### Report execution
@@ -262,11 +268,11 @@ It:
 - avoids active network probing
 - may attach best-effort process metadata
 
-`discover subnet` is active but still conservative.
+`discover remote` is active but still conservative.
 
 It:
 
-- walks only explicitly declared CIDR scope
+- walks only explicitly declared remote scope
 - probes only explicitly declared ports
 - records both responsive and failed attempts
 - attaches hints only to responsive endpoints
@@ -279,6 +285,8 @@ Representative example outputs live in:
 
 - [examples/discovery.json](../examples/discovery.json)
 - [examples/discovery.md](../examples/discovery.md)
+- [examples/discovery-remote.json](../examples/discovery-remote.json)
+- [examples/discovery-remote.md](../examples/discovery-remote.md)
 - [examples/discovery-subnet.json](../examples/discovery-subnet.json)
 - [examples/discovery-subnet.md](../examples/discovery-subnet.md)
 

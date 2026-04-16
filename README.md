@@ -15,15 +15,15 @@ Surveyor is in early development.
 
 The first milestone was intentionally narrow. It completed as a TLS inventory MVP for explicitly provided targets.
 
-The current repository now includes a scoped remote inventory surface around `surveyor discover subnet` and `surveyor audit subnet`.
+The current repository now includes a generalised remote inventory surface around `surveyor discover remote` and `surveyor audit remote`.
 
 The current repository already includes:
 
 - local and remote audit orchestration for supported TLS-like endpoints
 - local endpoint discovery
-- scoped remote subnet discovery
+- scoped remote discovery across CIDR and file-backed host scope
 - conservative protocol hints for discovery results
-- remote subnet scope parsing and validation
+- remote scope parsing and validation
 - target parsing and validation
 - TLS connection and protocol inspection
 - certificate chain parsing
@@ -62,9 +62,9 @@ The current repository is still intentionally narrow.
 That means Surveyor currently aims to:
 
 - run local audit by chaining discovery into the existing TLS scanner conservatively
-- run remote subnet audit within explicitly declared CIDR scope and explicit port set
+- run remote audit within explicitly declared remote scope and explicit port set
 - enumerate local listening or bound endpoints without active probing
-- enumerate remote TCP reachability within explicitly declared CIDR scope and explicit port set
+- enumerate remote TCP reachability within explicitly declared CIDR or file-backed host scope and explicit port set
 - attach conservative protocol hints to discovery results
 - connect to explicit TLS targets
 - collect handshake and certificate facts
@@ -85,8 +85,8 @@ It does not currently aim to:
 Surveyor currently has implemented internal slices for:
 
 - local and remote audit orchestration for discovery-to-TLS handoff
-- local discovery and scoped remote subnet discovery
-- remote subnet scope parsing and validation
+- local discovery and scoped remote discovery
+- remote scope parsing and validation
 - YAML config parsing and validation for explicit TLS targets
 - TLS handshake collection against explicit targets
 - X.509 certificate and chain metadata extraction
@@ -104,14 +104,16 @@ Audit:
 
 ```bash
 surveyor audit local -o audit.md -j audit.json
-surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 -o audit-subnet.md -j audit-subnet.json
+surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 -o audit-remote.md -j audit-remote.json
+surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 -o audit-remote.md -j audit-remote.json
 ```
 
 Discovery:
 
 ```bash
 surveyor discover local -o discovery.md -j discovery.json
-surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 -o discovery-subnet.md -j discovery-subnet.json
+surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 -o discovery-remote.md -j discovery-remote.json
+surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 -o discovery-remote.md -j discovery-remote.json
 ```
 
 TLS inventory:
@@ -129,12 +131,13 @@ surveyor scan tls -t example.com:443,127.0.0.1:8000,[::1]:443
 Rules:
 
 - `audit local` only hands supported TLS-like endpoints into the current TLS scanner and keeps discovered facts, hints and verified scan results separate
-- `audit subnet` only walks explicitly declared CIDR scope and explicit ports, then hands supported TLS-like remote endpoints into the current TLS scanner
+- `audit remote` only walks explicitly declared remote scope and explicit ports, then hands supported TLS-like remote endpoints into the current TLS scanner
 - `discover local` is observational only, it does not perform active probing or verified protocol scans
-- `discover subnet` performs bounded remote TCP reachability probing within explicitly declared scope, and it does not perform verified protocol scans
+- `discover remote` performs bounded remote TCP reachability probing within explicitly declared scope, and it does not perform verified protocol scans
 - use exactly one of `--config` or `--targets`
 - `--targets` requires explicit `host:port` entries
-- `--cidr` and `--ports` are required for the current remote subnet commands
+- the canonical remote commands require exactly one of `--cidr` or `--targets-file`, plus `--ports`
+- `discover subnet` and `audit subnet` remain CIDR-only compatibility aliases during `v0.5.x`
 - `--profile` sets default remote pace, explicit `--max-hosts`, `--max-concurrency` and `--timeout` override it
 - `--dry-run` performs no network I/O and prints the execution plan
 - `--json` is not supported with `--dry-run`
@@ -149,8 +152,10 @@ Example verification:
 go build -o surveyor ./cmd/surveyor
 ./surveyor audit local -o audit.md -j audit.json
 ./surveyor discover local -o discovery.md -j discovery.json
-./surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
-./surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
+./surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
+./surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
+./surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
+./surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 
@@ -165,29 +170,23 @@ For the current implementation boundaries, see:
 - [docs/safety.md](docs/safety.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
 
-## Roadmap
+## Remote boundary
 
-Scoped remote inventory is now part of the current repository surface.
+Generalised remote scope is now part of the current repository surface.
 
 The current remote boundary is still intentionally narrow:
 
-- explicit CIDR scope required
+- explicit `--cidr` or `--targets-file` scope required
 - explicit ports required
 - cautious by default
 - existing TLS scanner only for verified remote scanning
 - discovered facts, hints, selection decisions and verified scan results kept separate
-
-The next planned architectural step is generalised remote scope:
-
-- `surveyor discover remote`
-- `surveyor audit remote`
-- `--cidr` and `--targets-file` under one honest remote scope model
-- `discover subnet` and `audit subnet` retained as compatibility aliases for `v0.5.x`
+- `discover subnet` and `audit subnet` retained as CIDR-only compatibility aliases from `v0.4.x`
 
 See:
 
-- [docs/remote-inventory.md](docs/remote-inventory.md) for the current `v0.4.x` remote boundary
-- [docs/remote-scope.md](docs/remote-scope.md) for the planned `v0.5.0` remote-scope contract
+- [docs/remote-inventory.md](docs/remote-inventory.md) for the current remote inventory boundary
+- [docs/remote-scope.md](docs/remote-scope.md) for the current remote scope model
 
 ## Development
 
@@ -216,8 +215,10 @@ Then run:
 ```bash
 ./surveyor audit local -o audit.md -j audit.json
 ./surveyor discover local -o discovery.md -j discovery.json
-./surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
-./surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
+./surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
+./surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
+./surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
+./surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 

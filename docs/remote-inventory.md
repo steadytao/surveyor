@@ -13,14 +13,17 @@ It extends the local discovery and audit model across an authorised remote bound
 
 ## Current command surface
 
-The current remote commands are:
+The canonical remote commands are:
 
 ```bash
-surveyor discover subnet --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o discovery-subnet.md -j discovery-subnet.json
-surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o audit-subnet.md -j audit-subnet.json
+surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o discovery-remote.md -j discovery-remote.json
+surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o discovery-remote.md -j discovery-remote.json
+
+surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o audit-remote.md -j audit-remote.json
+surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o audit-remote.md -j audit-remote.json
 ```
 
-For the current implementation, `--cidr` is the only supported remote scope input.
+`surveyor discover subnet` and `surveyor audit subnet` remain as CIDR-only compatibility aliases during `v0.5.x`.
 
 ## Why this surface exists
 
@@ -35,8 +38,9 @@ Remote inventory compounds that architecture instead of widening it sideways int
 
 ## Current command semantics
 
-Current semantics for `surveyor discover subnet`:
+Current semantics for `surveyor discover remote`:
 - require explicit remote CIDR scope
+- or explicit file-backed host scope
 - require an explicit remote port set
 - stay within the declared scope only
 - perform bounded TCP reachability probing
@@ -45,7 +49,7 @@ Current semantics for `surveyor discover subnet`:
 - avoid implying verified protocol identification
 - emit canonical JSON and derived Markdown
 
-Current semantics for `surveyor audit subnet`:
+Current semantics for `surveyor audit remote`:
 - run remote discovery first
 - preserve observed endpoint facts and hints
 - select supported scanners conservatively
@@ -59,7 +63,7 @@ Current semantics for `surveyor audit subnet`:
 Remote scope and remote pace remain separate concepts.
 
 Scope is defined by:
-- `--cidr`
+- exactly one of `--cidr` or `--targets-file`
 - `--ports`
 
 Pace is defined by:
@@ -87,7 +91,7 @@ Rules:
 - `--dry-run` performs no network I/O at all
 - `--max-hosts` is a hard stop after scope expansion
 - `--timeout` applies per probe or connection attempt
-- `--ports` is required for current CIDR mode
+- `--ports` is required for current remote scope modes
 
 Current defaults:
 - profile default: `cautious`
@@ -119,7 +123,7 @@ It does not emit canonical discovery or audit JSON. That is deliberate. The dry-
 Remote discovery stays conservative.
 
 It does:
-- walk only the declared CIDR scope
+- walk only the declared remote scope
 - probe only the declared ports
 - record responsive TCP endpoints as `state=responsive`
 - record failed attempts as `state=candidate` with explicit errors
@@ -170,10 +174,11 @@ Markdown must not introduce facts that are absent from the canonical JSON model.
 
 Representative remote example outputs live in:
 
-- [examples/discovery-subnet.json](../examples/discovery-subnet.json)
-- [examples/discovery-subnet.md](../examples/discovery-subnet.md)
-- [examples/audit-subnet.json](../examples/audit-subnet.json)
-- [examples/audit-subnet.md](../examples/audit-subnet.md)
+- [examples/discovery-remote.json](../examples/discovery-remote.json)
+- [examples/discovery-remote.md](../examples/discovery-remote.md)
+- [examples/audit-remote.json](../examples/audit-remote.json)
+- [examples/audit-remote.md](../examples/audit-remote.md)
+- [examples/approved-hosts.txt](../examples/approved-hosts.txt)
 
 ## Non-goals
 
@@ -192,11 +197,8 @@ The current remote inventory surface does not include:
 
 ## Relationship to future work
 
-Remote inventory should be hardened through real use before Surveyor chooses the second deep scanner.
+Remote inventory should now be hardened through real use before Surveyor chooses the second deep scanner or a broader orchestration model.
 
 That keeps the project growing upward before it grows sideways.
 
-The next planned step is remote-scope generalisation rather than another deep
-scanner. See [docs/remote-scope.md](remote-scope.md) for the planned
-`v0.5.0` contract around `discover remote`, `audit remote` and file-backed
-declared scope.
+The current remote scope model lives in [docs/remote-scope.md](remote-scope.md).
