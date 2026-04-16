@@ -12,12 +12,14 @@ Canonical remote commands:
 ```bash
 surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o discovery.md -j discovery.json
 surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o discovery.md -j discovery.json
+surveyor discover remote --inventory-file inventory.yaml --profile cautious -o discovery.md -j discovery.json
 
 surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o audit.md -j audit.json
 surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o audit.md -j audit.json
+surveyor audit remote --inventory-file inventory.yaml --profile cautious -o audit.md -j audit.json
 ```
 
-Compatibility aliases during `v0.5.x`:
+Compatibility aliases:
 
 ```bash
 surveyor discover subnet ...
@@ -41,9 +43,10 @@ The current remote scope model represents:
 Current report and planning fields:
 
 - `scope_kind: remote`
-- `input_kind: cidr | targets_file`
+- `input_kind: cidr | targets_file | inventory_file`
 - `cidr` when relevant
 - `targets_file` when relevant
+- `inventory_file` when relevant
 - `host_count`
 - `ports`
 
@@ -73,6 +76,25 @@ That keeps the remote model explicit:
 - the file defines scope
 - `--ports` defines surface
 
+## Inventory-file rules
+
+The structured inventory grammar is now part of the current remote model.
+
+Current rules:
+
+- supported formats are `.yaml`, `.yml`, `.json` and `.csv`
+- YAML and JSON manifests require `version: 1`
+- YAML and JSON manifests require a non-empty `entries` array
+- CSV requires a header row with `host` or `address`
+- supported CSV headers are `host`, `address`, `ports`, `name`, `owner`, `environment`, `tags` and `notes`
+- imported entries may declare `host` or `address`, and if both are present they must agree
+- imported entries may declare `ports`
+- if `--ports` is supplied it overrides imported entry ports for the run
+- if `--ports` is omitted, imported entry ports are used
+- if neither exists for an entry, remote-scope parsing fails clearly
+
+The structured inventory model remains narrow on purpose. It is a generic imported-inventory layer, not a platform-adapter framework.
+
 ## Safety model
 
 Generalised remote scope keeps the current remote safety controls:
@@ -94,6 +116,9 @@ Rules:
 
 For `--targets-file`, `--max-hosts` still applies after the file is parsed
 and normalised.
+
+For `--inventory-file`, `--max-hosts` applies after inventory parsing,
+normalisation and deduplication.
 
 ## Discovery and audit boundaries
 
@@ -144,25 +169,21 @@ The current remote surface is now:
 
 - canonical `surveyor discover remote`
 - canonical `surveyor audit remote`
-- explicit `--cidr` or `--targets-file`
-- explicit `--ports`
-- `surveyor discover subnet` and `surveyor audit subnet` retained as CIDR-only compatibility aliases during `v0.5.x`
+- explicit `--cidr`, `--targets-file` or `--inventory-file`
+- explicit `--ports` for `--cidr` and `--targets-file`, with override semantics for `--inventory-file`
+- `surveyor discover subnet` and `surveyor audit subnet` retained as CIDR-only compatibility aliases from `v0.4.x`
 
 That makes remote scope first-class without weakening the existing discovery,
 hinting, selection and verified-scanning boundaries.
 
-## Relationship to the next planned input layer
+## Relationship to structured inventory inputs
 
-The next planned extension is structured imported inventory via
-`--inventory-file`.
+Structured imported inventory now extends the same canonical remote command family.
 
-That future layer should:
+That layer:
 
-- preserve the current canonical `remote` command family
-- keep `--targets-file` as the simple host-list input
-- add a structured imported-inventory model rather than overloading the
-  existing line-list grammar
+- preserves the current canonical `remote` command family
+- keeps `--targets-file` as the simple host-list input
+- adds a structured imported-inventory model rather than overloading the existing line-list grammar
 
-That contract is documented in
-[docs/inventory-inputs.md](inventory-inputs.md) and is not current repository
-surface yet.
+That contract is documented in [docs/inventory-inputs.md](inventory-inputs.md).

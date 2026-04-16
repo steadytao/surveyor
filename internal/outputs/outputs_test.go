@@ -408,6 +408,24 @@ func TestRenderMarkdown(t *testing.T) {
 	}
 }
 
+func TestRenderMarkdownUsesNamedTargetHeadingWithEndpoint(t *testing.T) {
+	t.Parallel()
+
+	report := BuildReport([]core.TargetResult{
+		{
+			Name:      "ipv6-site",
+			Host:      "2001:db8::1",
+			Port:      443,
+			ScannedAt: time.Date(2026, time.April, 14, 1, 0, 0, 0, time.UTC),
+		},
+	}, time.Date(2026, time.April, 14, 1, 30, 0, 0, time.UTC))
+
+	markdown := RenderMarkdown(report)
+	if !strings.Contains(markdown, "### ipv6-site ([2001:db8::1]:443)") {
+		t.Fatalf("markdown = %q, want bracketed IPv6 target heading", markdown)
+	}
+}
+
 func TestRenderDiscoveryMarkdown(t *testing.T) {
 	t.Parallel()
 
@@ -441,6 +459,25 @@ func TestRenderInventoryDiscoveryMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "discovery-inventory.golden.md")
 	if markdown != want {
 		t.Fatalf("inventory discovery markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderDiscoveryMarkdownUsesBracketedIPv6Heading(t *testing.T) {
+	t.Parallel()
+
+	report := BuildDiscoveryReport([]core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "2001:db8::1",
+			Port:      8443,
+			Transport: "tcp",
+			State:     "responsive",
+		},
+	}, time.Date(2026, time.April, 23, 1, 15, 0, 0, time.UTC))
+
+	markdown := RenderDiscoveryMarkdown(report)
+	if !strings.Contains(markdown, "### [2001:db8::1]:8443/tcp") {
+		t.Fatalf("markdown = %q, want bracketed IPv6 discovery heading", markdown)
 	}
 }
 

@@ -361,23 +361,39 @@ func parseRemoteTargetsFile(path string) ([]string, error) {
 }
 
 func validateRemoteHost(raw string) (string, error) {
+	host := normalizeRemoteScopeHost(raw)
 	target, err := ValidateTarget(Target{
-		Host: raw,
+		Host: host,
 		Port: 1,
 	})
 	if err != nil {
 		return "", err
 	}
 
-	return target.Host, nil
+	return normalizeRemoteScopeHost(target.Host), nil
 }
 
 func remoteHostKey(host string) string {
-	if address, err := netip.ParseAddr(host); err == nil {
+	normalized := normalizeRemoteScopeHost(host)
+	if address, err := netip.ParseAddr(normalized); err == nil {
 		return address.String()
 	}
 
-	return strings.ToLower(host)
+	return strings.ToLower(normalized)
+}
+
+func normalizeRemoteScopeHost(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if len(trimmed) >= 2 && strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		if address, err := netip.ParseAddr(strings.TrimSpace(trimmed[1 : len(trimmed)-1])); err == nil {
+			return address.String()
+		}
+	}
+	if address, err := netip.ParseAddr(trimmed); err == nil {
+		return address.String()
+	}
+
+	return trimmed
 }
 
 func subnetHostCount(prefix netip.Prefix) (int, error) {

@@ -77,6 +77,31 @@ func TestReadReportHeader(t *testing.T) {
 	}
 }
 
+func TestParseReportHeaderInventoryScope(t *testing.T) {
+	t.Parallel()
+
+	header, err := ParseReportHeader([]byte(`{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "audit",
+  "scope_kind": "remote",
+  "scope_description": "remote audit from inventory file examples/inventory.yaml",
+  "generated_at": "2026-04-20T01:00:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "input_kind": "inventory_file",
+    "inventory_file": "examples/inventory.yaml"
+  }
+}`))
+	if err != nil {
+		t.Fatalf("ParseReportHeader() error = %v", err)
+	}
+
+	if got, want := header.Scope.InventoryFile, "examples/inventory.yaml"; got != want {
+		t.Fatalf("header.Scope.InventoryFile = %q, want %q", got, want)
+	}
+}
+
 func TestParseReportHeaderRejectsMissingScopeMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +168,37 @@ func TestValidateCompatibilityAuditAllowsScopeDifference(t *testing.T) {
 			InputKind: core.ReportInputKindCIDR,
 			CIDR:      "10.0.1.0/30",
 			Ports:     []int{443},
+		},
+	}
+
+	comparison, err := ValidateCompatibility(baseline, current)
+	if err != nil {
+		t.Fatalf("ValidateCompatibility() error = %v", err)
+	}
+	if !comparison.ScopeChanged {
+		t.Fatal("comparison.ScopeChanged = false, want true")
+	}
+}
+
+func TestValidateCompatibilityInventoryAuditAllowsScopeDifference(t *testing.T) {
+	t.Parallel()
+
+	baseline := ReportHeader{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory-a.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory-a.yaml",
+		},
+	}
+	current := ReportHeader{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory-b.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory-b.yaml",
 		},
 	}
 

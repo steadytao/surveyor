@@ -10,8 +10,8 @@ The current implementation is intentionally narrow:
 
 - `surveyor audit local` only hands supported TLS-like endpoints into the current TLS scanner
 - `surveyor discover local` is observational only
-- `surveyor discover remote` and `surveyor audit remote` require explicit declared remote scope and explicit ports
-- `surveyor discover subnet` and `surveyor audit subnet` remain CIDR-only compatibility aliases during `v0.5.x`
+- `surveyor discover remote` and `surveyor audit remote` require explicit declared remote scope and declared port surface
+- `surveyor discover subnet` and `surveyor audit subnet` remain CIDR-only compatibility aliases from `v0.4.x`
 - remote pace is bounded by profile defaults, host caps, concurrency caps and per-attempt timeouts
 - `--dry-run` exists for the remote commands and performs no network I/O
 - the scanner performs standard TLS client behaviour
@@ -43,7 +43,14 @@ The canonical remote commands require exactly one of:
 
 - `--cidr`
 - `--targets-file`
-- `--ports`
+- `--inventory-file`
+
+Port rules:
+
+- `--ports` is required for `--cidr`
+- `--ports` is required for `--targets-file`
+- `--ports` overrides imported entry ports for `--inventory-file`
+- if `--ports` is omitted for `--inventory-file`, imported entries must declare ports
 
 Optional pace controls:
 
@@ -62,6 +69,7 @@ This means Surveyor currently supports:
 - internal IPs with explicit ports, for example `10.0.0.5:443`
 - explicitly declared remote subnet scope such as `--cidr 10.0.0.0/24 --ports 443,8443`
 - explicitly declared file-backed host scope such as `--targets-file examples/approved-hosts.txt --ports 443`
+- explicitly declared structured inventory scope such as `--inventory-file examples/inventory.yaml`
 
 It does not currently support:
 
@@ -69,7 +77,7 @@ It does not currently support:
 - IP-only config entries with an implied default port
 - undeclared remote scope
 - automatic service discovery outside the current local and remote commands
-- cloud inventory import
+- platform-specific import adapters or live cloud inventory import
 
 That strictness is deliberate. Safety improves when the tool is explicit about what it will touch.
 
@@ -124,7 +132,7 @@ Remote discovery reports also carry the declared scope and effective execution s
 
 `audit remote` is:
 
-- limited to explicitly declared remote scope and explicit ports
+- limited to explicitly declared remote scope and declared port surface
 - discovery first
 - conservative about scanner selection
 - limited to automatic handoff into the existing TLS scanner

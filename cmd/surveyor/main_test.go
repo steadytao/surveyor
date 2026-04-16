@@ -75,11 +75,11 @@ func TestRunHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "discover local") {
 		t.Fatalf("stdout = %q, want discover command in top-level help", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "surveyor diff baseline.json current.json") {
-		t.Fatalf("stdout = %q, want diff command in top-level help", stdout.String())
+	if !strings.Contains(stdout.String(), "surveyor <command> [<args>...]") {
+		t.Fatalf("stdout = %q, want standardised top-level usage", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "surveyor prioritize current.json") {
-		t.Fatalf("stdout = %q, want prioritize command in top-level help", stdout.String())
+		t.Fatalf("stdout = %q, want top-level example text", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "discover remote") {
 		t.Fatalf("stdout = %q, want canonical remote discovery command in top-level help", stdout.String())
@@ -95,6 +95,9 @@ func TestRunHelp(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "audit subnet") {
 		t.Fatalf("stdout = %q, want remote audit command in top-level help", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "during v0.5.x") {
+		t.Fatalf("stdout = %q, want no expired compatibility-window wording", stdout.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
@@ -403,6 +406,48 @@ func TestRunDiffRejectsIncompatibleReports(t *testing.T) {
 	}
 }
 
+func TestRunDiffAcceptsInventoryBackedAuditReports(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	baselinePath := filepath.Join(tempDir, "baseline.json")
+	currentPath := filepath.Join(tempDir, "current.json")
+
+	writeTempAuditReport(t, baselinePath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory-a.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory-a.yaml",
+		},
+	})
+	writeTempAuditReport(t, currentPath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory-b.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory-b.yaml",
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"diff", baselinePath, currentPath}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Baseline scope: remote audit from inventory file examples/inventory-a.yaml") {
+		t.Fatalf("stdout = %q, want inventory-backed diff scope", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Current scope: remote audit from inventory file examples/inventory-b.yaml") {
+		t.Fatalf("stdout = %q, want current inventory-backed diff scope", stdout.String())
+	}
+}
+
 func TestRunPrioritizeHelp(t *testing.T) {
 	t.Parallel()
 
@@ -501,6 +546,70 @@ func TestRunPrioritizeWritesMarkdownToStdout(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Profile: migration-readiness") || !strings.Contains(stdout.String(), "classical-certificate-identity") {
 		t.Fatalf("stdout = %q, want rendered prioritisation details", stdout.String())
+	}
+}
+
+func TestRunPrioritizeAcceptsInventoryBackedAuditReport(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	currentPath := filepath.Join(tempDir, "current.json")
+
+	writeTempAuditReport(t, currentPath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "api.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host:           "api.example.com",
+					Port:           443,
+					Reachable:      true,
+					ScannedAt:      time.Date(2026, time.April, 21, 1, 20, 0, 0, time.UTC),
+					Classification: "modern_tls_classical_identity",
+					Findings: []core.Finding{
+						{
+							Code:           "classical-certificate-identity",
+							Severity:       core.SeverityMedium,
+							Summary:        "The observed certificate identity remains classical.",
+							Evidence:       []string{"leaf_key_algorithm=rsa"},
+							Recommendation: "Replace certificate identity.",
+						},
+					},
+				},
+			},
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"prioritize", currentPath}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Inventory file: examples/inventory.yaml") {
+		t.Fatalf("stdout = %q, want inventory-backed prioritization scope", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Ports: per-entry inventory ports") {
+		t.Fatalf("stdout = %q, want per-entry inventory port note", stdout.String())
 	}
 }
 

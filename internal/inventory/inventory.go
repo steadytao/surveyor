@@ -375,6 +375,11 @@ func normalizeEntryHost(host string, address string, pathPrefix string) (string,
 
 func normalizeHost(raw string) string {
 	trimmed := strings.TrimSpace(raw)
+	if len(trimmed) >= 2 && strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		if address, err := netip.ParseAddr(strings.TrimSpace(trimmed[1 : len(trimmed)-1])); err == nil {
+			return address.String()
+		}
+	}
 	if address, err := netip.ParseAddr(trimmed); err == nil {
 		return address.String()
 	}

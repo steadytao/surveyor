@@ -1,11 +1,9 @@
 # Structured Inventory Inputs
 
-This document defines the planned structured inventory input layer for
-`v0.7.0`.
+This document defines the current structured inventory input layer.
 
-It is not part of the current repository surface yet. The current remote scope
-model remains the one documented in
-[docs/remote-scope.md](remote-scope.md).
+It is part of the current repository surface and extends the remote scope
+model documented in [docs/remote-scope.md](remote-scope.md).
 
 ## Why this layer exists
 
@@ -19,16 +17,19 @@ Surveyor already has the core operational loop:
 
 The next high-leverage gap is not scanner breadth. It is input quality.
 
-`v0.7.0` should let Surveyor consume approved imported inventory and feed it
-into the existing remote discovery, remote audit, diffing and prioritisation
-flow without redesigning the core again.
+Surveyor now consumes approved imported inventory and feeds it into the
+existing remote discovery, remote audit, diffing and prioritisation flow
+without redesigning the core again.
 
-## Planned command surface
+## Current command surface
 
-The planned canonical commands are:
+The canonical commands are:
 
 ```bash
+surveyor discover remote --inventory-file inventory.yaml -o discovery.md -j discovery.json
 surveyor discover remote --inventory-file inventory.yaml --ports 443,8443 -o discovery.md -j discovery.json
+
+surveyor audit remote --inventory-file inventory.yaml -o audit.md -j audit.json
 surveyor audit remote --inventory-file inventory.yaml --ports 443,8443 -o audit.md -j audit.json
 ```
 
@@ -52,9 +53,9 @@ Important rule:
 That split keeps the public contract honest. `--inventory-file` should not be
 taught a second weaker line-list grammar.
 
-## Planned input forms
+## Current input forms
 
-Structured imported inventory should support:
+Structured imported inventory supports:
 
 - YAML
 - JSON
@@ -65,9 +66,9 @@ Those are the right generic file forms before `v1.0.0`.
 Platform-specific import adapters should come later, on top of the same
 internal model, rather than driving the generic contract now.
 
-## Planned manifest model
+## Current manifest model
 
-The structured manifest schema should stay narrow in `v0.7.0`.
+The structured manifest schema stays narrow intentionally.
 
 Recommended YAML shape:
 
@@ -111,10 +112,10 @@ host,ports,name,owner,environment,tags,notes
 api.example.com,"443,8443",Payments API,payments,prod,"external,critical",Internet-facing service
 ```
 
-Per-entry fields for the first release:
+Per-entry fields:
 
 - required:
-  - `host`
+  - `host` or `address`
 - optional:
   - `ports`
   - `name`
@@ -123,7 +124,7 @@ Per-entry fields for the first release:
   - `tags`
   - `notes`
 
-Do not add in this milestone:
+Do not add in this layer:
 
 - nested scanner configuration
 - arbitrary user-defined metadata maps
@@ -131,7 +132,7 @@ Do not add in this milestone:
 
 ## Port rules
 
-Structured imported inventory should support optional per-entry ports, because
+Structured imported inventory supports optional per-entry ports, because
 real inventory exports often already know service surface.
 
 The rules should be explicit:
@@ -147,7 +148,7 @@ into one global port set.
 
 ## Canonical internal model
 
-`v0.7.0` should add one stable internal model for imported inventory, not a
+Surveyor uses one stable internal model for imported inventory, not a
 collection of vendor-shaped flows.
 
 That model should cover:
@@ -176,7 +177,7 @@ The better shape is:
 
 Every imported entry should record where it came from.
 
-Recommended provenance fields:
+Current provenance fields:
 
 - `source_kind = inventory_file`
 - `source_format = yaml | json | csv`
@@ -209,7 +210,7 @@ Use stable host identity for imported target deduplication:
 - canonical IP literals via `netip`
 - lower-case hostnames
 
-Recommended rules:
+Current rules:
 
 - exact duplicate entries collapse
 - duplicate entries for the same host may merge port sets deterministically
@@ -229,7 +230,7 @@ The imported inventory layer should preserve existing product discipline:
 - selection decisions fourth
 - verified TLS results only for the supported subset
 
-For inventory-backed remote reports, the later implementation should add:
+For inventory-backed remote reports, Surveyor now includes:
 
 - top-level `input_kind=inventory_file`
 - `inventory_file` when relevant
@@ -241,13 +242,12 @@ The existing reporting rule should remain unchanged:
 - JSON is canonical
 - Markdown is derived
 
-This milestone should not redesign `diff` or `prioritize`. It should only do
-the minimum needed so imported inventory becomes usable with the existing
-analysis layer.
+This layer does not redesign `diff` or `prioritize`. It only adds the minimum
+needed so imported inventory is usable with the existing analysis layer.
 
 ## Non-goals
 
-`v0.7.0` should not include:
+This layer does not include:
 
 - live cloud connectors
 - CMDB APIs
@@ -261,7 +261,7 @@ analysis layer.
 
 ## Relationship to later adapter work
 
-The generic ingestion substrate should come before vendor-specific adapters.
+The generic ingestion substrate now exists before vendor-specific adapters.
 
 That means:
 

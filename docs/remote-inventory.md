@@ -18,12 +18,14 @@ The canonical remote commands are:
 ```bash
 surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o discovery-remote.md -j discovery-remote.json
 surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o discovery-remote.md -j discovery-remote.json
+surveyor discover remote --inventory-file inventory.yaml --profile cautious -o discovery-inventory.md -j discovery-inventory.json
 
 surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o audit-remote.md -j audit-remote.json
 surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o audit-remote.md -j audit-remote.json
+surveyor audit remote --inventory-file inventory.yaml --profile cautious -o audit-inventory.md -j audit-inventory.json
 ```
 
-`surveyor discover subnet` and `surveyor audit subnet` remain as CIDR-only compatibility aliases during `v0.5.x`.
+`surveyor discover subnet` and `surveyor audit subnet` remain as CIDR-only compatibility aliases from `v0.4.x`.
 
 ## Why this surface exists
 
@@ -39,9 +41,9 @@ Remote inventory compounds that architecture instead of widening it sideways int
 ## Current command semantics
 
 Current semantics for `surveyor discover remote`:
-- require explicit remote CIDR scope
-- or explicit file-backed host scope
-- require an explicit remote port set
+- require exactly one of explicit remote CIDR scope, simple file-backed host scope or structured inventory scope
+- require an explicit remote port set for `--cidr` and `--targets-file`
+- use imported per-entry ports for `--inventory-file` unless `--ports` overrides them
 - stay within the declared scope only
 - perform bounded TCP reachability probing
 - record one result per attempted host:port
@@ -63,8 +65,8 @@ Current semantics for `surveyor audit remote`:
 Remote scope and remote pace remain separate concepts.
 
 Scope is defined by:
-- exactly one of `--cidr` or `--targets-file`
-- `--ports`
+- exactly one of `--cidr`, `--targets-file` or `--inventory-file`
+- `--ports` when the chosen scope needs or overrides it
 
 Pace is defined by:
 - `--profile`
@@ -91,7 +93,8 @@ Rules:
 - `--dry-run` performs no network I/O at all
 - `--max-hosts` is a hard stop after scope expansion
 - `--timeout` applies per probe or connection attempt
-- `--ports` is required for current remote scope modes
+- `--ports` is required for `--cidr` and `--targets-file`
+- `--ports` overrides imported entry ports for `--inventory-file`
 
 Current defaults:
 - profile default: `cautious`
@@ -109,7 +112,7 @@ It prints:
 - command mode
 - resolved scope
 - expanded host count
-- selected ports
+- selected ports or per-entry inventory ports
 - effective profile
 - effective host cap
 - effective concurrency
@@ -130,6 +133,8 @@ It does:
 - attach conservative low-confidence hints only to responsive endpoints
 - record the declared scope and effective execution settings in the report metadata
 
+For inventory-backed scope it also preserves imported inventory annotations on discovered endpoints, including imported ports, owner, environment, tags, notes and provenance.
+
 It does not:
 - perform verified protocol handshakes
 - widen scope implicitly
@@ -146,6 +151,8 @@ It does:
 - invoke only the existing TLS scanner
 - skip everything else explicitly with a reason
 - record the declared scope and effective execution settings in the report metadata
+
+For inventory-backed scope it preserves imported inventory context on the discovered endpoint carried into the audit result.
 
 Important examples:
 - a failed `443` probe remains an attempted endpoint with explicit errors
@@ -176,9 +183,14 @@ Representative remote example outputs live in:
 
 - [examples/discovery-remote.json](../examples/discovery-remote.json)
 - [examples/discovery-remote.md](../examples/discovery-remote.md)
+- [examples/discovery-inventory.json](../examples/discovery-inventory.json)
+- [examples/discovery-inventory.md](../examples/discovery-inventory.md)
 - [examples/audit-remote.json](../examples/audit-remote.json)
 - [examples/audit-remote.md](../examples/audit-remote.md)
+- [examples/audit-inventory.json](../examples/audit-inventory.json)
+- [examples/audit-inventory.md](../examples/audit-inventory.md)
 - [examples/approved-hosts.txt](../examples/approved-hosts.txt)
+- [examples/inventory.yaml](../examples/inventory.yaml)
 
 ## Non-goals
 
@@ -202,7 +214,4 @@ Remote inventory should now be hardened through real use before Surveyor chooses
 That keeps the project growing upward before it grows sideways.
 
 The current remote scope model lives in [docs/remote-scope.md](remote-scope.md).
-
-The next planned remote input extension is structured imported inventory via
-`--inventory-file`; see [docs/inventory-inputs.md](inventory-inputs.md). That
-is future work, not current repository surface.
+The current structured inventory input contract lives in [docs/inventory-inputs.md](inventory-inputs.md). Later work should focus on platform-specific import adapters and broader organisational inventory sources, not a second generic scope model.

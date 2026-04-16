@@ -15,6 +15,19 @@ func renderInventoryFileScope(builder *strings.Builder, scope *core.ReportScope)
 	builder.WriteString(fmt.Sprintf("- Inventory file: %s\n", scope.InventoryFile))
 }
 
+func renderScopePorts(builder *strings.Builder, scope *core.ReportScope) {
+	if scope == nil {
+		return
+	}
+	if len(scope.Ports) > 0 {
+		builder.WriteString(fmt.Sprintf("- Ports: %s\n", renderPortsList(scope.Ports)))
+		return
+	}
+	if scope.InputKind == core.ReportInputKindInventoryFile {
+		builder.WriteString("- Ports: per-entry inventory ports\n")
+	}
+}
+
 func renderInventoryAnnotation(builder *strings.Builder, annotation *core.InventoryAnnotation) {
 	if annotation == nil {
 		return
@@ -34,7 +47,7 @@ func renderInventoryAnnotation(builder *strings.Builder, annotation *core.Invent
 		builder.WriteString(fmt.Sprintf("- Environment: %s\n", annotation.Environment))
 	}
 	if len(annotation.Tags) > 0 {
-		builder.WriteString(fmt.Sprintf("- Tags: %s\n", strings.Join(annotation.Tags, ",")))
+		builder.WriteString(fmt.Sprintf("- Tags: %s\n", strings.Join(annotation.Tags, ", ")))
 	}
 	if annotation.Notes != "" {
 		builder.WriteString(fmt.Sprintf("- Notes: %s\n", annotation.Notes))
@@ -50,17 +63,17 @@ func renderInventoryAnnotation(builder *strings.Builder, annotation *core.Invent
 func formatInventoryProvenance(provenance core.InventoryProvenance) string {
 	parts := make([]string, 0, 4)
 	if provenance.SourceKind != "" {
-		parts = append(parts, string(provenance.SourceKind))
+		parts = append(parts, "kind="+string(provenance.SourceKind))
 	}
 	if provenance.SourceFormat != "" {
-		parts = append(parts, string(provenance.SourceFormat))
+		parts = append(parts, "format="+string(provenance.SourceFormat))
 	}
 	if provenance.SourceName != "" {
-		parts = append(parts, provenance.SourceName)
+		parts = append(parts, "source="+provenance.SourceName)
 	}
 	if provenance.SourceRecord != "" {
-		parts = append(parts, provenance.SourceRecord)
+		parts = append(parts, "record="+provenance.SourceRecord)
 	}
 
-	return strings.Join(parts, " | ")
+	return strings.Join(parts, ", ")
 }

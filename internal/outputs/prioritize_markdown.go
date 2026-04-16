@@ -33,9 +33,8 @@ func RenderPrioritizationMarkdown(report prioritizereport.Report) string {
 		if report.Scope.TargetsFile != "" {
 			builder.WriteString(fmt.Sprintf("- Targets file: %s\n", report.Scope.TargetsFile))
 		}
-		if len(report.Scope.Ports) > 0 {
-			builder.WriteString(fmt.Sprintf("- Ports: %s\n", renderPortsList(report.Scope.Ports)))
-		}
+		renderInventoryFileScope(&builder, report.Scope)
+		renderScopePorts(&builder, report.Scope)
 		builder.WriteString("\n")
 	}
 

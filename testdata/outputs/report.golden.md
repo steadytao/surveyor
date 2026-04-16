@@ -12,7 +12,7 @@
 
 ## Targets
 
-### primary-site
+### primary-site (example.com:443)
 
 - Host: example.com
 - Port: 443

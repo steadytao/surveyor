@@ -11,6 +11,7 @@
 - Scope kind: remote
 - Input kind: inventory_file
 - Inventory file: examples/inventory.yaml
+- Ports: per-entry inventory ports
 
 ## Execution
 
@@ -43,10 +44,10 @@
 - Name: Payments API
 - Owner: payments
 - Environment: prod
-- Tags: critical,external
+- Tags: critical, external
 - Notes: Internet-facing service
 - Provenance:
-  - inventory_file | yaml | examples/inventory.yaml | entries[0]
+  - kind=inventory_file, format=yaml, source=examples/inventory.yaml, record=entries[0]
 
 #### Hints
 
@@ -86,7 +87,7 @@
 - Environment: prod
 - Tags: internal
 - Provenance:
-  - inventory_file | yaml | examples/inventory.yaml | entries[1]
+  - kind=inventory_file, format=yaml, source=examples/inventory.yaml, record=entries[1]
 
 #### Selection
 

@@ -21,12 +21,13 @@ The current repository already includes:
 
 - local and remote audit orchestration for supported TLS-like endpoints
 - local endpoint discovery
-- scoped remote discovery across CIDR and file-backed host scope
+- scoped remote discovery across CIDR, simple file-backed host scope and structured inventory manifests
 - baseline-compatible report metadata on current JSON reports
 - saved-report diffing for compatible TLS and audit reports
 - current-report prioritisation for compatible TLS and audit reports
 - conservative protocol hints for discovery results
 - remote scope parsing and validation
+- structured imported inventory parsing from YAML, JSON and CSV
 - target parsing and validation
 - TLS connection and protocol inspection
 - certificate chain parsing
@@ -65,9 +66,9 @@ The current repository is still intentionally narrow.
 That means Surveyor currently aims to:
 
 - run local audit by chaining discovery into the existing TLS scanner conservatively
-- run remote audit within explicitly declared remote scope and explicit port set
+- run remote audit within explicitly declared remote scope and explicit port surface
 - enumerate local listening or bound endpoints without active probing
-- enumerate remote TCP reachability within explicitly declared CIDR or file-backed host scope and explicit port set
+- enumerate remote TCP reachability within explicitly declared CIDR, file-backed host or structured inventory scope and explicit port surface
 - attach conservative protocol hints to discovery results
 - compare compatible saved TLS and audit reports deterministically
 - rank current TLS and audit reports for migration-readiness or change-risk
@@ -119,6 +120,7 @@ Audit:
 surveyor audit local -o audit.md -j audit.json
 surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 -o audit-remote.md -j audit-remote.json
 surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 -o audit-remote.md -j audit-remote.json
+surveyor audit remote --inventory-file examples/inventory.yaml -o audit-inventory.md -j audit-inventory.json
 ```
 
 Discovery:
@@ -127,6 +129,7 @@ Discovery:
 surveyor discover local -o discovery.md -j discovery.json
 surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 -o discovery-remote.md -j discovery-remote.json
 surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 -o discovery-remote.md -j discovery-remote.json
+surveyor discover remote --inventory-file examples/inventory.yaml -o discovery-inventory.md -j discovery-inventory.json
 ```
 
 TLS inventory:
@@ -144,7 +147,7 @@ surveyor scan tls -t example.com:443,127.0.0.1:8000,[::1]:443
 Rules:
 
 - `audit local` only hands supported TLS-like endpoints into the current TLS scanner and keeps discovered facts, hints and verified scan results separate
-- `audit remote` only walks explicitly declared remote scope and explicit ports, then hands supported TLS-like remote endpoints into the current TLS scanner
+- `audit remote` only walks explicitly declared remote scope and declared ports, then hands supported TLS-like remote endpoints into the current TLS scanner
 - `discover local` is observational only, it does not perform active probing or verified protocol scans
 - `discover remote` performs bounded remote TCP reachability probing within explicitly declared scope, and it does not perform verified protocol scans
 - `diff` currently supports `tls_scan` to `tls_scan` and `audit` to `audit` comparisons only
@@ -152,8 +155,9 @@ Rules:
 - `prioritise` is a CLI alias for `prioritize`
 - use exactly one of `--config` or `--targets`
 - `--targets` requires explicit `host:port` entries
-- the canonical remote commands require exactly one of `--cidr` or `--targets-file`, plus `--ports`
-- `discover subnet` and `audit subnet` remain CIDR-only compatibility aliases during `v0.5.x`
+- the canonical remote commands require exactly one of `--cidr`, `--targets-file` or `--inventory-file`
+- `--ports` is required for `--cidr` and `--targets-file`, and overrides per-entry inventory ports when set
+- `discover subnet` and `audit subnet` remain CIDR-only compatibility aliases from `v0.4.x`
 - `--profile` sets default remote pace, explicit `--max-hosts`, `--max-concurrency` and `--timeout` override it
 - `--dry-run` performs no network I/O and prints the execution plan
 - `--json` is not supported with `--dry-run`
@@ -170,8 +174,10 @@ go build -o surveyor ./cmd/surveyor
 ./surveyor discover local -o discovery.md -j discovery.json
 ./surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
 ./surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
+./surveyor discover remote --inventory-file examples/inventory.yaml --dry-run
 ./surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
 ./surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
+./surveyor audit remote --inventory-file examples/inventory.yaml --dry-run
 ./surveyor diff baseline.json current.json -o diff.md -j diff.json
 ./surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
@@ -190,7 +196,7 @@ For the current implementation boundaries, see:
 - [docs/references.md](docs/references.md)
 - [docs/safety.md](docs/safety.md)
 - [docs/release-checklist.md](docs/release-checklist.md)
-- [docs/inventory-inputs.md](docs/inventory-inputs.md) for the planned `v0.7.0` structured inventory input layer
+- [docs/inventory-inputs.md](docs/inventory-inputs.md) for the current structured inventory input contract
 
 ## Remote boundary
 
@@ -198,8 +204,9 @@ Generalised remote scope is now part of the current repository surface.
 
 The current remote boundary is still intentionally narrow:
 
-- explicit `--cidr` or `--targets-file` scope required
-- explicit ports required
+- explicit `--cidr`, `--targets-file` or `--inventory-file` scope required
+- explicit ports required for `--cidr` and `--targets-file`
+- inventory manifests may carry per-entry ports, and `--ports` overrides them when supplied
 - cautious by default
 - existing TLS scanner only for verified remote scanning
 - discovered facts, hints, selection decisions and verified scan results kept separate
@@ -209,11 +216,7 @@ See:
 
 - [docs/remote-inventory.md](docs/remote-inventory.md) for the current remote inventory boundary
 - [docs/remote-scope.md](docs/remote-scope.md) for the current remote scope model
-
-The next planned remote input layer is structured imported inventory via
-`--inventory-file`. That future contract is documented in
-[docs/inventory-inputs.md](docs/inventory-inputs.md) and is not current
-repository surface yet.
+- [docs/inventory-inputs.md](docs/inventory-inputs.md) for the current structured inventory input layer
 
 ## Current analysis layer
 
@@ -273,8 +276,10 @@ Then run:
 ./surveyor discover local -o discovery.md -j discovery.json
 ./surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
 ./surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
+./surveyor discover remote --inventory-file examples/inventory.yaml --dry-run
 ./surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
 ./surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
+./surveyor audit remote --inventory-file examples/inventory.yaml --dry-run
 ./surveyor diff baseline.json current.json -o diff.md -j diff.json
 ./surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json

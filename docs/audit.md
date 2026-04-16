@@ -14,9 +14,10 @@ The audit commands are:
 surveyor audit local
 surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443
 surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443
+surveyor audit remote --inventory-file inventory.yaml
 ```
 
-`surveyor audit subnet` remains as a CIDR-only compatibility alias during `v0.5.x`.
+`surveyor audit subnet` remains as a CIDR-only compatibility alias from `v0.4.x`.
 
 ## Why audit exists
 
@@ -50,6 +51,7 @@ The semantics of `surveyor audit remote` are:
 - validate explicit remote scope first
 - run remote discovery within that declared scope
 - preserve discovered endpoint facts and protocol hints
+- preserve imported inventory annotations when remote scope came from `--inventory-file`
 - select supported scanners conservatively
 - hand only the supported TLS-like subset into the existing TLS scanner
 - record verified TLS results separately from discovery and selection
@@ -67,7 +69,8 @@ Both commands follow the same output conventions:
 The current audit flow covers:
 
 - local-only audit orchestration
-- remote audit within explicitly declared scope and explicit ports
+- remote audit within explicitly declared scope and declared port surface
+- remote audit within structured inventory scope, using per-entry ports or a `--ports` override
 - discovery-first orchestration
 - conservative TLS-candidate selection
 - automatic handoff only to the existing TLS scanner
@@ -183,9 +186,10 @@ Current report-scope shape:
 Fields:
 
 - `scope_kind`: `local` or `remote`
-- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr` or `targets_file`
+- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr`, `targets_file` or `inventory_file`
 - `cidr`: declared remote CIDR when the report covers CIDR-backed remote scope
 - `targets_file`: declared remote targets-file path when the report covers file-backed remote scope
+- `inventory_file`: declared structured inventory-file path when the report covers inventory-backed remote scope
 - `ports`: declared remote port set when the report covers remote scope
 
 ### Report execution
@@ -306,6 +310,8 @@ Representative example outputs live in:
 
 - [examples/audit.json](../examples/audit.json)
 - [examples/audit.md](../examples/audit.md)
+- [examples/audit-inventory.json](../examples/audit-inventory.json)
+- [examples/audit-inventory.md](../examples/audit-inventory.md)
 - [examples/audit-remote.json](../examples/audit-remote.json)
 - [examples/audit-remote.md](../examples/audit-remote.md)
 - [examples/audit-subnet.json](../examples/audit-subnet.json)
