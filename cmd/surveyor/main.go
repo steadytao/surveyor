@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,8 +14,10 @@ import (
 	"time"
 
 	auditflow "github.com/steadytao/surveyor/internal/audit"
+	"github.com/steadytao/surveyor/internal/baseline"
 	"github.com/steadytao/surveyor/internal/config"
 	"github.com/steadytao/surveyor/internal/core"
+	diffreport "github.com/steadytao/surveyor/internal/diff"
 	"github.com/steadytao/surveyor/internal/discovery"
 	"github.com/steadytao/surveyor/internal/outputs"
 	"github.com/steadytao/surveyor/internal/scanners/tlsinventory"
@@ -69,6 +72,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time
 		return runAudit(args[1:], stdout, stderr, now)
 	case "discover":
 		return runDiscover(args[1:], stdout, stderr, now)
+	case "diff":
+		return runDiff(args[1:], stdout, stderr, now)
 	case "scan":
 		return runScan(args[1:], stdout, stderr, now)
 	case "-h", "--help", "help":
@@ -79,6 +84,57 @@ func run(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time
 		printUsage(stderr)
 		return 2
 	}
+}
+
+func runDiff(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
+	normalizedArgs, err := normalizeDiffArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		printDiffUsage(stderr)
+		return 2
+	}
+
+	fs := flag.NewFlagSet("surveyor diff", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		printDiffUsage(stderr)
+	}
+
+	markdownPath := fs.String("output", "", "Write Markdown output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+
+	jsonPath := fs.String("json", "", "Write JSON output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+
+	if err := fs.Parse(normalizedArgs); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+
+		return 2
+	}
+
+	if fs.NArg() != 2 {
+		fmt.Fprintf(stderr, "diff requires exactly two input files: baseline.json and current.json\n\n")
+		printDiffUsage(stderr)
+		return 2
+	}
+
+	baselinePath := fs.Arg(0)
+	currentPath := fs.Arg(1)
+
+	diffNow := now
+	if diffNow == nil {
+		diffNow = time.Now
+	}
+
+	report, err := buildDiffReportFromFiles(baselinePath, currentPath, diffNow().UTC())
+	if err != nil {
+		fmt.Fprintf(stderr, "diff: %v\n", err)
+		return 1
+	}
+
+	return writeDiffOutputs(report, stdout, stderr, *markdownPath, *jsonPath)
 }
 
 func runAudit(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
@@ -611,6 +667,113 @@ func writeAuditOutputs(commandName string, results []core.AuditResult, generated
 	return 0
 }
 
+func buildDiffReportFromFiles(baselinePath string, currentPath string, generatedAt time.Time) (diffreport.Report, error) {
+	baselineHeader, baselineData, err := readDiffInputFile(baselinePath)
+	if err != nil {
+		return diffreport.Report{}, err
+	}
+	currentHeader, currentData, err := readDiffInputFile(currentPath)
+	if err != nil {
+		return diffreport.Report{}, err
+	}
+
+	if _, err := baseline.ValidateCompatibility(baselineHeader, currentHeader); err != nil {
+		return diffreport.Report{}, err
+	}
+
+	switch baselineHeader.ReportKind {
+	case core.ReportKindTLSScan:
+		baselineReport, err := decodeTLSReport(baselinePath, baselineData)
+		if err != nil {
+			return diffreport.Report{}, err
+		}
+		currentReport, err := decodeTLSReport(currentPath, currentData)
+		if err != nil {
+			return diffreport.Report{}, err
+		}
+
+		return diffreport.BuildTLSReport(baselineReport, currentReport, generatedAt)
+	case core.ReportKindAudit:
+		baselineReport, err := decodeAuditReport(baselinePath, baselineData)
+		if err != nil {
+			return diffreport.Report{}, err
+		}
+		currentReport, err := decodeAuditReport(currentPath, currentData)
+		if err != nil {
+			return diffreport.Report{}, err
+		}
+
+		return diffreport.BuildAuditReport(baselineReport, currentReport, generatedAt)
+	default:
+		return diffreport.Report{}, fmt.Errorf("report_kind %q is not supported for diffing", baselineHeader.ReportKind)
+	}
+}
+
+func readDiffInputFile(path string) (baseline.ReportHeader, []byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return baseline.ReportHeader{}, nil, fmt.Errorf("read report %q: %w", path, err)
+	}
+
+	header, err := baseline.ParseReportHeader(data)
+	if err != nil {
+		return baseline.ReportHeader{}, nil, fmt.Errorf("parse report %q: %w", path, err)
+	}
+
+	return header, data, nil
+}
+
+func decodeTLSReport(path string, data []byte) (core.Report, error) {
+	var report core.Report
+	if err := json.Unmarshal(data, &report); err != nil {
+		return core.Report{}, fmt.Errorf("parse TLS report %q: %w", path, err)
+	}
+
+	return report, nil
+}
+
+func decodeAuditReport(path string, data []byte) (core.AuditReport, error) {
+	var report core.AuditReport
+	if err := json.Unmarshal(data, &report); err != nil {
+		return core.AuditReport{}, fmt.Errorf("parse audit report %q: %w", path, err)
+	}
+
+	return report, nil
+}
+
+func writeDiffOutputs(report diffreport.Report, stdout io.Writer, stderr io.Writer, markdownPath string, jsonPath string) int {
+	if jsonPath != "" {
+		jsonData, err := outputs.MarshalDiffJSON(report)
+		if err != nil {
+			fmt.Fprintf(stderr, "build diff JSON output: %v\n", err)
+			return 1
+		}
+
+		if err := writeOutputFile(jsonPath, jsonData); err != nil {
+			fmt.Fprintf(stderr, "write diff JSON output %q: %v\n", jsonPath, err)
+			return 1
+		}
+	}
+
+	markdown := outputs.RenderDiffMarkdown(report)
+
+	if markdownPath != "" {
+		if err := writeOutputFile(markdownPath, []byte(markdown)); err != nil {
+			fmt.Fprintf(stderr, "write diff Markdown output %q: %v\n", markdownPath, err)
+			return 1
+		}
+	}
+
+	if markdownPath == "" && jsonPath == "" {
+		if _, err := io.WriteString(stdout, markdown); err != nil {
+			fmt.Fprintf(stderr, "diff: write stdout: %v\n", err)
+			return 1
+		}
+	}
+
+	return 0
+}
+
 func resolveTargets(configPath string, targetsArg string) ([]config.Target, error) {
 	hasConfig := strings.TrimSpace(configPath) != ""
 	hasTargets := strings.TrimSpace(targetsArg) != ""
@@ -678,10 +841,40 @@ func writeOutputFile(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+func normalizeDiffArgs(args []string) ([]string, error) {
+	flags := make([]string, 0, len(args))
+	positionals := make([]string, 0, len(args))
+
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		switch {
+		case arg == "-h" || arg == "--help":
+			flags = append(flags, arg)
+		case arg == "-o" || arg == "--output" || arg == "-j" || arg == "--json":
+			if index+1 >= len(args) {
+				return nil, fmt.Errorf("%s requires a value", arg)
+			}
+			flags = append(flags, arg, args[index+1])
+			index += 1
+		case strings.HasPrefix(arg, "--output=") || strings.HasPrefix(arg, "--json="):
+			flags = append(flags, arg)
+		case strings.HasPrefix(arg, "-o=") || strings.HasPrefix(arg, "-j="):
+			flags = append(flags, arg)
+		case strings.HasPrefix(arg, "-"):
+			return nil, fmt.Errorf("unknown flag %q", arg)
+		default:
+			positionals = append(positionals, arg)
+		}
+	}
+
+	return append(flags, positionals...), nil
+}
+
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Surveyor")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor diff baseline.json current.json [-o diff.md] [-j diff.json]")
 	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
@@ -691,6 +884,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor scan tls [--config PATH | --targets host:port,host:port] [-o report.md] [-j report.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
+	fmt.Fprintln(w, "  diff            Compare two compatible Surveyor JSON reports and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  audit local     Audit local endpoints by chaining discovery into supported scanners")
 	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR and file-backed host inputs")
 	fmt.Fprintln(w, "  audit subnet    CIDR-only compatibility alias for remote audit during v0.5.x")
@@ -702,10 +896,28 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Run 'surveyor audit local --help' for audit-specific help.")
 	fmt.Fprintln(w, "Run 'surveyor audit remote --help' for canonical remote audit help.")
 	fmt.Fprintln(w, "Run 'surveyor audit subnet --help' for subnet audit help.")
+	fmt.Fprintln(w, "Run 'surveyor diff --help' for diff help.")
 	fmt.Fprintln(w, "Run 'surveyor discover local --help' for discovery-specific help.")
 	fmt.Fprintln(w, "Run 'surveyor discover remote --help' for canonical remote discovery help.")
 	fmt.Fprintln(w, "Run 'surveyor discover subnet --help' for subnet discovery help.")
 	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for command-specific help.")
+}
+
+func printDiffUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor diff baseline.json current.json [-o diff.md] [-j diff.json]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w, "  Compare two compatible canonical Surveyor JSON reports.")
+	fmt.Fprintln(w, "  The first release supports tls_scan-to-tls_scan and audit-to-audit comparisons only.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Examples:")
+	fmt.Fprintln(w, "  surveyor diff baseline.json current.json")
+	fmt.Fprintln(w, "  surveyor diff baseline.json current.json -o diff.md -j diff.json")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
 }
 
 func printAuditUsage(w io.Writer) {
