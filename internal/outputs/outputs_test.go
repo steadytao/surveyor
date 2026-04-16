@@ -238,6 +238,20 @@ func TestBuildDiscoveryReportInventoryScopeDescription(t *testing.T) {
 	}
 }
 
+func TestBuildAuditReportInventoryScopeDescription(t *testing.T) {
+	t.Parallel()
+
+	report := BuildAuditReportWithMetadata(nil, time.Date(2026, time.April, 21, 4, 5, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/inventory.yaml",
+	}, nil)
+
+	if got, want := report.ScopeDescription, "remote audit from inventory file examples/inventory.yaml"; got != want {
+		t.Fatalf("report.ScopeDescription = %q, want %q", got, want)
+	}
+}
+
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
 
@@ -286,6 +300,22 @@ func TestMarshalRemoteDiscoveryJSON(t *testing.T) {
 	}
 }
 
+func TestMarshalInventoryDiscoveryJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleInventoryDiscoveryReport()
+
+	data, err := MarshalDiscoveryJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalDiscoveryJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "discovery-inventory.golden.json")
+	if string(data) != want {
+		t.Fatalf("inventory discovery json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
 func TestMarshalAuditJSON(t *testing.T) {
 	t.Parallel()
 
@@ -315,6 +345,22 @@ func TestMarshalRemoteAuditJSON(t *testing.T) {
 	want := readGoldenFile(t, "audit-remote.golden.json")
 	if string(data) != want {
 		t.Fatalf("remote audit json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
+func TestMarshalInventoryAuditJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleInventoryAuditReport()
+
+	data, err := MarshalAuditJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalAuditJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "audit-inventory.golden.json")
+	if string(data) != want {
+		t.Fatalf("inventory audit json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
 	}
 }
 
@@ -386,6 +432,18 @@ func TestRenderRemoteDiscoveryMarkdown(t *testing.T) {
 	}
 }
 
+func TestRenderInventoryDiscoveryMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleInventoryDiscoveryReport()
+
+	markdown := RenderDiscoveryMarkdown(report)
+	want := readGoldenFile(t, "discovery-inventory.golden.md")
+	if markdown != want {
+		t.Fatalf("inventory discovery markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
 func TestRenderAuditMarkdown(t *testing.T) {
 	t.Parallel()
 
@@ -407,6 +465,18 @@ func TestRenderRemoteAuditMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "audit-remote.golden.md")
 	if markdown != want {
 		t.Fatalf("remote audit markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderInventoryAuditMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleInventoryAuditReport()
+
+	markdown := RenderAuditMarkdown(report)
+	want := readGoldenFile(t, "audit-inventory.golden.md")
+	if markdown != want {
+		t.Fatalf("inventory audit markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
 	}
 }
 
@@ -690,6 +760,165 @@ func sampleRemoteAuditReport() core.AuditReport {
 		InputKind:   core.ReportInputKindTargetsFile,
 		TargetsFile: "examples/approved-hosts.txt",
 		Ports:       []int{443},
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+}
+
+func sampleInventoryDiscoveryReport() core.DiscoveryReport {
+	return BuildDiscoveryReportWithMetadata([]core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "api.example.com",
+			Port:      443,
+			Transport: "tcp",
+			State:     "responsive",
+			Inventory: &core.InventoryAnnotation{
+				Ports:       []int{443, 8443},
+				Name:        "Payments API",
+				Owner:       "payments",
+				Environment: "prod",
+				Tags:        []string{"critical", "external"},
+				Notes:       "Internet-facing service",
+				Provenance: []core.InventoryProvenance{
+					{
+						SourceKind:   core.InventorySourceKindInventoryFile,
+						SourceFormat: core.InventorySourceFormatYAML,
+						SourceName:   "examples/inventory.yaml",
+						SourceRecord: "entries[0]",
+					},
+				},
+			},
+			Hints: []core.DiscoveryHint{
+				{
+					Protocol:   "tls",
+					Confidence: "low",
+					Evidence:   []string{"transport=tcp", "port=443"},
+				},
+			},
+		},
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "10.0.0.10",
+			Port:      8443,
+			Transport: "tcp",
+			State:     "candidate",
+			Inventory: &core.InventoryAnnotation{
+				Ports:       []int{8443},
+				Name:        "Admin Console",
+				Owner:       "platform",
+				Environment: "prod",
+				Tags:        []string{"internal"},
+				Provenance: []core.InventoryProvenance{
+					{
+						SourceKind:   core.InventorySourceKindInventoryFile,
+						SourceFormat: core.InventorySourceFormatYAML,
+						SourceName:   "examples/inventory.yaml",
+						SourceRecord: "entries[1]",
+					},
+				},
+			},
+			Errors: []string{"connection refused"},
+		},
+	}, time.Date(2026, time.April, 23, 1, 15, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/inventory.yaml",
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+}
+
+func sampleInventoryAuditReport() core.AuditReport {
+	return BuildAuditReportWithMetadata([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "api.example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Inventory: &core.InventoryAnnotation{
+					Ports:       []int{443, 8443},
+					Name:        "Payments API",
+					Owner:       "payments",
+					Environment: "prod",
+					Tags:        []string{"critical", "external"},
+					Notes:       "Internet-facing service",
+					Provenance: []core.InventoryProvenance{
+						{
+							SourceKind:   core.InventorySourceKindInventoryFile,
+							SourceFormat: core.InventorySourceFormatYAML,
+							SourceName:   "examples/inventory.yaml",
+							SourceRecord: "entries[0]",
+						},
+					},
+				},
+				Hints: []core.DiscoveryHint{
+					{
+						Protocol:   "tls",
+						Confidence: "low",
+						Evidence:   []string{"transport=tcp", "port=443"},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:                   "api.example.com",
+				Port:                   443,
+				ScannedAt:              time.Date(2026, time.April, 23, 1, 20, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.3",
+				CipherSuite:            "TLS_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafKeySize:            2048,
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "10.0.0.10",
+				Port:      8443,
+				Transport: "tcp",
+				State:     "candidate",
+				Inventory: &core.InventoryAnnotation{
+					Ports:       []int{8443},
+					Name:        "Admin Console",
+					Owner:       "platform",
+					Environment: "prod",
+					Tags:        []string{"internal"},
+					Provenance: []core.InventoryProvenance{
+						{
+							SourceKind:   core.InventorySourceKindInventoryFile,
+							SourceFormat: core.InventorySourceFormatYAML,
+							SourceName:   "examples/inventory.yaml",
+							SourceRecord: "entries[1]",
+						},
+					},
+				},
+				Errors: []string{"connection refused"},
+			},
+			Selection: core.AuditSelection{
+				Status: core.AuditSelectionStatusSkipped,
+				Reason: "endpoint did not respond during remote discovery",
+			},
+		},
+	}, time.Date(2026, time.April, 23, 1, 30, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/inventory.yaml",
 	}, &core.ReportExecution{
 		Profile:        "cautious",
 		MaxHosts:       256,

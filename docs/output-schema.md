@@ -386,9 +386,10 @@ Fields:
 - `scope_kind`: whether the report covers `explicit`, `local` or `remote` scope
 - `input_kind`: declared input kind when relevant
   - explicit TLS reports currently use `config` or `targets`
-  - remote discovery and audit currently use `cidr` or `targets_file`
+  - remote discovery and audit currently use `cidr`, `targets_file` or `inventory_file`
 - `cidr`: declared remote CIDR when the report covers remote CIDR scope
 - `targets_file`: declared remote targets-file path when the report covers file-backed remote scope
+- `inventory_file`: declared structured inventory-file path when the report covers inventory-backed remote scope
 - `ports`: declared remote port set when the report covers remote scope
 
 ## Report execution
@@ -480,6 +481,12 @@ Fields:
 - optional: yes
 - meaning: best-effort executable path where available, currently local-only
 
+### `inventory`
+
+- type: inventory annotation object
+- optional: yes
+- meaning: imported inventory metadata and provenance attached to an endpoint discovered from structured inventory scope
+
 ### `hints`
 
 - type: array of discovery hints
@@ -497,6 +504,39 @@ Fields:
 - type: array of strings
 - optional: yes
 - meaning: endpoint-level discovery failures, including failed remote probe attempts
+
+## Inventory annotation
+
+Current inventory-annotation shape:
+
+```json
+{
+  "ports": [443, 8443],
+  "name": "Payments API",
+  "owner": "payments",
+  "environment": "prod",
+  "tags": ["critical", "external"],
+  "notes": "Internet-facing service",
+  "provenance": [
+    {
+      "source_kind": "inventory_file",
+      "source_format": "csv",
+      "source_name": "examples/inventory.csv",
+      "source_record": "line 2"
+    }
+  ]
+}
+```
+
+Fields:
+
+- `ports`: imported port set declared for the inventory entry
+- `name`: optional imported asset label
+- `owner`: optional imported owner or team
+- `environment`: optional imported environment label
+- `tags`: optional imported tags
+- `notes`: optional imported free-form notes
+- `provenance`: array of inventory provenance records describing where the entry came from
 
 ## Discovery hint
 
