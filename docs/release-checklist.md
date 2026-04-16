@@ -7,6 +7,9 @@ This checklist exists to keep releases honest.
 ## Functional baseline
 
 Before a release, confirm that Surveyor can:
+- run `surveyor diff`
+- run `surveyor prioritize`
+- support `surveyor prioritise` as a CLI alias
 - run `surveyor audit local`
 - run `surveyor audit remote`
 - chain discovery into the supported TLS scanner conservatively
@@ -22,6 +25,8 @@ Before a release, confirm that Surveyor can:
 - classify results using the current conservative rule set
 - produce canonical JSON output
 - produce Markdown derived from the same canonical report model
+- compare compatible saved TLS and audit reports deterministically
+- rank current TLS and audit reports with the current prioritisation profiles
 
 ## Documentation
 
@@ -33,10 +38,13 @@ Before a release, confirm that:
 - `docs/remote-scope.md` matches the implemented remote scope model
 - `docs/architecture.md` matches the code
 - `docs/output-schema.md` matches the current JSON contract
+- `docs/baselines.md` matches the implemented baseline layer
+- `docs/diffing.md` matches the implemented diff surface
+- `docs/prioritisation.md` matches the implemented prioritisation surface
 - `docs/classification.md` matches the implemented rule set
 - `docs/references.md` exists and is still the right reference set
 - `docs/safety.md` still matches the tool's actual behaviour
-- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-remote.json`, `examples/discovery-remote.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-remote.json`, `examples/audit-remote.md`, `examples/audit-subnet.json`, `examples/audit-subnet.md` and `examples/approved-hosts.txt` reflect the current implementation
+- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-remote.json`, `examples/discovery-remote.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-remote.json`, `examples/audit-remote.md`, `examples/audit-subnet.json`, `examples/audit-subnet.md`, `examples/diff.json`, `examples/diff.md`, `examples/priorities.json`, `examples/priorities.md` and `examples/approved-hosts.txt` reflect the current implementation
 
 ## Verification
 
@@ -45,7 +53,7 @@ Before a release, confirm that:
 - `go vet ./...` passes
 - `go test ./...` passes
 - example outputs remain representative
-- deterministic tests exist for audit, discovery, config validation, TLS collection, classification and outputs
+- deterministic tests exist for audit, discovery, baseline compatibility, diffing, prioritisation, config validation, TLS collection, classification and outputs
 - CI is green across all runners
 
 If a release changes behaviour without updating tests or examples, it is not ready.

@@ -1,12 +1,12 @@
 # Diffing
 
-This document defines the planned diffing contract for `v0.6.0`.
+This document defines the current diffing contract.
 
 It builds on the baseline model in [baselines.md](baselines.md) and the current report contracts in [output-schema.md](output-schema.md).
 
 ## Goal
 
-`surveyor diff` should compare two compatible Surveyor JSON reports and answer:
+`surveyor diff` compares two compatible Surveyor JSON reports and answers:
 
 - what is new
 - what disappeared
@@ -16,7 +16,7 @@ It builds on the baseline model in [baselines.md](baselines.md) and the current 
 
 It should fail clearly on incompatible inputs rather than producing misleading output.
 
-## Planned command surface
+## Command surface
 
 Canonical command:
 
@@ -24,13 +24,7 @@ Canonical command:
 surveyor diff baseline.json current.json -o diff.md -j diff.json
 ```
 
-Optional profile support:
-
-```bash
-surveyor diff baseline.json current.json --profile migration-readiness -o diff.md -j diff.json
-```
-
-The first version should keep the interface narrow:
+The first version keeps the interface narrow:
 
 - two input files
 - one canonical JSON output
@@ -38,12 +32,12 @@ The first version should keep the interface narrow:
 
 ## Supported comparisons
 
-The first version should support:
+The first version supports:
 
 - TLS report to TLS report
 - audit report to audit report
 
-Discovery-only diffing is optional and should not block the release.
+Discovery-only diffing is still deferred.
 
 Unsupported comparisons must fail clearly.
 
@@ -55,7 +49,7 @@ Examples:
 
 ## Summary model
 
-The diff report should include a top-level summary with:
+The diff report includes a top-level summary with:
 
 - total entities in baseline
 - total entities in current
@@ -68,7 +62,7 @@ That summary should be derived from stable identity matching, not from presentat
 
 ## Change categories
 
-At minimum, the diff engine should support:
+Current change categories:
 
 - `new_endpoint`
 - `removed_endpoint`
@@ -85,11 +79,11 @@ At minimum, the diff engine should support:
 - `warnings_changed`
 - `errors_changed`
 
-The first version should prefer a smaller correct change vocabulary over an impressive but unstable one.
+The first version prefers a smaller correct change vocabulary over an impressive but unstable one.
 
 ## Change direction
 
-Each change should be tagged as one of:
+Each change is tagged as one of:
 
 - `worsened`
 - `improved`
@@ -105,7 +99,7 @@ It should stay conservative:
 
 ## Diff report shape
 
-Recommended top-level fields:
+Current top-level fields:
 
 - `generated_at`
 - `schema_version`
@@ -144,7 +138,7 @@ Do not degrade silently into partial or fuzzy comparison.
 
 ## Non-goals
 
-The first diffing release should not include:
+The first diffing release does not include:
 
 - arbitrary cross-kind comparison
 - fuzzy entity matching
