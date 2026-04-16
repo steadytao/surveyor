@@ -1,16 +1,16 @@
 # Prioritisation
 
-This document defines the planned prioritisation contract for `v0.6.0`.
+This document defines the current prioritisation contract.
 
-It builds on the current canonical report outputs and the planned diffing layer.
+It builds on the current canonical report outputs. It does not require diff input in the first release.
 
 British English is used in prose in this document. Code-facing identifiers should use American English, and the CLI should support both spellings for the command.
 
 ## Goal
 
-`surveyor prioritize` should rank what deserves human attention first.
+`surveyor prioritize` ranks what deserves human attention first.
 
-The first version should focus on practical migration work, not on becoming a policy engine.
+The first version focuses on practical migration work, not on becoming a policy engine.
 
 It should help answer:
 
@@ -19,7 +19,7 @@ It should help answer:
 - what looks like a migration blocker
 - what appears to have improved
 
-## Planned command surface
+## Command surface
 
 Canonical command:
 
@@ -42,13 +42,13 @@ surveyor prioritise current.json --profile migration-readiness -o priorities.md 
 surveyor prioritise current.json --profile change-risk -o priorities.md -j priorities.json
 ```
 
-The first version should support current TLS and audit reports.
+The first version supports current TLS and audit reports.
 
 Diff-report input can come later if it stays clean, but it should not be required to ship `v0.6.0`.
 
 ## Prioritisation profiles
 
-The first version should ship with two lightweight profiles.
+The first version ships with two lightweight profiles.
 
 ### `migration-readiness`
 
@@ -71,20 +71,20 @@ Bias towards:
 
 These profiles should shape ranking, not redefine the underlying report facts.
 
-## Prioritisation buckets
+## Current ranking sources
 
-The first version should rank items across four buckets:
+The first version ranks current-report items derived from:
 
-1. exposure and inventory changes
-2. posture regressions
-3. migration blockers
-4. improvements
+- findings
+- warnings
+- errors
+- skipped audit selections
 
-Improvements should still be reported, but they should sort below active regressions and blockers.
+It does not compare baseline and current state inside the prioritisation engine. That comparison boundary belongs to `surveyor diff`.
 
 ## Prioritisation item shape
 
-Each prioritised item should contain:
+Each prioritised item contains:
 
 - rank
 - severity
@@ -99,13 +99,13 @@ Ranking should be deterministic. Equal-priority items should not be reordered ar
 
 ## Scope of interpretation
 
-Prioritisation should operate over current report data conservatively.
+Prioritisation operates over current report data conservatively.
 
-It should:
+Current behaviour:
 
 - rank meaningful findings
 - rank degraded posture
-- rank new exposure
+- surface skipped or incomplete audit coverage
 - surface manual review items
 
 It should not:
@@ -117,12 +117,13 @@ It should not:
 
 ## Non-goals
 
-The first prioritisation release should not include:
+The first prioritisation release does not include:
 
 - policy-as-code
 - remediation workflows
 - central approval systems
 - organisation-wide aggregation
 - arbitrary external data sources
+- diff-input prioritisation
 
 This milestone is about making Surveyor outputs more operationally useful, not about building a governance platform.

@@ -1,8 +1,8 @@
 # Baselines
 
-This document defines the planned baseline model for `v0.6.0`.
+This document defines the current baseline model.
 
-It does not change the current shipped inventory and audit boundary described in:
+It sits beside the current inventory and audit boundary described in:
 
 - [remote-inventory.md](remote-inventory.md)
 - [remote-scope.md](remote-scope.md)
@@ -19,7 +19,7 @@ Surveyor can already produce canonical JSON reports for:
 - remote discovery
 - remote audit
 
-The next useful step is not another collection path. It is turning those reports into stable baseline artefacts that later commands can compare and interpret over time.
+The useful step after collection was to turn those reports into stable baseline artefacts that later commands can compare and interpret over time.
 
 ## Baseline model
 
@@ -42,22 +42,22 @@ Current reports already include:
 - `results`
 - `summary`
 
-The baseline-compatible contract should add:
+The baseline-compatible contract now includes:
 
 - `schema_version`
 - `tool_version`
 - `report_kind`
 - `scope_kind`
-- `input_kind` when relevant
 - `scope_description`
+- structured `scope` metadata when relevant
 
-That metadata should be present before diffing is attempted.
+That metadata is now present before diffing is attempted.
 
 ## Report kinds
 
 Report identity should be semantic, not command-shaped.
 
-Recommended values:
+Current values:
 
 - `report_kind = tls_scan | discovery | audit | diff | prioritization`
 
@@ -82,7 +82,7 @@ The CLI may still support both British and American spelling where that improves
 
 Scope metadata should stay distinct from report kind.
 
-Recommended values:
+Current values:
 
 - `scope_kind = explicit | local | remote`
 - `input_kind = config | targets | cidr | targets_file`
@@ -97,7 +97,7 @@ That keeps comparison semantics honest:
 
 Diffing only works if Surveyor can answer whether two entries represent the same entity.
 
-Recommended identity keys:
+Current identity keys:
 
 ### TLS reports
 
@@ -123,7 +123,7 @@ The codebase already generalised discovery and audit to `host`. The baseline mod
 
 Baseline compatibility should fail clearly on unsupported comparisons.
 
-Required checks:
+Current checks:
 
 - same `report_kind`
 - same supported `schema_version` major
@@ -132,12 +132,16 @@ Required checks:
 
 Examples:
 
-- `tls_scan` vs `tls_scan` should work
-- `audit` vs `audit` should work when the identity model is supported
-- `tls_scan` vs `audit` should fail clearly
-- `discovery` vs `audit` should fail clearly
+- `tls_scan` vs `tls_scan` works
+- `audit` vs `audit` works when the identity model is supported
+- `tls_scan` vs `audit` fails clearly
+- `discovery` vs `audit` fails clearly
 
-In the first release, `audit` local vs `audit` remote may still be rejected if the identity model is treated as incompatible. That is acceptable for the MVP as long as the failure is explicit.
+Current deliberate limit:
+
+- `audit` local vs `audit` remote is rejected as incompatible in the first release
+
+That failure is intentional. It is better to reject a weak comparison than to emit a fuzzy diff.
 
 ## Scope differences
 

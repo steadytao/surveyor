@@ -65,7 +65,7 @@ Fields:
 
 - type: report-scope object
 - optional: yes
-- meaning: structured declared scope metadata for the report, currently present for explicit TLS, discovery and audit reports
+- meaning: structured declared scope metadata for the report, currently present for explicit TLS, discovery, audit and prioritization reports
 
 ### `results`
 
@@ -703,3 +703,179 @@ Fields:
 - `skipped_endpoints`: endpoints not scanned
 - `selection_breakdown`: counts keyed by selected scanner
 - `verified_classification_breakdown`: counts keyed by verified TLS classification where a TLS scan completed
+
+## Diff report
+
+Current top-level diff report shape:
+
+```json
+{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "diff",
+  "scope_kind": "remote",
+  "scope_description": "diff of audit reports",
+  "generated_at": "2026-04-22T02:00:00Z",
+  "baseline_report_kind": "audit",
+  "current_report_kind": "audit",
+  "baseline_generated_at": "2026-04-20T02:00:00Z",
+  "current_generated_at": "2026-04-21T02:00:00Z",
+  "baseline_scope_description": "remote audit within CIDR 10.0.0.0/30 over ports 443",
+  "current_scope_description": "remote audit within CIDR 10.0.1.0/30 over ports 443",
+  "baseline_scope": {},
+  "current_scope": {},
+  "summary": {},
+  "changes": []
+}
+```
+
+Fields:
+
+- `baseline_report_kind`: semantic kind of the baseline input report
+- `current_report_kind`: semantic kind of the current input report
+- `baseline_generated_at`: baseline report generation time
+- `current_generated_at`: current report generation time
+- `baseline_scope_description`: baseline scope summary, when present
+- `current_scope_description`: current scope summary, when present
+- `baseline_scope`: structured baseline scope metadata, when present
+- `current_scope`: structured current scope metadata, when present
+- `summary`: diff summary object
+- `changes`: array of diff changes
+
+Current diff summary shape:
+
+```json
+{
+  "total_baseline_entities": 1,
+  "total_current_entities": 2,
+  "added_entities": 1,
+  "removed_entities": 0,
+  "changed_entities": 1,
+  "unchanged_entities": 0,
+  "scope_changed": true,
+  "change_breakdown": {
+    "new_endpoint": 1
+  },
+  "direction_breakdown": {
+    "informational": 1
+  }
+}
+```
+
+Fields:
+
+- `total_baseline_entities`: total comparable entities in the baseline input
+- `total_current_entities`: total comparable entities in the current input
+- `added_entities`: entities present only in the current input
+- `removed_entities`: entities present only in the baseline input
+- `changed_entities`: entities with one or more recorded changes
+- `unchanged_entities`: entities with no recorded changes
+- `scope_changed`: whether declared scope metadata differs materially
+- `change_breakdown`: counts keyed by change code
+- `direction_breakdown`: counts keyed by change direction
+
+Current diff change shape:
+
+```json
+{
+  "identity_key": "remote|example.com|443|tcp",
+  "code": "classification_changed",
+  "direction": "improved",
+  "severity": "low",
+  "summary": "The verified TLS classification changed.",
+  "baseline_value": "legacy_tls_exposure",
+  "current_value": "modern_tls_classical_identity",
+  "evidence": [],
+  "recommendation": ""
+}
+```
+
+Fields:
+
+- `identity_key`: stable comparison key for the changed entity
+- `code`: stable machine-readable change identifier
+- `direction`: one of `worsened`, `improved`, `changed` or `informational`
+- `severity`: stable machine-readable severity for the change entry
+- `summary`: short human-readable description of the change
+- `baseline_value`: baseline-side value when relevant
+- `current_value`: current-side value when relevant
+- `evidence`: supporting observed facts when relevant
+- `recommendation`: suggested follow-up action when useful
+
+## Prioritization report
+
+Current top-level prioritization report shape:
+
+```json
+{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "prioritization",
+  "scope_kind": "remote",
+  "scope_description": "remote audit from targets file examples/approved-hosts.txt over ports 443",
+  "generated_at": "2026-04-22T03:00:00Z",
+  "profile": "migration-readiness",
+  "source_report_kind": "audit",
+  "source_generated_at": "2026-04-20T01:30:00Z",
+  "scope": {},
+  "summary": {},
+  "items": []
+}
+```
+
+Fields:
+
+- `profile`: prioritization profile applied to the input report
+- `source_report_kind`: semantic kind of the current input report
+- `source_generated_at`: generation time of the current input report
+- `scope`: copied structured scope metadata when the source report carried it
+- `summary`: prioritization summary object
+- `items`: ranked prioritization items
+
+Current prioritization summary shape:
+
+```json
+{
+  "total_items": 3,
+  "severity_breakdown": {
+    "medium": 2
+  },
+  "code_breakdown": {
+    "classical-certificate-identity": 1
+  }
+}
+```
+
+Fields:
+
+- `total_items`: total ranked items in the prioritization report
+- `severity_breakdown`: counts keyed by item severity
+- `code_breakdown`: counts keyed by item code
+
+Current prioritization item shape:
+
+```json
+{
+  "rank": 1,
+  "severity": "medium",
+  "code": "classical-certificate-identity",
+  "summary": "The observed certificate identity remains classical.",
+  "target_identity": "remote|example.com|443|tcp",
+  "reason": "Classical certificate identity is a direct migration dependency.",
+  "evidence": [
+    "leaf_key_algorithm=rsa"
+  ],
+  "recommendation": "Inventory certificate replacement and related PKI dependencies as part of migration planning."
+}
+```
+
+Fields:
+
+- `rank`: stable 1-based display order after deterministic ranking
+- `severity`: stable machine-readable severity for the item
+- `code`: stable machine-readable prioritization code
+- `summary`: short human-readable statement
+- `target_identity`: stable identity key for the affected entity
+- `reason`: explicit explanation for why the item is ranked
+- `evidence`: supporting observed facts when relevant
+- `recommendation`: suggested next action when useful

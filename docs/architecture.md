@@ -19,6 +19,9 @@ Owns the thin executable wrapper.
 
 Current responsibilities:
 
+- expose `surveyor diff`
+- expose `surveyor prioritize`
+- support `surveyor prioritise` as a CLI alias
 - expose `surveyor audit local`
 - expose `surveyor audit remote`
 - preserve `surveyor audit subnet` as a CIDR-only compatibility alias from `v0.4.x`
@@ -28,6 +31,8 @@ Current responsibilities:
 - expose `surveyor scan tls`
 - run the audit flow end to end
 - run the discovery flow end to end
+- run the diff flow end to end
+- run the prioritisation flow end to end
 - accept either config-driven targets or explicit `--targets` input
 - validate remote scope and dry-run plans
 - run the TLS inventory flow end to end
@@ -67,6 +72,32 @@ Current responsibilities:
 - define report summaries and top-level reports
 
 `internal/core` should not become a dumping ground for scanner logic or renderer-specific behaviour.
+
+### `internal/baseline`
+
+Owns baseline parsing and comparison preconditions.
+
+Current responsibilities:
+
+- parse canonical Surveyor report headers from saved JSON
+- validate required baseline-compatible metadata
+- enforce supported comparison boundaries
+- generate stable identity keys for TLS, discovery and audit entities
+
+This package should stay comparison-focused. It should validate whether reports can be compared before the diff engine starts interpreting them.
+
+### `internal/diff`
+
+Owns canonical report comparison.
+
+Current responsibilities:
+
+- compare compatible saved reports
+- assemble canonical diff reports
+- categorise supported change types
+- keep change ordering deterministic
+
+This package should stay narrow. It should explain supported change, not become a policy or prioritisation engine.
 
 ### `internal/discovery`
 
@@ -117,11 +148,24 @@ Owns report assembly and rendering.
 Current responsibilities:
 
 - build top-level reports from target results, discovery results and audit results
+- build top-level diff and prioritisation reports for output tests and examples
 - derive summary counts
 - render canonical JSON
 - render Markdown from the same canonical model
 
 JSON is the source of truth. Markdown is derived output.
+
+### `internal/prioritize`
+
+Owns current-report ranking.
+
+Current responsibilities:
+
+- rank current TLS and audit reports
+- apply the `migration-readiness` and `change-risk` profiles
+- emit deterministic prioritisation items and summaries
+
+This package should stay a lightweight decision-support layer. It should rank current evidence, not pretend to be a full policy engine.
 
 ## Data flow
 
@@ -207,6 +251,33 @@ Remote audit reuses the same selection and TLS scanner handoff path as local
 audit. The difference is the discovery source and scope contract, not a second
 TLS implementation.
 
+The current diff flow is:
+
+```text
+saved canonical JSON reports
+  -> cmd/surveyor
+  -> internal/baseline
+  -> internal/diff
+  -> diff.Report
+  -> JSON / Markdown rendering
+```
+
+That boundary matters. Compatibility validation belongs in `internal/baseline`;
+change interpretation belongs in `internal/diff`.
+
+The current prioritisation flow is:
+
+```text
+saved canonical JSON report
+  -> cmd/surveyor
+  -> internal/prioritize
+  -> prioritize.Report
+  -> JSON / Markdown rendering
+```
+
+The first prioritisation release operates on current reports, not diff reports.
+That keeps ranking logic narrower and easier to defend.
+
 ## What must remain true
 
 The following invariants must remain true as the project grows:
@@ -227,8 +298,8 @@ The current architecture still does not include:
 - STARTTLS or multi-protocol probing
 - remote scope inputs beyond the current explicit CIDR path and simple file-backed host path
 - organisation-wide or cloud inventory discovery
-- baseline-compatible report metadata
-- diffing and prioritisation over saved reports
+- discovery-only diffing
+- diff-input prioritisation
 - policy engines
 - stateful storage
 
@@ -259,24 +330,22 @@ The current remote model is:
 
 That widens the remote scope model without weakening the existing discovery, hinting, selection and verified-scanning boundaries.
 
-## Next planned layer
+## Current analysis layer
 
-The next planned layer is baselines, diffing and prioritisation over the existing canonical JSON reports.
-
-That layer should add:
+The current analysis layer sits on top of the canonical JSON reports:
 
 - baseline-compatible metadata on current report shapes
-- compatibility validation for supported report comparisons
+- compatibility validation for supported comparisons
 - `surveyor diff`
 - `surveyor prioritize`
 - `surveyor prioritise` as a CLI alias
 
-It should not introduce:
+Current limits remain deliberate:
 
-- a database
-- a dashboard
-- another deep scanner in the same milestone
-- a policy engine
+- diffing is currently supported for `tls_scan` and `audit` only
+- prioritisation is currently supported for current `tls_scan` and `audit` reports only
+- discovery-only diffing is still deferred
+- diff-input prioritisation is still deferred
 
 See:
 

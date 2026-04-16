@@ -4,6 +4,17 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.6.0
+
+### Added
+- `surveyor diff` now compares compatible saved `tls_scan` and `audit` reports and emits canonical JSON plus derived Markdown output
+- `surveyor prioritize` now ranks current `tls_scan` and `audit` reports with the `migration-readiness` and `change-risk` profiles, and `surveyor prioritise` is supported as a CLI alias
+- baseline-compatible report metadata, compatibility validation, stable identity keys, prioritisation examples and diff examples are now part of the shipped repository surface
+
+### Changed
+- README, architecture, schema, baseline, diffing, prioritisation and release-checklist docs now describe the implemented analysis layer rather than the earlier milestone design draft
+- the public docs no longer imply unsupported behaviour such as `surveyor diff --profile`; the documented `v0.6.0` surface now matches the actual CLI and report contracts
+
 ## v0.5.0
 
 ### Added

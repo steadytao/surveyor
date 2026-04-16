@@ -22,6 +22,9 @@ The current repository already includes:
 - local and remote audit orchestration for supported TLS-like endpoints
 - local endpoint discovery
 - scoped remote discovery across CIDR and file-backed host scope
+- baseline-compatible report metadata on current JSON reports
+- saved-report diffing for compatible TLS and audit reports
+- current-report prioritisation for compatible TLS and audit reports
 - conservative protocol hints for discovery results
 - remote scope parsing and validation
 - target parsing and validation
@@ -66,6 +69,8 @@ That means Surveyor currently aims to:
 - enumerate local listening or bound endpoints without active probing
 - enumerate remote TCP reachability within explicitly declared CIDR or file-backed host scope and explicit port set
 - attach conservative protocol hints to discovery results
+- compare compatible saved TLS and audit reports deterministically
+- rank current TLS and audit reports for migration-readiness or change-risk
 - connect to explicit TLS targets
 - collect handshake and certificate facts
 - classify migration posture conservatively
@@ -99,6 +104,14 @@ The current code and docs are organised around JSON as the canonical result cont
 ## CLI
 
 The current CLI supports local audit, remote audit, local discovery, remote discovery and explicit-target TLS inventory.
+
+Analysis:
+
+```bash
+surveyor diff baseline.json current.json -o diff.md -j diff.json
+surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
+surveyor prioritise current.json --profile change-risk -o priorities.md -j priorities.json
+```
 
 Audit:
 
@@ -134,6 +147,9 @@ Rules:
 - `audit remote` only walks explicitly declared remote scope and explicit ports, then hands supported TLS-like remote endpoints into the current TLS scanner
 - `discover local` is observational only, it does not perform active probing or verified protocol scans
 - `discover remote` performs bounded remote TCP reachability probing within explicitly declared scope, and it does not perform verified protocol scans
+- `diff` currently supports `tls_scan` to `tls_scan` and `audit` to `audit` comparisons only
+- `prioritize` currently supports current `tls_scan` and `audit` reports only
+- `prioritise` is a CLI alias for `prioritize`
 - use exactly one of `--config` or `--targets`
 - `--targets` requires explicit `host:port` entries
 - the canonical remote commands require exactly one of `--cidr` or `--targets-file`, plus `--ports`
@@ -156,6 +172,8 @@ go build -o surveyor ./cmd/surveyor
 ./surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
 ./surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
 ./surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
+./surveyor diff baseline.json current.json -o diff.md -j diff.json
+./surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 
@@ -165,6 +183,9 @@ For the current implementation boundaries, see:
 - [docs/architecture.md](docs/architecture.md)
 - [docs/discovery.md](docs/discovery.md)
 - [docs/output-schema.md](docs/output-schema.md)
+- [docs/baselines.md](docs/baselines.md)
+- [docs/diffing.md](docs/diffing.md)
+- [docs/prioritisation.md](docs/prioritisation.md)
 - [docs/classification.md](docs/classification.md)
 - [docs/references.md](docs/references.md)
 - [docs/safety.md](docs/safety.md)
@@ -188,23 +209,27 @@ See:
 - [docs/remote-inventory.md](docs/remote-inventory.md) for the current remote inventory boundary
 - [docs/remote-scope.md](docs/remote-scope.md) for the current remote scope model
 
-## Next layer
+## Current analysis layer
 
-The next planned layer is baselines, diffing and prioritisation over the canonical Surveyor JSON reports.
+The current repository now includes a baseline, diffing and prioritisation layer over canonical Surveyor JSON reports.
 
-That layer should add:
+Current boundary:
 
-- baseline-compatible report metadata
-- `surveyor diff baseline.json current.json`
-- `surveyor prioritize current.json`
-- `surveyor prioritise current.json` as a CLI alias
-- lightweight prioritisation profiles for migration-readiness and change-risk
+- current reports carry baseline-compatible metadata
+- `surveyor diff baseline.json current.json` is implemented
+- `surveyor prioritize current.json` is implemented
+- `surveyor prioritise current.json` is supported as a CLI alias
+- prioritisation profiles currently include `migration-readiness` and `change-risk`
+- diffing currently supports only compatible `tls_scan` and `audit` input
+- prioritisation currently supports current `tls_scan` and `audit` input
 
-It should not add:
+It still does not include:
 
 - a database
 - a dashboard
 - policy-as-code complexity
+- diff-input prioritisation
+- discovery-only diffing
 - another deep scanner in the same milestone
 
 See:
@@ -217,7 +242,7 @@ See:
 
 Surveyor is written in Go.
 
-The repository currently contains a working `cmd/surveyor` entrypoint for the local and remote audit and discovery slices, plus the explicit-target TLS inventory path and the internal packages and tests behind them.
+The repository currently contains a working `cmd/surveyor` entrypoint for local and remote audit and discovery, explicit-target TLS inventory, saved-report diffing and current-report prioritisation, plus the internal packages and tests behind them.
 
 For now, the most useful verification command is:
 
@@ -244,6 +269,8 @@ Then run:
 ./surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
 ./surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
 ./surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
+./surveyor diff baseline.json current.json -o diff.md -j diff.json
+./surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 
