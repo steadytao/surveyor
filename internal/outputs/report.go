@@ -9,6 +9,12 @@ import (
 
 // BuildReport assembles the canonical TLS inventory report and its summary.
 func BuildReport(results []core.TargetResult, generatedAt time.Time) core.Report {
+	return BuildReportWithMetadata(results, generatedAt, nil)
+}
+
+// BuildReportWithMetadata assembles the canonical TLS inventory report,
+// including any declared report scope metadata.
+func BuildReportWithMetadata(results []core.TargetResult, generatedAt time.Time, scope *core.ReportScope) core.Report {
 	// Copy the slice so report assembly does not retain caller-owned backing
 	// storage. Rendering should be a pure step over stable result data.
 	reportResults := make([]core.TargetResult, 0, len(results))
@@ -17,9 +23,11 @@ func BuildReport(results []core.TargetResult, generatedAt time.Time) core.Report
 	}
 
 	report := core.Report{
-		GeneratedAt: generatedAt.UTC(),
-		Results:     reportResults,
-		Summary:     buildSummary(reportResults),
+		ReportMetadata: buildTLSReportMetadata(scope),
+		GeneratedAt:    generatedAt.UTC(),
+		Scope:          cloneReportScope(scope),
+		Results:        reportResults,
+		Summary:        buildSummary(reportResults),
 	}
 
 	return report

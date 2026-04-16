@@ -62,10 +62,11 @@ func TestDiscoveryReportJSONShape(t *testing.T) {
 	t.Parallel()
 
 	report := DiscoveryReport{
-		GeneratedAt: time.Date(2026, time.April, 15, 1, 45, 0, 0, time.UTC),
+		ReportMetadata: NewReportMetadata(ReportKindDiscovery, ReportScopeKindRemote, "remote discovery within CIDR 10.0.0.0/30 over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 15, 1, 45, 0, 0, time.UTC),
 		Scope: &ReportScope{
-			ScopeKind: EndpointScopeKindRemote,
-			InputKind: ReportScopeInputKindCIDR,
+			ScopeKind: ReportScopeKindRemote,
+			InputKind: ReportInputKindCIDR,
 			CIDR:      "10.0.0.0/30",
 			Ports:     []int{443},
 		},
@@ -91,6 +92,11 @@ func TestDiscoveryReportJSONShape(t *testing.T) {
 
 	jsonText := string(data)
 	wantSubstrings := []string{
+		`"schema_version":"1.0"`,
+		`"tool_version":"dev"`,
+		`"report_kind":"discovery"`,
+		`"scope_kind":"remote"`,
+		`"scope_description":"remote discovery within CIDR 10.0.0.0/30 over ports 443"`,
 		`"generated_at":"2026-04-15T01:45:00Z"`,
 		`"scope":{"scope_kind":"remote","input_kind":"cidr","cidr":"10.0.0.0/30","ports":[443]}`,
 		`"results":[`,

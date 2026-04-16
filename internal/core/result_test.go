@@ -132,7 +132,12 @@ func TestReportJSONShape(t *testing.T) {
 	t.Parallel()
 
 	report := Report{
-		GeneratedAt: time.Date(2026, time.April, 13, 12, 30, 0, 0, time.UTC),
+		ReportMetadata: NewReportMetadata(ReportKindTLSScan, ReportScopeKindExplicit, "explicit TLS targets"),
+		GeneratedAt:    time.Date(2026, time.April, 13, 12, 30, 0, 0, time.UTC),
+		Scope: &ReportScope{
+			ScopeKind: ReportScopeKindExplicit,
+			InputKind: ReportInputKindConfig,
+		},
 		Results: []TargetResult{
 			{
 				Host:           "example.com",
@@ -160,7 +165,13 @@ func TestReportJSONShape(t *testing.T) {
 	jsonText := string(data)
 
 	wantSubstrings := []string{
+		`"schema_version":"1.0"`,
+		`"tool_version":"dev"`,
+		`"report_kind":"tls_scan"`,
+		`"scope_kind":"explicit"`,
+		`"scope_description":"explicit TLS targets"`,
 		`"generated_at":"2026-04-13T12:30:00Z"`,
+		`"scope":{"scope_kind":"explicit","input_kind":"config"}`,
 		`"results":[`,
 		`"summary":{"total_targets":1,"reachable_targets":1,"unreachable_targets":0,"classification_breakdown":{"classical_only":1}}`,
 	}

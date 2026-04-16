@@ -13,7 +13,16 @@ Current top-level report shape:
 
 ```json
 {
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "tls_scan",
+  "scope_kind": "explicit",
+  "scope_description": "explicit TLS targets from config",
   "generated_at": "2026-04-14T01:45:00Z",
+  "scope": {
+    "scope_kind": "explicit",
+    "input_kind": "config"
+  },
   "results": [],
   "summary": {}
 }
@@ -21,10 +30,42 @@ Current top-level report shape:
 
 Fields:
 
+### `schema_version`
+
+- type: string
+- meaning: current baseline-compatible schema version for report comparison
+
+### `tool_version`
+
+- type: string
+- meaning: emitting Surveyor build version, currently `dev` for ordinary builds and tests
+
+### `report_kind`
+
+- type: string
+- meaning: semantic top-level report kind, currently `tls_scan`, `discovery`, `audit`, `diff` or `prioritization`
+
+### `scope_kind`
+
+- type: string
+- meaning: high-level scope the report covers, currently `explicit`, `local` or `remote`
+
+### `scope_description`
+
+- type: string
+- optional: yes
+- meaning: human-readable summary of the declared scope or target set represented by the report
+
 ### `generated_at`
 
 - type: RFC3339 UTC timestamp
 - meaning: when the report object was assembled
+
+### `scope`
+
+- type: report-scope object
+- optional: yes
+- meaning: structured declared scope metadata for the report, currently present for explicit TLS, discovery and audit reports
 
 ### `results`
 
@@ -252,6 +293,11 @@ Current discovery report shape:
 
 ```json
 {
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "discovery",
+  "scope_kind": "remote",
+  "scope_description": "remote discovery from targets file examples/approved-hosts.txt over ports 443,8443",
   "generated_at": "2026-04-15T01:45:00Z",
   "scope": {
     "scope_kind": "remote",
@@ -271,6 +317,32 @@ Current discovery report shape:
 ```
 
 Fields:
+
+### `schema_version`
+
+- type: string
+- meaning: current baseline-compatible schema version for report comparison
+
+### `tool_version`
+
+- type: string
+- meaning: emitting Surveyor build version, currently `dev` for ordinary builds and tests
+
+### `report_kind`
+
+- type: string
+- meaning: semantic top-level report kind, here `discovery`
+
+### `scope_kind`
+
+- type: string
+- meaning: high-level scope the report covers, here `local` or `remote`
+
+### `scope_description`
+
+- type: string
+- optional: yes
+- meaning: human-readable summary of the discovery scope represented by the report
 
 ### `generated_at`
 
@@ -304,17 +376,17 @@ Current report-scope shape:
 
 ```json
 {
-  "scope_kind": "remote",
-  "input_kind": "targets_file",
-  "targets_file": "examples/approved-hosts.txt",
-  "ports": [443, 8443]
+  "scope_kind": "explicit",
+  "input_kind": "config"
 }
 ```
 
 Fields:
 
-- `scope_kind`: whether the report covers `local` or `remote` scope
-- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr` or `targets_file`
+- `scope_kind`: whether the report covers `explicit`, `local` or `remote` scope
+- `input_kind`: declared input kind when relevant
+  - explicit TLS reports currently use `config` or `targets`
+  - remote discovery and audit currently use `cidr` or `targets_file`
 - `cidr`: declared remote CIDR when the report covers remote CIDR scope
 - `targets_file`: declared remote targets-file path when the report covers file-backed remote scope
 - `ports`: declared remote port set when the report covers remote scope
@@ -477,6 +549,11 @@ Current top-level audit report shape:
 
 ```json
 {
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "audit",
+  "scope_kind": "remote",
+  "scope_description": "remote audit from targets file examples/approved-hosts.txt over ports 443,8443",
   "generated_at": "2026-04-16T02:00:00Z",
   "scope": {
     "scope_kind": "remote",
@@ -496,6 +573,32 @@ Current top-level audit report shape:
 ```
 
 Fields:
+
+### `schema_version`
+
+- type: string
+- meaning: current baseline-compatible schema version for report comparison
+
+### `tool_version`
+
+- type: string
+- meaning: emitting Surveyor build version, currently `dev` for ordinary builds and tests
+
+### `report_kind`
+
+- type: string
+- meaning: semantic top-level report kind, here `audit`
+
+### `scope_kind`
+
+- type: string
+- meaning: high-level scope the report covers, here `local` or `remote`
+
+### `scope_description`
+
+- type: string
+- optional: yes
+- meaning: human-readable summary of the audit scope represented by the report
 
 ### `generated_at`
 

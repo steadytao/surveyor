@@ -23,31 +23,13 @@ func BuildDiscoveryReportWithMetadata(results []core.DiscoveredEndpoint, generat
 	}
 
 	return core.DiscoveryReport{
-		GeneratedAt: generatedAt.UTC(),
-		Scope:       cloneReportScope(scope),
-		Execution:   cloneReportExecution(execution),
-		Results:     reportResults,
-		Summary:     buildDiscoverySummary(reportResults),
+		ReportMetadata: buildDiscoveryReportMetadata(scope),
+		GeneratedAt:    generatedAt.UTC(),
+		Scope:          cloneReportScope(scope),
+		Execution:      cloneReportExecution(execution),
+		Results:        reportResults,
+		Summary:        buildDiscoverySummary(reportResults),
 	}
-}
-
-func cloneReportScope(scope *core.ReportScope) *core.ReportScope {
-	if scope == nil {
-		return nil
-	}
-
-	clone := *scope
-	clone.Ports = append([]int(nil), scope.Ports...)
-	return &clone
-}
-
-func cloneReportExecution(execution *core.ReportExecution) *core.ReportExecution {
-	if execution == nil {
-		return nil
-	}
-
-	clone := *execution
-	return &clone
 }
 
 func buildDiscoverySummary(results []core.DiscoveredEndpoint) core.DiscoverySummary {

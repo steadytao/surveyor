@@ -66,7 +66,9 @@ type Summary struct {
 
 // Report is the top-level canonical TLS inventory report.
 type Report struct {
+	ReportMetadata
 	GeneratedAt time.Time      `json:"generated_at"`
+	Scope       *ReportScope   `json:"scope,omitempty"`
 	Results     []TargetResult `json:"results"`
 	Summary     Summary        `json:"summary"`
 }

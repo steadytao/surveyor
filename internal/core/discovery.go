@@ -18,22 +18,13 @@ type DiscoveryHint struct {
 	Evidence   []string `json:"evidence,omitempty"`
 }
 
-// ReportScopeInputKind records how a remote report's declared scope was
-// supplied.
-type ReportScopeInputKind string
-
-const (
-	ReportScopeInputKindCIDR        ReportScopeInputKind = "cidr"
-	ReportScopeInputKindTargetsFile ReportScopeInputKind = "targets_file"
-)
-
 // ReportScope records the declared scope a discovery or audit report covers.
 type ReportScope struct {
-	ScopeKind   EndpointScopeKind    `json:"scope_kind"`
-	InputKind   ReportScopeInputKind `json:"input_kind,omitempty"`
-	CIDR        string               `json:"cidr,omitempty"`
-	TargetsFile string               `json:"targets_file,omitempty"`
-	Ports       []int                `json:"ports,omitempty"`
+	ScopeKind   ReportScopeKind `json:"scope_kind"`
+	InputKind   ReportInputKind `json:"input_kind,omitempty"`
+	CIDR        string          `json:"cidr,omitempty"`
+	TargetsFile string          `json:"targets_file,omitempty"`
+	Ports       []int           `json:"ports,omitempty"`
 }
 
 // ReportExecution records the execution settings that materially shaped a
@@ -71,6 +62,7 @@ type DiscoverySummary struct {
 
 // DiscoveryReport is the top-level canonical discovery report.
 type DiscoveryReport struct {
+	ReportMetadata
 	GeneratedAt time.Time            `json:"generated_at"`
 	Scope       *ReportScope         `json:"scope,omitempty"`
 	Execution   *ReportExecution     `json:"execution,omitempty"`
