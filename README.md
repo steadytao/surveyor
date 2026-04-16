@@ -188,6 +188,30 @@ See:
 - [docs/remote-inventory.md](docs/remote-inventory.md) for the current remote inventory boundary
 - [docs/remote-scope.md](docs/remote-scope.md) for the current remote scope model
 
+## Next layer
+
+The next planned layer is baselines, diffing and prioritisation over the canonical Surveyor JSON reports.
+
+That layer should add:
+
+- baseline-compatible report metadata
+- `surveyor diff baseline.json current.json`
+- `surveyor prioritise current.json`
+- lightweight prioritisation profiles for migration-readiness and change-risk
+
+It should not add:
+
+- a database
+- a dashboard
+- policy-as-code complexity
+- another deep scanner in the same milestone
+
+See:
+
+- [docs/baselines.md](docs/baselines.md)
+- [docs/diffing.md](docs/diffing.md)
+- [docs/prioritisation.md](docs/prioritisation.md)
+
 ## Development
 
 Surveyor is written in Go.
