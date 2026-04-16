@@ -1,0 +1,15 @@
+version: 1
+entries:
+  - host: api.example.com
+    ports: [443, 8443]
+    name: Payments API
+    owner: payments
+    environment: prod
+    tags: [critical, external]
+    notes: Internet-facing service
+  - address: 10.0.0.10
+    ports: [8443]
+    name: Admin Console
+    owner: platform
+    environment: prod
+    tags: [internal]

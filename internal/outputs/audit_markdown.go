@@ -32,6 +32,7 @@ func RenderAuditMarkdown(report core.AuditReport) string {
 		if report.Scope.TargetsFile != "" {
 			builder.WriteString(fmt.Sprintf("- Targets file: %s\n", report.Scope.TargetsFile))
 		}
+		renderInventoryFileScope(&builder, report.Scope)
 		if len(report.Scope.Ports) > 0 {
 			builder.WriteString(fmt.Sprintf("- Ports: %s\n", renderPortsList(report.Scope.Ports)))
 		}
@@ -104,6 +105,7 @@ func RenderAuditMarkdown(report core.AuditReport) string {
 		if result.DiscoveredEndpoint.Executable != "" {
 			builder.WriteString(fmt.Sprintf("- Executable: %s\n", result.DiscoveredEndpoint.Executable))
 		}
+		renderInventoryAnnotation(&builder, result.DiscoveredEndpoint.Inventory)
 
 		if len(result.DiscoveredEndpoint.Hints) > 0 {
 			builder.WriteString("\n#### Hints\n\n")
