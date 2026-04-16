@@ -78,6 +78,9 @@ func TestRunHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "surveyor diff baseline.json current.json") {
 		t.Fatalf("stdout = %q, want diff command in top-level help", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "surveyor prioritize current.json") {
+		t.Fatalf("stdout = %q, want prioritize command in top-level help", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "discover remote") {
 		t.Fatalf("stdout = %q, want canonical remote discovery command in top-level help", stdout.String())
 	}
@@ -397,6 +400,242 @@ func TestRunDiffRejectsIncompatibleReports(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "report kind mismatch") {
 		t.Fatalf("stderr = %q, want compatibility failure", stderr.String())
+	}
+}
+
+func TestRunPrioritizeHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"prioritize", "--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "surveyor prioritize current.json") {
+		t.Fatalf("stderr = %q, want prioritize help text", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "surveyor prioritise current.json") {
+		t.Fatalf("stderr = %q, want prioritise alias in help text", stderr.String())
+	}
+}
+
+func TestRunPrioritizeRejectsMissingInput(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"prioritize"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "prioritize requires exactly one input file") {
+		t.Fatalf("stderr = %q, want prioritize positional validation", stderr.String())
+	}
+}
+
+func TestRunPrioritizeWritesMarkdownToStdout(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	currentPath := filepath.Join(tempDir, "current.json")
+
+	writeTempAuditReport(t, currentPath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit within CIDR 10.0.0.0/30 over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindRemote,
+			InputKind: core.ReportInputKindCIDR,
+			CIDR:      "10.0.0.0/30",
+			Ports:     []int{443},
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host:           "example.com",
+					Port:           443,
+					Reachable:      true,
+					ScannedAt:      time.Date(2026, time.April, 21, 1, 20, 0, 0, time.UTC),
+					Classification: "modern_tls_classical_identity",
+					Findings: []core.Finding{
+						{
+							Code:           "classical-certificate-identity",
+							Severity:       core.SeverityMedium,
+							Summary:        "The observed certificate identity remains classical.",
+							Evidence:       []string{"leaf_key_algorithm=rsa"},
+							Recommendation: "Replace certificate identity.",
+						},
+					},
+					Warnings: []string{"certificate metadata incomplete"},
+				},
+			},
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"prioritize", currentPath, "--profile", "migration-readiness"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Prioritisation Report") {
+		t.Fatalf("stdout = %q, want prioritisation markdown output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Profile: migration-readiness") || !strings.Contains(stdout.String(), "classical-certificate-identity") {
+		t.Fatalf("stdout = %q, want rendered prioritisation details", stdout.String())
+	}
+}
+
+func TestRunPrioritizeSupportsTrailingFlagsAfterInput(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	currentPath := filepath.Join(tempDir, "current.json")
+	markdownPath := filepath.Join(tempDir, "priorities.md")
+	jsonPath := filepath.Join(tempDir, "priorities.json")
+
+	writeTempTLSReport(t, currentPath, core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets from config"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 1, 30, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+		Results: []core.TargetResult{
+			{
+				Host:           "example.com",
+				Port:           443,
+				ScannedAt:      time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
+				Reachable:      false,
+				Classification: "unreachable",
+				Findings: []core.Finding{
+					{
+						Code:     "target-unreachable",
+						Severity: core.SeverityMedium,
+						Summary:  "The target could not be reached with a TLS connection.",
+						Evidence: []string{"dial timeout"},
+					},
+				},
+				Errors: []string{"dial timeout"},
+			},
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"prioritize", currentPath, "--profile", "change-risk", "-o", markdownPath, "-j", jsonPath}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty when file outputs are requested", stdout.String())
+	}
+
+	markdownData, err := os.ReadFile(markdownPath)
+	if err != nil {
+		t.Fatalf("ReadFile(markdown) error = %v", err)
+	}
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile(json) error = %v", err)
+	}
+
+	if !strings.Contains(string(markdownData), "# Surveyor Prioritisation Report") {
+		t.Fatalf("markdown output missing prioritisation heading\n%s", string(markdownData))
+	}
+	if !strings.Contains(string(jsonData), "\"report_kind\": \"prioritization\"") || !strings.Contains(string(jsonData), "\"profile\": \"change-risk\"") {
+		t.Fatalf("json output missing prioritization contract\n%s", string(jsonData))
+	}
+}
+
+func TestRunPrioritizeRejectsUnsupportedReportKind(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	currentPath := filepath.Join(tempDir, "current.json")
+
+	writeTempDiscoveryReport(t, currentPath, core.DiscoveryReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindDiscovery, core.ReportScopeKindLocal, "local discovery"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 1, 30, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindLocal,
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"prioritize", currentPath}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "report_kind \"discovery\" is not supported for prioritization") {
+		t.Fatalf("stderr = %q, want unsupported report kind failure", stderr.String())
+	}
+}
+
+func TestRunPrioritiseAliasWritesMarkdownToStdout(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	currentPath := filepath.Join(tempDir, "current.json")
+
+	writeTempTLSReport(t, currentPath, core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets from config"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 1, 30, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+		Results: []core.TargetResult{
+			{
+				Host:           "down.example.com",
+				Port:           443,
+				ScannedAt:      time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
+				Reachable:      false,
+				Classification: "unreachable",
+				Findings: []core.Finding{
+					{
+						Code:     "target-unreachable",
+						Severity: core.SeverityMedium,
+						Summary:  "The target could not be reached with a TLS connection.",
+					},
+				},
+			},
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"prioritise", currentPath}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Prioritisation Report") {
+		t.Fatalf("stdout = %q, want prioritisation markdown output", stdout.String())
 	}
 }
 
@@ -1752,6 +1991,18 @@ func writeTempAuditReport(t *testing.T, path string, report core.AuditReport) {
 	data, err := outputs.MarshalAuditJSON(report)
 	if err != nil {
 		t.Fatalf("MarshalAuditJSON() error = %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+}
+
+func writeTempDiscoveryReport(t *testing.T, path string, report core.DiscoveryReport) {
+	t.Helper()
+
+	data, err := outputs.MarshalDiscoveryJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalDiscoveryJSON() error = %v", err)
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)

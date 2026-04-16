@@ -20,6 +20,7 @@ import (
 	diffreport "github.com/steadytao/surveyor/internal/diff"
 	"github.com/steadytao/surveyor/internal/discovery"
 	"github.com/steadytao/surveyor/internal/outputs"
+	prioritizereport "github.com/steadytao/surveyor/internal/prioritize"
 	"github.com/steadytao/surveyor/internal/scanners/tlsinventory"
 )
 
@@ -74,6 +75,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time
 		return runDiscover(args[1:], stdout, stderr, now)
 	case "diff":
 		return runDiff(args[1:], stdout, stderr, now)
+	case "prioritize", "prioritise":
+		return runPrioritize(args[1:], stdout, stderr, now, args[0])
 	case "scan":
 		return runScan(args[1:], stdout, stderr, now)
 	case "-h", "--help", "help":
@@ -135,6 +138,63 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer, now func() time.
 	}
 
 	return writeDiffOutputs(report, stdout, stderr, *markdownPath, *jsonPath)
+}
+
+func runPrioritize(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time, commandName string) int {
+	normalizedArgs, err := normalizePrioritizeArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		printPrioritizeUsage(stderr)
+		return 2
+	}
+
+	fs := flag.NewFlagSet("surveyor "+commandName, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		printPrioritizeUsage(stderr)
+	}
+
+	profileText := fs.String("profile", "", "Prioritization profile: migration-readiness or change-risk")
+
+	markdownPath := fs.String("output", "", "Write Markdown output to this path")
+	fs.StringVar(markdownPath, "o", "", "Write Markdown output to this path")
+
+	jsonPath := fs.String("json", "", "Write JSON output to this path")
+	fs.StringVar(jsonPath, "j", "", "Write JSON output to this path")
+
+	if err := fs.Parse(normalizedArgs); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+
+		return 2
+	}
+
+	if fs.NArg() != 1 {
+		fmt.Fprintf(stderr, "%s requires exactly one input file: current.json\n\n", commandName)
+		printPrioritizeUsage(stderr)
+		return 2
+	}
+
+	profile, err := prioritizereport.ParseProfile(*profileText)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		printPrioritizeUsage(stderr)
+		return 2
+	}
+
+	prioritizeNow := now
+	if prioritizeNow == nil {
+		prioritizeNow = time.Now
+	}
+
+	report, err := buildPrioritizationReportFromFile(fs.Arg(0), profile, prioritizeNow().UTC())
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: %v\n", commandName, err)
+		return 1
+	}
+
+	return writePrioritizationOutputs(report, stdout, stderr, *markdownPath, *jsonPath)
 }
 
 func runAudit(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
@@ -668,11 +728,11 @@ func writeAuditOutputs(commandName string, results []core.AuditResult, generated
 }
 
 func buildDiffReportFromFiles(baselinePath string, currentPath string, generatedAt time.Time) (diffreport.Report, error) {
-	baselineHeader, baselineData, err := readDiffInputFile(baselinePath)
+	baselineHeader, baselineData, err := readReportInputFile(baselinePath)
 	if err != nil {
 		return diffreport.Report{}, err
 	}
-	currentHeader, currentData, err := readDiffInputFile(currentPath)
+	currentHeader, currentData, err := readReportInputFile(currentPath)
 	if err != nil {
 		return diffreport.Report{}, err
 	}
@@ -709,7 +769,33 @@ func buildDiffReportFromFiles(baselinePath string, currentPath string, generated
 	}
 }
 
-func readDiffInputFile(path string) (baseline.ReportHeader, []byte, error) {
+func buildPrioritizationReportFromFile(path string, profile prioritizereport.Profile, generatedAt time.Time) (prioritizereport.Report, error) {
+	header, data, err := readReportInputFile(path)
+	if err != nil {
+		return prioritizereport.Report{}, err
+	}
+
+	switch header.ReportKind {
+	case core.ReportKindTLSScan:
+		report, err := decodeTLSReport(path, data)
+		if err != nil {
+			return prioritizereport.Report{}, err
+		}
+
+		return prioritizereport.BuildTLSReport(report, profile, generatedAt)
+	case core.ReportKindAudit:
+		report, err := decodeAuditReport(path, data)
+		if err != nil {
+			return prioritizereport.Report{}, err
+		}
+
+		return prioritizereport.BuildAuditReport(report, profile, generatedAt)
+	default:
+		return prioritizereport.Report{}, fmt.Errorf("report_kind %q is not supported for prioritization; prioritize currently supports tls_scan and audit input only", header.ReportKind)
+	}
+}
+
+func readReportInputFile(path string) (baseline.ReportHeader, []byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return baseline.ReportHeader{}, nil, fmt.Errorf("read report %q: %w", path, err)
@@ -767,6 +853,39 @@ func writeDiffOutputs(report diffreport.Report, stdout io.Writer, stderr io.Writ
 	if markdownPath == "" && jsonPath == "" {
 		if _, err := io.WriteString(stdout, markdown); err != nil {
 			fmt.Fprintf(stderr, "diff: write stdout: %v\n", err)
+			return 1
+		}
+	}
+
+	return 0
+}
+
+func writePrioritizationOutputs(report prioritizereport.Report, stdout io.Writer, stderr io.Writer, markdownPath string, jsonPath string) int {
+	if jsonPath != "" {
+		jsonData, err := outputs.MarshalPrioritizationJSON(report)
+		if err != nil {
+			fmt.Fprintf(stderr, "build prioritization JSON output: %v\n", err)
+			return 1
+		}
+
+		if err := writeOutputFile(jsonPath, jsonData); err != nil {
+			fmt.Fprintf(stderr, "write prioritization JSON output %q: %v\n", jsonPath, err)
+			return 1
+		}
+	}
+
+	markdown := outputs.RenderPrioritizationMarkdown(report)
+
+	if markdownPath != "" {
+		if err := writeOutputFile(markdownPath, []byte(markdown)); err != nil {
+			fmt.Fprintf(stderr, "write prioritization Markdown output %q: %v\n", markdownPath, err)
+			return 1
+		}
+	}
+
+	if markdownPath == "" && jsonPath == "" {
+		if _, err := io.WriteString(stdout, markdown); err != nil {
+			fmt.Fprintf(stderr, "prioritize: write stdout: %v\n", err)
 			return 1
 		}
 	}
@@ -870,11 +989,41 @@ func normalizeDiffArgs(args []string) ([]string, error) {
 	return append(flags, positionals...), nil
 }
 
+func normalizePrioritizeArgs(args []string) ([]string, error) {
+	flags := make([]string, 0, len(args))
+	positionals := make([]string, 0, len(args))
+
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		switch {
+		case arg == "-h" || arg == "--help":
+			flags = append(flags, arg)
+		case arg == "-o" || arg == "--output" || arg == "-j" || arg == "--json" || arg == "--profile":
+			if index+1 >= len(args) {
+				return nil, fmt.Errorf("%s requires a value", arg)
+			}
+			flags = append(flags, arg, args[index+1])
+			index += 1
+		case strings.HasPrefix(arg, "--output=") || strings.HasPrefix(arg, "--json=") || strings.HasPrefix(arg, "--profile="):
+			flags = append(flags, arg)
+		case strings.HasPrefix(arg, "-o=") || strings.HasPrefix(arg, "-j="):
+			flags = append(flags, arg)
+		case strings.HasPrefix(arg, "-"):
+			return nil, fmt.Errorf("unknown flag %q", arg)
+		default:
+			positionals = append(positionals, arg)
+		}
+	}
+
+	return append(flags, positionals...), nil
+}
+
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Surveyor")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  surveyor diff baseline.json current.json [-o diff.md] [-j diff.json]")
+	fmt.Fprintln(w, "  surveyor prioritize current.json [--profile migration-readiness] [-o priorities.md] [-j priorities.json]")
 	fmt.Fprintln(w, "  surveyor audit local [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [-o report.md] [-j report.json]")
 	fmt.Fprintln(w, "  surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443 [-o report.md] [-j report.json]")
@@ -885,6 +1034,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
 	fmt.Fprintln(w, "  diff            Compare two compatible Surveyor JSON reports and emit Markdown and optional JSON output")
+	fmt.Fprintln(w, "  prioritize      Rank a current Surveyor JSON report; prioritise is supported as a CLI alias")
 	fmt.Fprintln(w, "  audit local     Audit local endpoints by chaining discovery into supported scanners")
 	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR and file-backed host inputs")
 	fmt.Fprintln(w, "  audit subnet    CIDR-only compatibility alias for remote audit during v0.5.x")
@@ -900,6 +1050,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Run 'surveyor discover local --help' for discovery-specific help.")
 	fmt.Fprintln(w, "Run 'surveyor discover remote --help' for canonical remote discovery help.")
 	fmt.Fprintln(w, "Run 'surveyor discover subnet --help' for subnet discovery help.")
+	fmt.Fprintln(w, "Run 'surveyor prioritize --help' for prioritisation help.")
 	fmt.Fprintln(w, "Run 'surveyor scan tls --help' for command-specific help.")
 }
 
@@ -916,6 +1067,25 @@ func printDiffUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor diff baseline.json current.json -o diff.md -j diff.json")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
+	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
+}
+
+func printPrioritizeUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  surveyor prioritize current.json [--profile migration-readiness] [-o priorities.md] [-j priorities.json]")
+	fmt.Fprintln(w, "  surveyor prioritise current.json [--profile migration-readiness] [-o priorities.md] [-j priorities.json]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Scope:")
+	fmt.Fprintln(w, "  Rank a current canonical Surveyor JSON report for human attention.")
+	fmt.Fprintln(w, "  The first release supports tls_scan and audit input only.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Examples:")
+	fmt.Fprintln(w, "  surveyor prioritize current.json")
+	fmt.Fprintln(w, "  surveyor prioritise current.json --profile change-risk -o priorities.md -j priorities.json")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  --profile      Prioritisation profile: migration-readiness or change-risk")
 	fmt.Fprintln(w, "  -o, --output   Write Markdown output to this path")
 	fmt.Fprintln(w, "  -j, --json     Write JSON output to this path")
 }

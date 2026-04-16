@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "prioritization",
+  "scope_kind": "remote",
+  "scope_description": "remote audit from targets file examples/approved-hosts.txt over ports 443",
+  "generated_at": "2026-04-22T03:00:00Z",
+  "profile": "migration-readiness",
+  "source_report_kind": "audit",
+  "source_generated_at": "2026-04-20T01:30:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "input_kind": "targets_file",
+    "targets_file": "examples/approved-hosts.txt",
+    "ports": [
+      443
+    ]
+  },
+  "summary": {
+    "total_items": 3,
+    "severity_breakdown": {
+      "low": 1,
+      "medium": 2
+    },
+    "code_breakdown": {
+      "audit-selection-skipped": 1,
+      "classical-certificate-identity": 1,
+      "endpoint-warnings": 1
+    }
+  },
+  "items": [
+    {
+      "rank": 1,
+      "severity": "medium",
+      "code": "classical-certificate-identity",
+      "summary": "The observed certificate identity remains classical.",
+      "target_identity": "remote|example.com|443|tcp",
+      "reason": "Classical certificate identity is a direct migration dependency.",
+      "evidence": [
+        "leaf_key_algorithm=rsa"
+      ],
+      "recommendation": "Inventory certificate replacement and related PKI dependencies as part of migration planning."
+    },
+    {
+      "rank": 2,
+      "severity": "medium",
+      "code": "audit-selection-skipped",
+      "summary": "The endpoint was not scanned during audit.",
+      "target_identity": "remote|10.0.0.10|443|tcp",
+      "reason": "endpoint did not respond during remote discovery",
+      "evidence": [
+        "connection refused"
+      ],
+      "recommendation": "Confirm the endpoint, network path and whether a TLS service is still expected at this address."
+    },
+    {
+      "rank": 3,
+      "severity": "low",
+      "code": "endpoint-warnings",
+      "summary": "The endpoint emitted warnings during TLS collection.",
+      "target_identity": "remote|example.com|443|tcp",
+      "reason": "Warnings reduce confidence in the current result and should be reviewed.",
+      "evidence": [
+        "certificate metadata incomplete"
+      ],
+      "recommendation": "Review the warnings before treating this result as complete."
+    }
+  ]
+}
