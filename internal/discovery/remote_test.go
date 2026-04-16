@@ -223,6 +223,142 @@ func TestRemoteEnumeratorEnumerateTargetsFilePreservesDeclaredHostOrder(t *testi
 	}
 }
 
+func TestRemoteEnumeratorEnumerateInventoryFilePreservesPortsOrderAndAnnotations(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+		"version: 1",
+		"entries:",
+		"  - host: EXAMPLE.COM",
+		"    ports: [443, 8443]",
+		"    owner: Platform",
+		"    tags: [external, critical]",
+		"  - address: 10.0.0.10",
+		"    ports: [9443]",
+		"    owner: Core",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
+		InventoryFile:  inventoryFile,
+		MaxConcurrency: 2,
+		Timeout:        time.Second,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	enumerator := RemoteEnumerator{
+		Scope: scope,
+		probeEndpoint: func(_ context.Context, host string, port int, timeout time.Duration) error {
+			if timeout != time.Second {
+				t.Fatalf("timeout = %s, want 1s", timeout)
+			}
+			if host == "example.com" && port == 443 {
+				return nil
+			}
+
+			return errors.New("connection refused")
+		},
+	}
+
+	got, err := enumerator.Enumerate(context.Background())
+	if err != nil {
+		t.Fatalf("Enumerate() error = %v", err)
+	}
+
+	wantOrder := []struct {
+		host  string
+		port  int
+		state string
+		owner string
+	}{{"example.com", 443, "responsive", "Platform"}, {"example.com", 8443, "candidate", "Platform"}, {"10.0.0.10", 9443, "candidate", "Core"}}
+
+	if len(got) != len(wantOrder) {
+		t.Fatalf("len(Enumerate()) = %d, want %d", len(got), len(wantOrder))
+	}
+
+	for index, want := range wantOrder {
+		if got[index].Host != want.host || got[index].Port != want.port || got[index].State != want.state {
+			t.Fatalf("got[%d] = %#v, want host=%q port=%d state=%q", index, got[index], want.host, want.port, want.state)
+		}
+		if got[index].Inventory == nil {
+			t.Fatalf("got[%d].Inventory = nil, want non-nil", index)
+		}
+		if got[index].Inventory.Owner != want.owner {
+			t.Fatalf("got[%d].Inventory.Owner = %q, want %q", index, got[index].Inventory.Owner, want.owner)
+		}
+	}
+
+	if got, want := got[0].Inventory.Ports, []int{443, 8443}; !equalInts(got, want) {
+		t.Fatalf("got[0].Inventory.Ports = %v, want %v", got, want)
+	}
+	if got, want := got[2].Inventory.Ports, []int{9443}; !equalInts(got, want) {
+		t.Fatalf("got[2].Inventory.Ports = %v, want %v", got, want)
+	}
+
+	got[0].Inventory.Tags[0] = "mutated"
+	if got[1].Inventory.Tags[0] != "critical" {
+		t.Fatalf("got[1].Inventory.Tags[0] = %q, want independent annotation clone", got[1].Inventory.Tags[0])
+	}
+}
+
+func TestRemoteEnumeratorEnumerateInventoryFileUsesOverridePortsAndPreservesImportedPorts(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+		"version: 1",
+		"entries:",
+		"  - host: example.com",
+		"    ports: [443, 8443]",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
+		InventoryFile:  inventoryFile,
+		Ports:          "10443",
+		MaxConcurrency: 1,
+		Timeout:        time.Second,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	enumerator := RemoteEnumerator{
+		Scope: scope,
+		probeEndpoint: func(_ context.Context, host string, port int, _ time.Duration) error {
+			if host != "example.com" || port != 10443 {
+				t.Fatalf("probe target = %s:%d, want example.com:10443", host, port)
+			}
+			return nil
+		},
+	}
+
+	got, err := enumerator.Enumerate(context.Background())
+	if err != nil {
+		t.Fatalf("Enumerate() error = %v", err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("len(Enumerate()) = %d, want 1", len(got))
+	}
+	if got[0].Port != 10443 {
+		t.Fatalf("got[0].Port = %d, want 10443", got[0].Port)
+	}
+	if got[0].Inventory == nil {
+		t.Fatal("got[0].Inventory = nil, want non-nil")
+	}
+	if got, want := got[0].Inventory.Ports, []int{443, 8443}; !equalInts(got, want) {
+		t.Fatalf("got[0].Inventory.Ports = %v, want imported ports preserved", got)
+	}
+}
+
 func TestRemoteEnumeratorEnumerateReturnsContextCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -293,6 +429,19 @@ func writeTargetsFile(t *testing.T, contents string) string {
 	}
 
 	return path
+}
+
+func equalInts(left []int, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+
+	return true
 }
 
 func itoa(value int) string {
