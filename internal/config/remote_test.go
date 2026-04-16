@@ -144,6 +144,126 @@ func TestParseRemoteScopeTargetsFile(t *testing.T) {
 	}
 }
 
+func TestParseRemoteScopeInventoryFile(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+		"version: 1",
+		"entries:",
+		"  - host: EXAMPLE.COM",
+		"    ports: [443, 8443]",
+		"    name: External API",
+		"    owner: Platform",
+		"    environment: prod",
+		"    tags: [critical, external]",
+		"    notes: imported from cmdb",
+		"  - address: 10.0.0.10",
+		"    ports: [9443]",
+		"    owner: Core",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		InventoryFile:  inventoryFile,
+		Ports:          "10443,443",
+		Profile:        "balanced",
+		MaxHosts:       10,
+		MaxConcurrency: 12,
+		Timeout:        5 * time.Second,
+		DryRun:         true,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.InputKind, RemoteScopeInputKindInventoryFile; got != want {
+		t.Fatalf("scope.InputKind = %q, want %q", got, want)
+	}
+	if got, want := scope.InventoryFile, inventoryFile; got != want {
+		t.Fatalf("scope.InventoryFile = %q, want %q", got, want)
+	}
+	if got, want := scope.Ports, []int{443, 10443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Ports = %v, want %v", got, want)
+	}
+	if got, want := scope.HostCount, 2; got != want {
+		t.Fatalf("scope.HostCount = %d, want %d", got, want)
+	}
+	if got, want := len(scope.Targets), 2; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+	if got, want := scope.Targets[0].Host, "example.com"; got != want {
+		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[0].Ports, []int{443, 10443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
+	}
+	if scope.Targets[0].Inventory == nil {
+		t.Fatal("scope.Targets[0].Inventory = nil, want non-nil")
+	}
+	if got, want := scope.Targets[0].Inventory.Ports, []int{443, 8443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[0].Inventory.Ports = %v, want %v", got, want)
+	}
+	if got, want := scope.Targets[0].Inventory.Owner, "Platform"; got != want {
+		t.Fatalf("scope.Targets[0].Inventory.Owner = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[1].Host, "10.0.0.10"; got != want {
+		t.Fatalf("scope.Targets[1].Host = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[1].Ports, []int{443, 10443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[1].Ports = %v, want %v", got, want)
+	}
+	if got, want := scope.Profile, RemoteProfileBalanced; got != want {
+		t.Fatalf("scope.Profile = %q, want %q", got, want)
+	}
+	if got, want := scope.MaxConcurrency, 12; got != want {
+		t.Fatalf("scope.MaxConcurrency = %d, want %d", got, want)
+	}
+	if got, want := scope.Timeout, 5*time.Second; got != want {
+		t.Fatalf("scope.Timeout = %s, want %s", got, want)
+	}
+	if !scope.DryRun {
+		t.Fatal("scope.DryRun = false, want true")
+	}
+}
+
+func TestParseRemoteScopeInventoryFileUsesEntryPorts(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+		"version: 1",
+		"entries:",
+		"  - host: Example.com",
+		"    ports: [9443, 443, 443]",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		InventoryFile: inventoryFile,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got := scope.Ports; len(got) != 0 {
+		t.Fatalf("scope.Ports = %v, want empty", got)
+	}
+	if got, want := len(scope.Targets), 1; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+	if got, want := scope.Targets[0].Host, "example.com"; got != want {
+		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[0].Ports, []int{443, 9443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
+	}
+}
+
 func TestParseRemoteScopeProfileDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -218,7 +338,7 @@ func TestParseRemoteScopeInvalidInput(t *testing.T) {
 			input: RemoteScopeInput{
 				Ports: "443",
 			},
-			wantErrText: "--cidr is required",
+			wantErrText: "one of --cidr, --targets-file or --inventory-file is required",
 		},
 		{
 			name: "conflicting scope inputs",
@@ -227,7 +347,7 @@ func TestParseRemoteScopeInvalidInput(t *testing.T) {
 				TargetsFile: "approved-hosts.txt",
 				Ports:       "443",
 			},
-			wantErrText: "use either --cidr or --targets-file, not both",
+			wantErrText: "use exactly one of --cidr, --targets-file or --inventory-file",
 		},
 		{
 			name: "invalid cidr",
@@ -398,4 +518,76 @@ func TestParseRemoteScopeTargetsFileInvalidInput(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseRemoteScopeInventoryFileInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+
+	t.Run("missing file", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ParseRemoteScope(RemoteScopeInput{
+			InventoryFile: filepath.Join(tempDir, "missing.yaml"),
+		})
+		if err == nil {
+			t.Fatal("ParseRemoteScope() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "load --inventory-file") {
+			t.Fatalf("ParseRemoteScope() error = %q, want inventory load error", err.Error())
+		}
+	})
+
+	t.Run("exceeds host cap", func(t *testing.T) {
+		t.Parallel()
+
+		inventoryFile := filepath.Join(tempDir, "exceeds.yaml")
+		if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+			"version: 1",
+			"entries:",
+			"  - host: one.example",
+			"    ports: [443]",
+			"  - host: two.example",
+			"    ports: [443]",
+			"  - host: three.example",
+			"    ports: [443]",
+		}, "\n")), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		_, err := ParseRemoteScope(RemoteScopeInput{
+			InventoryFile: inventoryFile,
+			MaxHosts:      2,
+		})
+		if err == nil {
+			t.Fatal("ParseRemoteScope() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "exceeds --max-hosts=2") {
+			t.Fatalf("ParseRemoteScope() error = %q, want host-cap error", err.Error())
+		}
+	})
+
+	t.Run("missing entry ports without override", func(t *testing.T) {
+		t.Parallel()
+
+		inventoryFile := filepath.Join(tempDir, "missing-ports.yaml")
+		if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+			"version: 1",
+			"entries:",
+			"  - host: example.com",
+		}, "\n")), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		_, err := ParseRemoteScope(RemoteScopeInput{
+			InventoryFile: inventoryFile,
+		})
+		if err == nil {
+			t.Fatal("ParseRemoteScope() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "does not declare any ports and --ports was not provided") {
+			t.Fatalf("ParseRemoteScope() error = %q, want missing-port error", err.Error())
+		}
+	})
 }
