@@ -255,8 +255,8 @@ Current discovery report shape:
   "generated_at": "2026-04-15T01:45:00Z",
   "scope": {
     "scope_kind": "remote",
-    "input_kind": "cidr",
-    "cidr": "10.0.0.0/30",
+    "input_kind": "targets_file",
+    "targets_file": "examples/approved-hosts.txt",
     "ports": [443, 8443]
   },
   "execution": {
@@ -305,8 +305,8 @@ Current report-scope shape:
 ```json
 {
   "scope_kind": "remote",
-  "input_kind": "cidr",
-  "cidr": "10.0.0.0/30",
+  "input_kind": "targets_file",
+  "targets_file": "examples/approved-hosts.txt",
   "ports": [443, 8443]
 }
 ```
@@ -314,8 +314,9 @@ Current report-scope shape:
 Fields:
 
 - `scope_kind`: whether the report covers `local` or `remote` scope
-- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr`
-- `cidr`: declared remote CIDR when the report covers remote scope
+- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr` or `targets_file`
+- `cidr`: declared remote CIDR when the report covers remote CIDR scope
+- `targets_file`: declared remote targets-file path when the report covers file-backed remote scope
 - `ports`: declared remote port set when the report covers remote scope
 
 ## Report execution
@@ -479,8 +480,8 @@ Current top-level audit report shape:
   "generated_at": "2026-04-16T02:00:00Z",
   "scope": {
     "scope_kind": "remote",
-    "input_kind": "cidr",
-    "cidr": "10.0.0.0/30",
+    "input_kind": "targets_file",
+    "targets_file": "examples/approved-hosts.txt",
     "ports": [443, 8443]
   },
   "execution": {

@@ -1,0 +1,54 @@
+{
+  "generated_at": "2026-04-20T01:15:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "input_kind": "targets_file",
+    "targets_file": "examples/approved-hosts.txt",
+    "ports": [
+      443
+    ]
+  },
+  "execution": {
+    "profile": "cautious",
+    "max_hosts": 256,
+    "max_concurrency": 8,
+    "timeout": "3s"
+  },
+  "results": [
+    {
+      "scope_kind": "remote",
+      "host": "example.com",
+      "port": 443,
+      "transport": "tcp",
+      "state": "responsive",
+      "hints": [
+        {
+          "protocol": "tls",
+          "confidence": "low",
+          "evidence": [
+            "transport=tcp",
+            "port=443"
+          ]
+        }
+      ]
+    },
+    {
+      "scope_kind": "remote",
+      "host": "10.0.0.10",
+      "port": 443,
+      "transport": "tcp",
+      "state": "candidate",
+      "errors": [
+        "connection refused"
+      ]
+    }
+  ],
+  "summary": {
+    "total_endpoints": 2,
+    "tcp_endpoints": 2,
+    "udp_endpoints": 0,
+    "hint_breakdown": {
+      "tls": 1
+    }
+  }
+}

@@ -1,0 +1,3 @@
+# Approved remote inventory scope
+example.com
+10.0.0.10
