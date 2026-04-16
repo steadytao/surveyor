@@ -305,6 +305,10 @@ The current architecture still does not include:
 
 Those are separate steps and should only be added once the current TLS path remains coherent.
 
+The next planned extension for remote input is structured imported inventory
+via `--inventory-file`. See
+[docs/inventory-inputs.md](inventory-inputs.md) for that future contract.
+
 Scoped remote inventory with canonical `remote` commands is now part of the current repository surface. See [docs/remote-inventory.md](remote-inventory.md) and [docs/remote-scope.md](remote-scope.md) for the current boundary.
 
 ## Current architectural boundary
@@ -329,6 +333,10 @@ The current remote model is:
 - `discover subnet` and `audit subnet` retained as CIDR-only compatibility aliases during `v0.5.x`
 
 That widens the remote scope model without weakening the existing discovery, hinting, selection and verified-scanning boundaries.
+
+The next planned extension is structured imported inventory on top of the same
+remote model, not a second remote command family. That design is documented in
+[inventory-inputs.md](inventory-inputs.md) and is not implemented yet.
 
 ## Current analysis layer
 

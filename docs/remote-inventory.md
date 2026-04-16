@@ -202,3 +202,7 @@ Remote inventory should now be hardened through real use before Surveyor chooses
 That keeps the project growing upward before it grows sideways.
 
 The current remote scope model lives in [docs/remote-scope.md](remote-scope.md).
+
+The next planned remote input extension is structured imported inventory via
+`--inventory-file`; see [docs/inventory-inputs.md](inventory-inputs.md). That
+is future work, not current repository surface.

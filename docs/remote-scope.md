@@ -150,3 +150,19 @@ The current remote surface is now:
 
 That makes remote scope first-class without weakening the existing discovery,
 hinting, selection and verified-scanning boundaries.
+
+## Relationship to the next planned input layer
+
+The next planned extension is structured imported inventory via
+`--inventory-file`.
+
+That future layer should:
+
+- preserve the current canonical `remote` command family
+- keep `--targets-file` as the simple host-list input
+- add a structured imported-inventory model rather than overloading the
+  existing line-list grammar
+
+That contract is documented in
+[docs/inventory-inputs.md](inventory-inputs.md) and is not current repository
+surface yet.
