@@ -59,7 +59,7 @@ Report identity should be semantic, not command-shaped.
 
 Recommended values:
 
-- `report_kind = tls_scan | discovery | audit | diff | prioritisation`
+- `report_kind = tls_scan | discovery | audit | diff | prioritization`
 
 Do not use:
 
@@ -68,6 +68,15 @@ Do not use:
 - other command-level names
 
 Those values would leak CLI naming and compatibility aliases into a longer-lived comparison model.
+
+Use American English for code-facing identifiers such as:
+
+- package names
+- function names
+- enum values
+- `report_kind`
+
+The CLI may still support both British and American spelling where that improves usability.
 
 ## Scope metadata
 

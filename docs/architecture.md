@@ -268,7 +268,8 @@ That layer should add:
 - baseline-compatible metadata on current report shapes
 - compatibility validation for supported report comparisons
 - `surveyor diff`
-- `surveyor prioritise`
+- `surveyor prioritize`
+- `surveyor prioritise` as a CLI alias
 
 It should not introduce:
 

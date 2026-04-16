@@ -4,9 +4,11 @@ This document defines the planned prioritisation contract for `v0.6.0`.
 
 It builds on the current canonical report outputs and the planned diffing layer.
 
+British English is used in prose in this document. Code-facing identifiers should use American English, and the CLI should support both spellings for the command.
+
 ## Goal
 
-`surveyor prioritise` should rank what deserves human attention first.
+`surveyor prioritize` should rank what deserves human attention first.
 
 The first version should focus on practical migration work, not on becoming a policy engine.
 
@@ -22,12 +24,20 @@ It should help answer:
 Canonical command:
 
 ```bash
-surveyor prioritise current.json -o priorities.md -j priorities.json
+surveyor prioritize current.json -o priorities.md -j priorities.json
 ```
 
 Profile support:
 
 ```bash
+surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
+surveyor prioritize current.json --profile change-risk -o priorities.md -j priorities.json
+```
+
+CLI alias support:
+
+```bash
+surveyor prioritise current.json -o priorities.md -j priorities.json
 surveyor prioritise current.json --profile migration-readiness -o priorities.md -j priorities.json
 surveyor prioritise current.json --profile change-risk -o priorities.md -j priorities.json
 ```

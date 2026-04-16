@@ -196,7 +196,8 @@ That layer should add:
 
 - baseline-compatible report metadata
 - `surveyor diff baseline.json current.json`
-- `surveyor prioritise current.json`
+- `surveyor prioritize current.json`
+- `surveyor prioritise current.json` as a CLI alias
 - lightweight prioritisation profiles for migration-readiness and change-risk
 
 It should not add:
