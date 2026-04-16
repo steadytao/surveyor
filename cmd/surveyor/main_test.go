@@ -393,12 +393,41 @@ func TestRunAuditRemoteTargetsFileDryRunWritesPlan(t *testing.T) {
 	}
 }
 
-func TestRunAuditRemoteTargetsFileRejectsExecution(t *testing.T) {
-	t.Parallel()
+func TestRunAuditRemoteTargetsFileWritesMarkdownToStdout(t *testing.T) {
+	originalRunner := newRemoteAuditRunner
+	t.Cleanup(func() {
+		newRemoteAuditRunner = originalRunner
+	})
+
+	var gotScope config.RemoteScope
+	newRemoteAuditRunner = func(scope config.RemoteScope, _ func() time.Time) auditRunner {
+		gotScope = scope
+		return stubLocalAuditRunner{
+			results: []core.AuditResult{
+				{
+					DiscoveredEndpoint: core.DiscoveredEndpoint{
+						ScopeKind: core.EndpointScopeKindRemote,
+						Host:      "example.com",
+						Port:      443,
+						Transport: "tcp",
+						State:     "responsive",
+						Hints: []core.DiscoveryHint{
+							{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+						},
+					},
+					Selection: core.AuditSelection{
+						Status:          core.AuditSelectionStatusSelected,
+						SelectedScanner: "tls",
+						Reason:          "tls hint on tcp/443",
+					},
+				},
+			},
+		}
+	}
 
 	tempDir := t.TempDir()
 	targetsFile := filepath.Join(tempDir, "approved-hosts.txt")
-	if err := os.WriteFile(targetsFile, []byte("10.0.0.10\n"), 0o644); err != nil {
+	if err := os.WriteFile(targetsFile, []byte("example.com\n10.0.0.10\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -412,11 +441,23 @@ func TestRunAuditRemoteTargetsFileRejectsExecution(t *testing.T) {
 		"--ports", "443",
 	}, &stdout, &stderr, fixedNow)
 
-	if exitCode != 2 {
-		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "audit remote --targets-file is not implemented yet") {
-		t.Fatalf("stderr = %q, want clear targets-file boundary", stderr.String())
+	if gotScope.InputKind != config.RemoteScopeInputKindTargetsFile {
+		t.Fatalf("scope.InputKind = %q, want targets_file", gotScope.InputKind)
+	}
+	if gotScope.TargetsFile != targetsFile {
+		t.Fatalf("scope.TargetsFile = %q, want %q", gotScope.TargetsFile, targetsFile)
+	}
+	if strings.Join(gotScope.Hosts, ",") != "example.com,10.0.0.10" {
+		t.Fatalf("scope.Hosts = %v, want declared host order", gotScope.Hosts)
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Audit Report") {
+		t.Fatalf("stdout = %q, want audit markdown output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Input kind: targets_file") || !strings.Contains(stdout.String(), "Targets file: "+targetsFile) {
+		t.Fatalf("stdout = %q, want targets-file report metadata", stdout.String())
 	}
 }
 
