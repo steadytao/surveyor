@@ -58,6 +58,59 @@ func TestDiscoveredEndpointJSONShape(t *testing.T) {
 	}
 }
 
+func TestDiscoveredEndpointInventoryAnnotationJSONShape(t *testing.T) {
+	t.Parallel()
+
+	endpoint := DiscoveredEndpoint{
+		ScopeKind: EndpointScopeKindRemote,
+		Host:      "api.example.com",
+		Port:      443,
+		Transport: "tcp",
+		State:     "responsive",
+		Inventory: &InventoryAnnotation{
+			Ports:       []int{443, 8443},
+			Name:        "Payments API",
+			Owner:       "payments",
+			Environment: "prod",
+			Tags:        []string{"external", "critical"},
+			Notes:       "Internet-facing service",
+			Provenance: []InventoryProvenance{
+				{
+					SourceKind:   InventorySourceKindInventoryFile,
+					SourceFormat: InventorySourceFormatCSV,
+					SourceName:   "cmdb-export.csv",
+					SourceRecord: "line 14",
+				},
+			},
+		},
+	}
+
+	data, err := json.Marshal(endpoint)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	jsonText := string(data)
+	wantSubstrings := []string{
+		`"inventory":{"ports":[443,8443]`,
+		`"name":"Payments API"`,
+		`"owner":"payments"`,
+		`"environment":"prod"`,
+		`"tags":["external","critical"]`,
+		`"notes":"Internet-facing service"`,
+		`"source_kind":"inventory_file"`,
+		`"source_format":"csv"`,
+		`"source_name":"cmdb-export.csv"`,
+		`"source_record":"line 14"`,
+	}
+
+	for _, substring := range wantSubstrings {
+		if !strings.Contains(jsonText, substring) {
+			t.Fatalf("json output missing substring %q\nfull output: %s", substring, jsonText)
+		}
+	}
+}
+
 func TestDiscoveryReportJSONShape(t *testing.T) {
 	t.Parallel()
 
@@ -102,6 +155,51 @@ func TestDiscoveryReportJSONShape(t *testing.T) {
 		`"results":[`,
 		`"scope_kind":"local"`,
 		`"summary":{"total_endpoints":1,"tcp_endpoints":0,"udp_endpoints":1}`,
+	}
+
+	for _, substring := range wantSubstrings {
+		if !strings.Contains(jsonText, substring) {
+			t.Fatalf("json output missing substring %q\nfull output: %s", substring, jsonText)
+		}
+	}
+}
+
+func TestDiscoveryReportInventoryScopeJSONShape(t *testing.T) {
+	t.Parallel()
+
+	report := DiscoveryReport{
+		ReportMetadata: NewReportMetadata(ReportKindDiscovery, ReportScopeKindRemote, "remote discovery from inventory file examples/inventory.csv over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 15, 1, 45, 0, 0, time.UTC),
+		Scope: &ReportScope{
+			ScopeKind:     ReportScopeKindRemote,
+			InputKind:     ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.csv",
+			Ports:         []int{443},
+		},
+		Results: []DiscoveredEndpoint{
+			{
+				ScopeKind: EndpointScopeKindRemote,
+				Host:      "api.example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+			},
+		},
+		Summary: DiscoverySummary{
+			TotalEndpoints: 1,
+			TCPEndpoints:   1,
+		},
+	}
+
+	data, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	jsonText := string(data)
+	wantSubstrings := []string{
+		`"scope_description":"remote discovery from inventory file examples/inventory.csv over ports 443"`,
+		`"scope":{"scope_kind":"remote","input_kind":"inventory_file","inventory_file":"examples/inventory.csv","ports":[443]}`,
 	}
 
 	for _, substring := range wantSubstrings {

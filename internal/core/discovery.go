@@ -20,11 +20,12 @@ type DiscoveryHint struct {
 
 // ReportScope records the declared scope a discovery or audit report covers.
 type ReportScope struct {
-	ScopeKind   ReportScopeKind `json:"scope_kind"`
-	InputKind   ReportInputKind `json:"input_kind,omitempty"`
-	CIDR        string          `json:"cidr,omitempty"`
-	TargetsFile string          `json:"targets_file,omitempty"`
-	Ports       []int           `json:"ports,omitempty"`
+	ScopeKind     ReportScopeKind `json:"scope_kind"`
+	InputKind     ReportInputKind `json:"input_kind,omitempty"`
+	CIDR          string          `json:"cidr,omitempty"`
+	TargetsFile   string          `json:"targets_file,omitempty"`
+	InventoryFile string          `json:"inventory_file,omitempty"`
+	Ports         []int           `json:"ports,omitempty"`
 }
 
 // ReportExecution records the execution settings that materially shaped a
@@ -39,17 +40,18 @@ type ReportExecution struct {
 // DiscoveredEndpoint records one observed endpoint within declared scope and
 // any best-effort enrichment that applies to that scope kind.
 type DiscoveredEndpoint struct {
-	ScopeKind   EndpointScopeKind `json:"scope_kind"`
-	Host        string            `json:"host"`
-	Port        int               `json:"port"`
-	Transport   string            `json:"transport"`
-	State       string            `json:"state"`
-	PID         int               `json:"pid,omitempty"`
-	ProcessName string            `json:"process_name,omitempty"`
-	Executable  string            `json:"executable,omitempty"`
-	Hints       []DiscoveryHint   `json:"hints,omitempty"`
-	Warnings    []string          `json:"warnings,omitempty"`
-	Errors      []string          `json:"errors,omitempty"`
+	ScopeKind   EndpointScopeKind    `json:"scope_kind"`
+	Host        string               `json:"host"`
+	Port        int                  `json:"port"`
+	Transport   string               `json:"transport"`
+	State       string               `json:"state"`
+	PID         int                  `json:"pid,omitempty"`
+	ProcessName string               `json:"process_name,omitempty"`
+	Executable  string               `json:"executable,omitempty"`
+	Inventory   *InventoryAnnotation `json:"inventory,omitempty"`
+	Hints       []DiscoveryHint      `json:"hints,omitempty"`
+	Warnings    []string             `json:"warnings,omitempty"`
+	Errors      []string             `json:"errors,omitempty"`
 }
 
 // DiscoverySummary contains aggregate counts derived from discovered endpoints.
