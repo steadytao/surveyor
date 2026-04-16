@@ -177,6 +177,67 @@ func TestBuildDiscoveryReportClonesNestedEvidence(t *testing.T) {
 	}
 }
 
+func TestBuildDiscoveryReportClonesInventoryAnnotation(t *testing.T) {
+	t.Parallel()
+
+	input := []core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "api.example.com",
+			Port:      443,
+			Transport: "tcp",
+			State:     "responsive",
+			Inventory: &core.InventoryAnnotation{
+				Ports:       []int{443, 8443},
+				Name:        "Payments API",
+				Owner:       "payments",
+				Environment: "prod",
+				Tags:        []string{"external", "critical"},
+				Notes:       "Internet-facing service",
+				Provenance: []core.InventoryProvenance{
+					{
+						SourceKind:   core.InventorySourceKindInventoryFile,
+						SourceFormat: core.InventorySourceFormatCSV,
+						SourceName:   "cmdb-export.csv",
+						SourceRecord: "line 14",
+					},
+				},
+			},
+		},
+	}
+
+	report := BuildDiscoveryReport(input, time.Date(2026, time.April, 18, 1, 5, 0, 0, time.UTC))
+
+	input[0].Inventory.Ports[0] = 9443
+	input[0].Inventory.Tags[0] = "internal"
+	input[0].Inventory.Provenance[0].SourceRecord = "line 99"
+
+	if got, want := report.Results[0].Inventory.Ports[0], 443; got != want {
+		t.Fatalf("report.Results[0].Inventory.Ports[0] = %d, want %d", got, want)
+	}
+	if got, want := report.Results[0].Inventory.Tags[0], "external"; got != want {
+		t.Fatalf("report.Results[0].Inventory.Tags[0] = %q, want %q", got, want)
+	}
+	if got, want := report.Results[0].Inventory.Provenance[0].SourceRecord, "line 14"; got != want {
+		t.Fatalf("report.Results[0].Inventory.Provenance[0].SourceRecord = %q, want %q", got, want)
+	}
+}
+
+func TestBuildDiscoveryReportInventoryScopeDescription(t *testing.T) {
+	t.Parallel()
+
+	report := BuildDiscoveryReportWithMetadata(nil, time.Date(2026, time.April, 21, 4, 0, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/inventory.csv",
+		Ports:         []int{443, 8443},
+	}, nil)
+
+	if got, want := report.ScopeDescription, "remote discovery from inventory file examples/inventory.csv over ports 443,8443"; got != want {
+		t.Fatalf("report.ScopeDescription = %q, want %q", got, want)
+	}
+}
+
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
 

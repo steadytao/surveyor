@@ -32,10 +32,11 @@ const (
 type ReportInputKind string
 
 const (
-	ReportInputKindConfig      ReportInputKind = "config"
-	ReportInputKindTargets     ReportInputKind = "targets"
-	ReportInputKindCIDR        ReportInputKind = "cidr"
-	ReportInputKindTargetsFile ReportInputKind = "targets_file"
+	ReportInputKindConfig        ReportInputKind = "config"
+	ReportInputKindTargets       ReportInputKind = "targets"
+	ReportInputKindCIDR          ReportInputKind = "cidr"
+	ReportInputKindTargetsFile   ReportInputKind = "targets_file"
+	ReportInputKindInventoryFile ReportInputKind = "inventory_file"
 )
 
 // ReportMetadata records baseline-compatible top-level report metadata.

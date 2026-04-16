@@ -14,6 +14,7 @@ func CloneTargetResult(result TargetResult) TargetResult {
 // CloneDiscoveredEndpoint returns a deep copy of one discovered endpoint.
 func CloneDiscoveredEndpoint(endpoint DiscoveredEndpoint) DiscoveredEndpoint {
 	cloned := endpoint
+	cloned.Inventory = cloneInventoryAnnotation(endpoint.Inventory)
 	cloned.Hints = cloneDiscoveryHints(endpoint.Hints)
 	cloned.Warnings = append([]string(nil), endpoint.Warnings...)
 	cloned.Errors = append([]string(nil), endpoint.Errors...)
@@ -73,5 +74,27 @@ func cloneFindings(findings []Finding) []Finding {
 		cloned = append(cloned, findingClone)
 	}
 
+	return cloned
+}
+
+func cloneInventoryAnnotation(annotation *InventoryAnnotation) *InventoryAnnotation {
+	if annotation == nil {
+		return nil
+	}
+
+	cloned := *annotation
+	cloned.Ports = append([]int(nil), annotation.Ports...)
+	cloned.Tags = append([]string(nil), annotation.Tags...)
+	cloned.Provenance = cloneInventoryProvenance(annotation.Provenance)
+	return &cloned
+}
+
+func cloneInventoryProvenance(provenance []InventoryProvenance) []InventoryProvenance {
+	if len(provenance) == 0 {
+		return nil
+	}
+
+	cloned := make([]InventoryProvenance, 0, len(provenance))
+	cloned = append(cloned, provenance...)
 	return cloned
 }

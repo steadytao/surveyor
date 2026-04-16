@@ -95,6 +95,10 @@ func describeRemoteScope(prefix string, scope *core.ReportScope) string {
 		if scope.TargetsFile != "" {
 			return fmt.Sprintf("%s from targets file %s%s", prefix, scope.TargetsFile, portsSuffix(scope.Ports))
 		}
+	case core.ReportInputKindInventoryFile:
+		if scope.InventoryFile != "" {
+			return fmt.Sprintf("%s from inventory file %s%s", prefix, scope.InventoryFile, portsSuffix(scope.Ports))
+		}
 	}
 
 	return prefix
