@@ -561,11 +561,6 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 		return 0
 	}
 
-	if scope.InputKind == config.RemoteScopeInputKindTargetsFile {
-		fmt.Fprintf(stderr, "%s --targets-file is not implemented yet\n", opts.commandName)
-		return 2
-	}
-
 	auditNow := now
 	if auditNow == nil {
 		auditNow = time.Now
@@ -697,7 +692,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
 	fmt.Fprintln(w, "  audit local     Audit local endpoints by chaining discovery into supported scanners")
-	fmt.Fprintln(w, "  audit remote    Audit declared remote scope, CIDR today and file-backed scope later")
+	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR and file-backed host inputs")
 	fmt.Fprintln(w, "  audit subnet    CIDR-only compatibility alias for remote audit during v0.5.x")
 	fmt.Fprintln(w, "  discover local  Enumerate local endpoints and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  discover remote Enumerate declared remote scope across CIDR and file-backed host inputs")
@@ -763,12 +758,12 @@ func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH] --ports 443,8443 [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  Canonical remote audit command. CIDR-backed scope runs today; file-backed scope is accepted for dry-run planning and remains a later execution step.")
+	fmt.Fprintln(w, "  Canonical remote audit command. It executes against CIDR-backed scope and simple file-backed host scope.")
 	fmt.Fprintln(w, "  This command only hands selected TLS candidates into the existing TLS scanner.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443")
-	fmt.Fprintln(w, "  surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443 --dry-run")
+	fmt.Fprintln(w, "  surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to audit, for example 10.0.0.0/24")
