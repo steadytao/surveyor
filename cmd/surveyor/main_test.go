@@ -844,6 +844,9 @@ func TestRunAuditSubnetHelp(t *testing.T) {
 	if strings.Contains(stderr.String(), "  --targets-file") {
 		t.Fatalf("stderr = %q, want no targets-file flag line in subnet alias help", stderr.String())
 	}
+	if strings.Contains(stderr.String(), "  --inventory-file") {
+		t.Fatalf("stderr = %q, want no inventory-file flag line in subnet alias help", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "only accepts --cidr, not --targets-file") {
 		t.Fatalf("stderr = %q, want explicit CIDR-only alias guidance", stderr.String())
 	}
@@ -862,6 +865,9 @@ func TestRunAuditRemoteHelp(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "--targets-file") {
 		t.Fatalf("stderr = %q, want targets-file flag in remote help", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "--inventory-file") {
+		t.Fatalf("stderr = %q, want inventory-file flag in remote help", stderr.String())
 	}
 }
 
@@ -935,6 +941,85 @@ func TestRunAuditRemoteTargetsFileDryRunWritesPlan(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Input kind: targets_file") || !strings.Contains(stdout.String(), "Targets file: "+targetsFile) {
 		t.Fatalf("stdout = %q, want targets-file execution plan metadata", stdout.String())
+	}
+}
+
+func TestRunAuditRemoteInventoryFileDryRunWritesPlan(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+		"version: 1",
+		"entries:",
+		"  - host: example.com",
+		"    ports: [443, 8443]",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"remote",
+		"--inventory-file", inventoryFile,
+		"--dry-run",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Input kind: inventory_file") ||
+		!strings.Contains(stdout.String(), "Inventory file: "+inventoryFile) ||
+		!strings.Contains(stdout.String(), "Ports: per-entry inventory ports") {
+		t.Fatalf("stdout = %q, want inventory-file execution plan metadata", stdout.String())
+	}
+}
+
+func TestRunAuditRemoteInventoryFileRejectsExecutionForNow(t *testing.T) {
+	t.Parallel()
+
+	originalRunner := newRemoteAuditRunner
+	t.Cleanup(func() {
+		newRemoteAuditRunner = originalRunner
+	})
+
+	called := false
+	newRemoteAuditRunner = func(config.RemoteScope, func() time.Time) auditRunner {
+		called = true
+		return stubLocalAuditRunner{}
+	}
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+		"version: 1",
+		"entries:",
+		"  - host: example.com",
+		"    ports: [443]",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"remote",
+		"--inventory-file", inventoryFile,
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if called {
+		t.Fatal("newRemoteAuditRunner was called, want inventory execution rejected before runtime")
+	}
+	if !strings.Contains(stderr.String(), "audit remote --inventory-file execution is not implemented yet; use --dry-run for planning") {
+		t.Fatalf("stderr = %q, want explicit inventory execution boundary", stderr.String())
 	}
 }
 
@@ -1422,6 +1507,9 @@ func TestRunDiscoverSubnetHelp(t *testing.T) {
 	if strings.Contains(stderr.String(), "  --targets-file") {
 		t.Fatalf("stderr = %q, want no targets-file flag line in subnet alias help", stderr.String())
 	}
+	if strings.Contains(stderr.String(), "  --inventory-file") {
+		t.Fatalf("stderr = %q, want no inventory-file flag line in subnet alias help", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "only accepts --cidr, not --targets-file") {
 		t.Fatalf("stderr = %q, want explicit CIDR-only alias guidance", stderr.String())
 	}
@@ -1440,6 +1528,9 @@ func TestRunDiscoverRemoteHelp(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "--targets-file") {
 		t.Fatalf("stderr = %q, want targets-file flag in remote help", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "--inventory-file") {
+		t.Fatalf("stderr = %q, want inventory-file flag in remote help", stderr.String())
 	}
 }
 
@@ -1506,6 +1597,85 @@ func TestRunDiscoverRemoteTargetsFileDryRunWritesPlan(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Input kind: targets_file") || !strings.Contains(stdout.String(), "Targets file: "+targetsFile) {
 		t.Fatalf("stdout = %q, want targets-file execution plan metadata", stdout.String())
+	}
+}
+
+func TestRunDiscoverRemoteInventoryFileDryRunWritesPlan(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+		"version: 1",
+		"entries:",
+		"  - host: example.com",
+		"    ports: [443, 8443]",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"discover",
+		"remote",
+		"--inventory-file", inventoryFile,
+		"--dry-run",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Input kind: inventory_file") ||
+		!strings.Contains(stdout.String(), "Inventory file: "+inventoryFile) ||
+		!strings.Contains(stdout.String(), "Ports: per-entry inventory ports") {
+		t.Fatalf("stdout = %q, want inventory-file execution plan metadata", stdout.String())
+	}
+}
+
+func TestRunDiscoverRemoteInventoryFileRejectsExecutionForNow(t *testing.T) {
+	t.Parallel()
+
+	originalDiscoverer := newRemoteDiscoverer
+	t.Cleanup(func() {
+		newRemoteDiscoverer = originalDiscoverer
+	})
+
+	called := false
+	newRemoteDiscoverer = func(config.RemoteScope) discoverer {
+		called = true
+		return stubLocalDiscoverer{}
+	}
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+		"version: 1",
+		"entries:",
+		"  - host: example.com",
+		"    ports: [443]",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"discover",
+		"remote",
+		"--inventory-file", inventoryFile,
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if called {
+		t.Fatal("newRemoteDiscoverer was called, want inventory execution rejected before runtime")
+	}
+	if !strings.Contains(stderr.String(), "discover remote --inventory-file execution is not implemented yet; use --dry-run for planning") {
+		t.Fatalf("stderr = %q, want explicit inventory execution boundary", stderr.String())
 	}
 }
 
