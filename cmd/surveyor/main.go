@@ -708,11 +708,6 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 		return 0
 	}
 
-	if scope.InputKind == config.RemoteScopeInputKindInventoryFile {
-		fmt.Fprintf(stderr, "%s --inventory-file execution is not implemented yet; use --dry-run for planning\n", opts.commandName)
-		return 2
-	}
-
 	auditNow := now
 	if auditNow == nil {
 		auditNow = time.Now
@@ -1072,7 +1067,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  diff            Compare two compatible Surveyor JSON reports and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  prioritize      Rank a current Surveyor JSON report; prioritise is supported as a CLI alias")
 	fmt.Fprintln(w, "  audit local     Audit local endpoints by chaining discovery into supported scanners")
-	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR and host-list inputs, plus structured inventory planning")
+	fmt.Fprintln(w, "  audit remote    Audit declared remote scope across CIDR, host-list and structured inventory inputs")
 	fmt.Fprintln(w, "  audit subnet    CIDR-only compatibility alias for remote audit during v0.5.x")
 	fmt.Fprintln(w, "  discover local  Enumerate local endpoints and emit Markdown and optional JSON output")
 	fmt.Fprintln(w, "  discover remote Enumerate declared remote scope across CIDR, host-list and structured inventory inputs")
@@ -1176,13 +1171,13 @@ func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Scope:")
-	fmt.Fprintln(w, "  Canonical remote audit command. It executes against CIDR-backed scope and simple file-backed host scope, and currently supports structured inventory manifests for dry-run planning only.")
+	fmt.Fprintln(w, "  Canonical remote audit command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
 	fmt.Fprintln(w, "  This command only hands selected TLS candidates into the existing TLS scanner.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443")
-	fmt.Fprintln(w, "  surveyor audit remote --inventory-file inventory.yaml --dry-run")
+	fmt.Fprintln(w, "  surveyor audit remote --inventory-file inventory.yaml")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to audit, for example 10.0.0.0/24")

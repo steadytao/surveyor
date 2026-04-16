@@ -262,6 +262,74 @@ func TestRemoteRunnerRunScansSelectedTLSEndpoints(t *testing.T) {
 	}
 }
 
+func TestRemoteRunnerRunPreservesInventoryAnnotation(t *testing.T) {
+	t.Parallel()
+
+	discovered := []core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "example.com",
+			Port:      443,
+			Transport: "tcp",
+			State:     "responsive",
+			Inventory: &core.InventoryAnnotation{
+				Ports:       []int{443, 8443},
+				Owner:       "Platform",
+				Environment: "prod",
+				Tags:        []string{"critical"},
+			},
+			Hints: []core.DiscoveryHint{
+				{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+			},
+		},
+	}
+
+	scanner := &stubTargetScanner{
+		result: core.TargetResult{
+			Host:           "example.com",
+			Port:           443,
+			ScannedAt:      time.Date(2026, time.April, 16, 4, 30, 0, 0, time.UTC),
+			Reachable:      true,
+			Classification: "modern_tls_classical_identity",
+		},
+	}
+
+	runner := RemoteRunner{
+		Scope:      config.RemoteScope{},
+		Discoverer: stubDiscoverer{results: discovered},
+		TLSScanner: scanner,
+	}
+
+	results, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("len(Run()) = %d, want 1", len(results))
+	}
+	if results[0].DiscoveredEndpoint.Inventory == nil {
+		t.Fatal("results[0].DiscoveredEndpoint.Inventory = nil, want non-nil")
+	}
+	if got, want := results[0].DiscoveredEndpoint.Inventory.Owner, "Platform"; got != want {
+		t.Fatalf("results[0].DiscoveredEndpoint.Inventory.Owner = %q, want %q", got, want)
+	}
+	if got, want := results[0].DiscoveredEndpoint.Inventory.Ports[0], 443; got != want {
+		t.Fatalf("results[0].DiscoveredEndpoint.Inventory.Ports[0] = %d, want %d", got, want)
+	}
+	if scanner.calls != 1 {
+		t.Fatalf("scanner.calls = %d, want 1", scanner.calls)
+	}
+
+	discovered[0].Inventory.Owner = "Changed"
+	discovered[0].Inventory.Ports[0] = 9443
+	if got, want := results[0].DiscoveredEndpoint.Inventory.Owner, "Platform"; got != want {
+		t.Fatalf("results[0].DiscoveredEndpoint.Inventory.Owner = %q, want %q after input mutation", got, want)
+	}
+	if got, want := results[0].DiscoveredEndpoint.Inventory.Ports[0], 443; got != want {
+		t.Fatalf("results[0].DiscoveredEndpoint.Inventory.Ports[0] = %d, want %d after input mutation", got, want)
+	}
+}
+
 func TestRemoteRunnerRunReturnsDiscoveryError(t *testing.T) {
 	t.Parallel()
 
