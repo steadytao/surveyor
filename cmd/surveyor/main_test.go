@@ -74,11 +74,17 @@ func TestRunHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "discover local") {
 		t.Fatalf("stdout = %q, want discover command in top-level help", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "discover remote") {
+		t.Fatalf("stdout = %q, want canonical remote discovery command in top-level help", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "discover subnet") {
 		t.Fatalf("stdout = %q, want remote discovery command in top-level help", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "audit local") {
 		t.Fatalf("stdout = %q, want audit command in top-level help", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "audit remote") {
+		t.Fatalf("stdout = %q, want canonical remote audit command in top-level help", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "audit subnet") {
 		t.Fatalf("stdout = %q, want remote audit command in top-level help", stdout.String())
@@ -101,6 +107,9 @@ func TestRunAuditHelp(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "surveyor audit local") {
 		t.Fatalf("stdout = %q, want audit help text", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "surveyor audit remote") {
+		t.Fatalf("stdout = %q, want canonical remote audit help text", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "surveyor audit subnet") {
 		t.Fatalf("stdout = %q, want subnet audit help text", stdout.String())
@@ -287,8 +296,127 @@ func TestRunAuditSubnetHelp(t *testing.T) {
 	if !strings.Contains(stderr.String(), "--cidr") {
 		t.Fatalf("stderr = %q, want subnet audit flags", stderr.String())
 	}
-	if strings.Contains(stderr.String(), "--targets-file") {
-		t.Fatalf("stderr = %q, want no targets-file flag in v0.4.0 help", stderr.String())
+	if strings.Contains(stderr.String(), "  --targets-file") {
+		t.Fatalf("stderr = %q, want no targets-file flag line in subnet alias help", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "only accepts --cidr, not --targets-file") {
+		t.Fatalf("stderr = %q, want explicit CIDR-only alias guidance", stderr.String())
+	}
+}
+
+func TestRunAuditRemoteHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "remote", "--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "--targets-file") {
+		t.Fatalf("stderr = %q, want targets-file flag in remote help", stderr.String())
+	}
+}
+
+func TestRunAuditRemoteWritesMarkdownToStdout(t *testing.T) {
+	originalRunner := newRemoteAuditRunner
+	t.Cleanup(func() {
+		newRemoteAuditRunner = originalRunner
+	})
+	newRemoteAuditRunner = func(config.RemoteScope, func() time.Time) auditRunner {
+		return stubLocalAuditRunner{
+			results: []core.AuditResult{
+				{
+					DiscoveredEndpoint: core.DiscoveredEndpoint{
+						ScopeKind: core.EndpointScopeKindRemote,
+						Host:      "10.0.0.10",
+						Port:      443,
+						Transport: "tcp",
+						State:     "responsive",
+						Hints: []core.DiscoveryHint{
+							{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+						},
+					},
+					Selection: core.AuditSelection{
+						Status:          core.AuditSelectionStatusSelected,
+						SelectedScanner: "tls",
+						Reason:          "tls hint on tcp/443",
+					},
+				},
+			},
+		}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "remote", "--cidr", "10.0.0.0/30", "--ports", "443"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Audit Report") {
+		t.Fatalf("stdout = %q, want audit markdown output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Input kind: cidr") || !strings.Contains(stdout.String(), "CIDR: 10.0.0.0/30") {
+		t.Fatalf("stdout = %q, want canonical remote scope metadata", stdout.String())
+	}
+}
+
+func TestRunAuditRemoteTargetsFileDryRunWritesPlan(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	targetsFile := filepath.Join(tempDir, "approved-hosts.txt")
+	if err := os.WriteFile(targetsFile, []byte("10.0.0.10\nexample.com\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"remote",
+		"--targets-file", targetsFile,
+		"--ports", "443,8443",
+		"--dry-run",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Input kind: targets_file") || !strings.Contains(stdout.String(), "Targets file: "+targetsFile) {
+		t.Fatalf("stdout = %q, want targets-file execution plan metadata", stdout.String())
+	}
+}
+
+func TestRunAuditRemoteTargetsFileRejectsExecution(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	targetsFile := filepath.Join(tempDir, "approved-hosts.txt")
+	if err := os.WriteFile(targetsFile, []byte("10.0.0.10\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"remote",
+		"--targets-file", targetsFile,
+		"--ports", "443",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "audit remote --targets-file is not implemented yet") {
+		t.Fatalf("stderr = %q, want clear targets-file boundary", stderr.String())
 	}
 }
 
@@ -531,6 +659,9 @@ func TestRunDiscoverHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "surveyor discover local") {
 		t.Fatalf("stdout = %q, want discovery help text", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "surveyor discover remote") {
+		t.Fatalf("stdout = %q, want canonical remote discovery help text", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "surveyor discover subnet") {
 		t.Fatalf("stdout = %q, want subnet discovery help text", stdout.String())
 	}
@@ -702,8 +833,120 @@ func TestRunDiscoverSubnetHelp(t *testing.T) {
 	if !strings.Contains(stderr.String(), "--cidr") {
 		t.Fatalf("stderr = %q, want subnet discovery flags", stderr.String())
 	}
-	if strings.Contains(stderr.String(), "--targets-file") {
-		t.Fatalf("stderr = %q, want no targets-file flag in v0.4.0 help", stderr.String())
+	if strings.Contains(stderr.String(), "  --targets-file") {
+		t.Fatalf("stderr = %q, want no targets-file flag line in subnet alias help", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "only accepts --cidr, not --targets-file") {
+		t.Fatalf("stderr = %q, want explicit CIDR-only alias guidance", stderr.String())
+	}
+}
+
+func TestRunDiscoverRemoteHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"discover", "remote", "--help"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "--targets-file") {
+		t.Fatalf("stderr = %q, want targets-file flag in remote help", stderr.String())
+	}
+}
+
+func TestRunDiscoverRemoteWritesMarkdownToStdout(t *testing.T) {
+	originalDiscoverer := newRemoteDiscoverer
+	t.Cleanup(func() {
+		newRemoteDiscoverer = originalDiscoverer
+	})
+	newRemoteDiscoverer = func(config.RemoteScope) discoverer {
+		return stubLocalDiscoverer{
+			results: []core.DiscoveredEndpoint{
+				{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "10.0.0.10",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Hints: []core.DiscoveryHint{
+						{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+					},
+				},
+			},
+		}
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"discover", "remote", "--cidr", "10.0.0.0/30", "--ports", "443"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "# Surveyor Discovery Report") {
+		t.Fatalf("stdout = %q, want discovery markdown output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Input kind: cidr") || !strings.Contains(stdout.String(), "CIDR: 10.0.0.0/30") {
+		t.Fatalf("stdout = %q, want canonical remote scope metadata", stdout.String())
+	}
+}
+
+func TestRunDiscoverRemoteTargetsFileDryRunWritesPlan(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	targetsFile := filepath.Join(tempDir, "approved-hosts.txt")
+	if err := os.WriteFile(targetsFile, []byte("10.0.0.10\nexample.com\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"discover",
+		"remote",
+		"--targets-file", targetsFile,
+		"--ports", "443,8443",
+		"--dry-run",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Input kind: targets_file") || !strings.Contains(stdout.String(), "Targets file: "+targetsFile) {
+		t.Fatalf("stdout = %q, want targets-file execution plan metadata", stdout.String())
+	}
+}
+
+func TestRunDiscoverRemoteTargetsFileRejectsExecution(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	targetsFile := filepath.Join(tempDir, "approved-hosts.txt")
+	if err := os.WriteFile(targetsFile, []byte("10.0.0.10\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"discover",
+		"remote",
+		"--targets-file", targetsFile,
+		"--ports", "443",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "discover remote --targets-file is not implemented yet") {
+		t.Fatalf("stderr = %q, want clear targets-file boundary", stderr.String())
 	}
 }
 
