@@ -1,33 +1,11 @@
 # Generalised Remote Scope
 
-This document defines the planned `v0.5.0` remote-scope contract.
+Generalised remote scope is now part of Surveyor's current repository surface.
 
-It does not replace the current shipped remote-inventory boundary in
-[docs/remote-inventory.md](remote-inventory.md). That document remains the
-source of truth for the current `v0.4.x` implementation around
-`surveyor discover subnet` and `surveyor audit subnet`.
+This document defines the current remote scope model that sits underneath
+[docs/remote-inventory.md](remote-inventory.md).
 
-## Why this next
-
-`v0.4.x` proved that Surveyor can:
-
-- discover explicitly declared remote CIDR scope conservatively
-- attach conservative remote hints
-- select supported TLS-like candidates narrowly
-- hand only that subset into the existing TLS scanner
-
-The next missing capability is not another deep scanner. It is a more honest
-remote scope model.
-
-The current remote surface is still too subnet-shaped:
-
-- command names are `discover subnet` and `audit subnet`
-- the current scope contract is CIDR-specific
-- there is no supported file-backed remote scope input
-
-`v0.5.0` should fix that by making remote scope first-class.
-
-## Planned command surface
+## Current command surface
 
 Canonical remote commands:
 
@@ -39,22 +17,19 @@ surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o 
 surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o audit.md -j audit.json
 ```
 
-Compatibility aliases for `v0.5.x`:
+Compatibility aliases during `v0.5.x`:
 
 ```bash
 surveyor discover subnet ...
 surveyor audit subnet ...
 ```
 
-Those aliases should continue to mean the CIDR-backed remote path only. They are
+Those aliases continue to mean the CIDR-backed remote path only. They are
 compatibility affordances, not the long-term design centre.
 
 ## Scope model
 
-The current CIDR-backed remote scope contract should become a broader remote
-scope model.
-
-That model should represent:
+The current remote scope model represents:
 
 - remote scope kind
 - declared input kind
@@ -63,7 +38,7 @@ That model should represent:
 - declared ports
 - effective execution controls
 
-Suggested report and planning fields:
+Current report and planning fields:
 
 - `scope_kind: remote`
 - `input_kind: cidr | targets_file`
@@ -72,7 +47,7 @@ Suggested report and planning fields:
 - `host_count`
 - `ports`
 
-This should be reflected consistently in:
+These fields should be reflected consistently in:
 
 - CLI execution planning
 - config parsing
@@ -81,9 +56,9 @@ This should be reflected consistently in:
 
 ## Targets-file rules
 
-The first file-backed scope grammar should stay deliberately simple.
+The file-backed scope grammar stays deliberately simple.
 
-Recommended rules:
+Current rules:
 
 - one host or IP per line
 - blank lines allowed
@@ -91,8 +66,7 @@ Recommended rules:
 - no implicit ports in the file
 - `--ports` remains required
 
-Do not add host:port tuples, YAML or multiple competing file grammars in
-`v0.5.0`.
+Do not add host:port tuples, YAML or multiple competing file grammars in the current line.
 
 That keeps the remote model explicit:
 
@@ -101,7 +75,7 @@ That keeps the remote model explicit:
 
 ## Safety model
 
-Generalised remote scope should keep the current remote safety controls:
+Generalised remote scope keeps the current remote safety controls:
 
 - `--profile cautious|balanced|aggressive`
 - `--dry-run`
@@ -118,12 +92,12 @@ Rules:
 - scope remains explicit
 - `--dry-run` performs no network I/O
 
-For `--targets-file`, `--max-hosts` should still apply after the file is parsed
+For `--targets-file`, `--max-hosts` still applies after the file is parsed
 and normalised.
 
 ## Discovery and audit boundaries
 
-Generalised remote scope must not blur the existing architectural separation.
+Generalised remote scope does not blur the existing architectural separation.
 
 Discovery should still do:
 
@@ -136,11 +110,11 @@ Audit should still do:
 - scanner handoff
 - verified TLS results
 
-TLS should remain the only deep verified scanner in this milestone.
+TLS remains the only deep verified scanner in the current milestone line.
 
 ## What must remain true
 
-These rules should remain true through `v0.5.0`:
+These rules remain true in the current implementation:
 
 - discovery records facts before hinting
 - hints stay separate from verified scans
@@ -152,7 +126,7 @@ These rules should remain true through `v0.5.0`:
 
 ## Non-goals
 
-`v0.5.0` should not include:
+The current remote scope model does not include:
 
 - a second deep scanner
 - STARTTLS or multi-protocol probing
@@ -166,12 +140,13 @@ These rules should remain true through `v0.5.0`:
 
 ## Relationship to the current remote surface
 
-The current shipped remote surface remains:
+The current remote surface is now:
 
-- `surveyor discover subnet`
-- `surveyor audit subnet`
-- explicit `--cidr`
+- canonical `surveyor discover remote`
+- canonical `surveyor audit remote`
+- explicit `--cidr` or `--targets-file`
 - explicit `--ports`
+- `surveyor discover subnet` and `surveyor audit subnet` retained as CIDR-only compatibility aliases during `v0.5.x`
 
-This document defines the next architectural step on top of that surface. It
-does not change the meaning of the current `v0.4.x` commands by itself.
+That makes remote scope first-class without weakening the existing discovery,
+hinting, selection and verified-scanning boundaries.

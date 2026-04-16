@@ -12,8 +12,11 @@ The audit commands are:
 
 ```bash
 surveyor audit local
-surveyor audit subnet --cidr 10.0.0.0/24 --ports 443,8443
+surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443
+surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443
 ```
+
+`surveyor audit subnet` remains as a CIDR-only compatibility alias during `v0.5.x`.
 
 ## Why audit exists
 
@@ -42,7 +45,7 @@ The semantics of `surveyor audit local` are:
 - record skipped endpoints and the reason they were skipped
 - emit canonical JSON and derived Markdown
 
-The semantics of `surveyor audit subnet` are:
+The semantics of `surveyor audit remote` are:
 
 - validate explicit remote scope first
 - run remote discovery within that declared scope
@@ -64,7 +67,7 @@ Both commands follow the same output conventions:
 The current audit flow covers:
 
 - local-only audit orchestration
-- remote subnet audit within explicitly declared CIDR scope and explicit ports
+- remote audit within explicitly declared scope and explicit ports
 - discovery-first orchestration
 - conservative TLS-candidate selection
 - automatic handoff only to the existing TLS scanner
@@ -131,9 +134,9 @@ Current top-level audit report shape:
   "generated_at": "2026-04-16T02:00:00Z",
   "scope": {
     "scope_kind": "remote",
-    "input_kind": "cidr",
-    "cidr": "10.0.0.0/30",
-    "ports": [443, 8443]
+    "input_kind": "targets_file",
+    "targets_file": "examples/approved-hosts.txt",
+    "ports": [443]
   },
   "execution": {
     "profile": "cautious",
@@ -161,17 +164,18 @@ Current report-scope shape:
 ```json
 {
   "scope_kind": "remote",
-  "input_kind": "cidr",
-  "cidr": "10.0.0.0/30",
-  "ports": [443, 8443]
+  "input_kind": "targets_file",
+  "targets_file": "examples/approved-hosts.txt",
+  "ports": [443]
 }
 ```
 
 Fields:
 
 - `scope_kind`: `local` or `remote`
-- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr`
-- `cidr`: declared remote CIDR when the report covers remote scope
+- `input_kind`: declared remote scope input kind when the report covers remote scope, currently `cidr` or `targets_file`
+- `cidr`: declared remote CIDR when the report covers CIDR-backed remote scope
+- `targets_file`: declared remote targets-file path when the report covers file-backed remote scope
 - `ports`: declared remote port set when the report covers remote scope
 
 ### Report execution
@@ -284,7 +288,7 @@ It:
 - preserves the difference between hinting and verification
 - keeps unsupported or failed endpoints explicit in the report instead of silently dropping them
 
-For `audit subnet`, verified TLS results should be read as literal IP-target connection-path observations. They do not imply hostname validation or full virtual-host coverage behind the address.
+For `audit remote`, verified TLS results should be read as literal connection-path observations. IP-literal results in particular do not imply hostname validation or full virtual-host coverage behind the address.
 
 ## Current examples
 
@@ -292,6 +296,8 @@ Representative example outputs live in:
 
 - [examples/audit.json](../examples/audit.json)
 - [examples/audit.md](../examples/audit.md)
+- [examples/audit-remote.json](../examples/audit-remote.json)
+- [examples/audit-remote.md](../examples/audit-remote.md)
 - [examples/audit-subnet.json](../examples/audit-subnet.json)
 - [examples/audit-subnet.md](../examples/audit-subnet.md)
 

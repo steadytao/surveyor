@@ -4,6 +4,16 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.5.0
+
+### Added
+- canonical `surveyor discover remote` and `surveyor audit remote` commands now support both explicitly declared CIDR scope and simple file-backed host scope
+- remote discovery and audit reports now exercise `input_kind=targets_file` with checked-in examples and golden outputs for the canonical remote command family
+
+### Changed
+- `surveyor discover subnet` and `surveyor audit subnet` are now explicitly documented as CIDR-only compatibility aliases from `v0.4.x` rather than the canonical remote command surface
+- README, architecture, remote inventory, remote scope, discovery, audit, safety and release-checklist docs now describe the shipped generalised remote scope model instead of the earlier subnet-only remote boundary
+
 ## v0.4.1
 
 ### Changed
