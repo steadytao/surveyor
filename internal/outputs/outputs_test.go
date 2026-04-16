@@ -9,6 +9,7 @@ import (
 
 	"github.com/steadytao/surveyor/internal/core"
 	diffreport "github.com/steadytao/surveyor/internal/diff"
+	prioritizereport "github.com/steadytao/surveyor/internal/prioritize"
 )
 
 func TestBuildReportSummary(t *testing.T) {
@@ -272,6 +273,22 @@ func TestMarshalDiffJSON(t *testing.T) {
 	}
 }
 
+func TestMarshalPrioritizationJSON(t *testing.T) {
+	t.Parallel()
+
+	report := samplePrioritizationReport(t)
+
+	data, err := MarshalPrioritizationJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalPrioritizationJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "priorities.golden.json")
+	if string(data) != want {
+		t.Fatalf("prioritization json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
 func TestRenderMarkdown(t *testing.T) {
 	t.Parallel()
 
@@ -341,6 +358,18 @@ func TestRenderDiffMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "diff.golden.md")
 	if markdown != want {
 		t.Fatalf("diff markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderPrioritizationMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := samplePrioritizationReport(t)
+
+	markdown := RenderPrioritizationMarkdown(report)
+	want := readGoldenFile(t, "priorities.golden.md")
+	if markdown != want {
+		t.Fatalf("prioritization markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
 	}
 }
 
@@ -738,6 +767,91 @@ func sampleDiffReport(t *testing.T) diffreport.Report {
 	})
 
 	report, err := diffreport.BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	return report
+}
+
+func samplePrioritizationReport(t *testing.T) prioritizereport.Report {
+	t.Helper()
+
+	source := BuildAuditReportWithMetadata([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Hints: []core.DiscoveryHint{
+					{
+						Protocol:   "tls",
+						Confidence: "low",
+						Evidence:   []string{"transport=tcp", "port=443"},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:                   "example.com",
+				Port:                   443,
+				ScannedAt:              time.Date(2026, time.April, 20, 1, 20, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.3",
+				CipherSuite:            "TLS_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafKeySize:            2048,
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+				Findings: []core.Finding{
+					{
+						Code:           "classical-certificate-identity",
+						Severity:       core.SeverityMedium,
+						Summary:        "The observed certificate identity remains classical.",
+						Evidence:       []string{"leaf_key_algorithm=rsa"},
+						Recommendation: "Inventory certificate replacement and related PKI dependencies as part of migration planning.",
+					},
+				},
+				Warnings: []string{"certificate metadata incomplete"},
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "10.0.0.10",
+				Port:      443,
+				Transport: "tcp",
+				State:     "candidate",
+				Errors:    []string{"connection refused"},
+			},
+			Selection: core.AuditSelection{
+				Status: core.AuditSelectionStatusSkipped,
+				Reason: "endpoint did not respond during remote discovery",
+			},
+		},
+	}, time.Date(2026, time.April, 20, 1, 30, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:   core.ReportScopeKindRemote,
+		InputKind:   core.ReportInputKindTargetsFile,
+		TargetsFile: "examples/approved-hosts.txt",
+		Ports:       []int{443},
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+
+	report, err := prioritizereport.BuildAuditReport(
+		source,
+		prioritizereport.ProfileMigrationReadiness,
+		time.Date(2026, time.April, 22, 3, 0, 0, 0, time.UTC),
+	)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)
 	}
