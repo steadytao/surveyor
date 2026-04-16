@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/steadytao/surveyor/internal/core"
+	"github.com/steadytao/surveyor/internal/inventory"
 )
 
 // RemoteProfile controls the default pace for remote inventory commands.
@@ -25,8 +28,9 @@ const (
 type RemoteScopeInputKind string
 
 const (
-	RemoteScopeInputKindCIDR        RemoteScopeInputKind = "cidr"
-	RemoteScopeInputKindTargetsFile RemoteScopeInputKind = "targets_file"
+	RemoteScopeInputKindCIDR          RemoteScopeInputKind = "cidr"
+	RemoteScopeInputKindTargetsFile   RemoteScopeInputKind = "targets_file"
+	RemoteScopeInputKindInventoryFile RemoteScopeInputKind = "inventory_file"
 )
 
 // RemoteScopeInput is the raw input shape for remote commands.
@@ -34,12 +38,21 @@ const (
 type RemoteScopeInput struct {
 	CIDR           string
 	TargetsFile    string
+	InventoryFile  string
 	Ports          string
 	Profile        string
 	MaxHosts       int
 	MaxConcurrency int
 	Timeout        time.Duration
 	DryRun         bool
+}
+
+// RemoteScopeTarget records one executable host:ports target compiled from a
+// richer remote input source.
+type RemoteScopeTarget struct {
+	Host      string
+	Ports     []int
+	Inventory *core.InventoryAnnotation
 }
 
 // RemoteScope is the validated and normalised scope contract remote commands
@@ -50,8 +63,10 @@ type RemoteScope struct {
 	InputKind      RemoteScopeInputKind
 	CIDR           netip.Prefix
 	TargetsFile    string
+	InventoryFile  string
 	Hosts          []string
 	Ports          []int
+	Targets        []RemoteScopeTarget
 	Profile        RemoteProfile
 	MaxHosts       int
 	HostCount      int
@@ -83,26 +98,32 @@ var remoteProfileDefaultsByProfile = map[RemoteProfile]remoteProfileDefaults{
 const defaultRemoteMaxHosts = 256
 
 // ParseRemoteScope validates and normalises raw remote input into the current
-// remote-scope contract. Today that means explicit CIDR scope or a simple
-// file-backed host list, plus explicit ports; later remote input kinds should
-// extend this contract rather than replace it.
+// remote-scope contract. Today that means explicit CIDR scope, a simple
+// file-backed host list or a structured inventory manifest; later remote input
+// kinds should extend this contract rather than replace it.
 func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	cidrText := strings.TrimSpace(input.CIDR)
 	targetsFileText := strings.TrimSpace(input.TargetsFile)
+	inventoryFileText := strings.TrimSpace(input.InventoryFile)
 
-	if cidrText != "" && targetsFileText != "" {
-		return RemoteScope{}, fmt.Errorf("use either --cidr or --targets-file, not both")
+	scopeInputCount := 0
+	if cidrText != "" {
+		scopeInputCount++
 	}
-	if cidrText == "" && targetsFileText == "" {
-		return RemoteScope{}, fmt.Errorf("--cidr is required")
+	if targetsFileText != "" {
+		scopeInputCount++
+	}
+	if inventoryFileText != "" {
+		scopeInputCount++
+	}
+	if scopeInputCount > 1 {
+		return RemoteScope{}, fmt.Errorf("use exactly one of --cidr, --targets-file or --inventory-file")
+	}
+	if scopeInputCount == 0 {
+		return RemoteScope{}, fmt.Errorf("one of --cidr, --targets-file or --inventory-file is required")
 	}
 
 	profile, err := parseRemoteProfile(input.Profile)
-	if err != nil {
-		return RemoteScope{}, err
-	}
-
-	ports, err := parsePorts(input.Ports)
 	if err != nil {
 		return RemoteScope{}, err
 	}
@@ -131,6 +152,44 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 	if timeout < 0 {
 		return RemoteScope{}, fmt.Errorf("--timeout must not be negative")
+	}
+
+	if inventoryFileText != "" {
+		document, err := inventory.Load(inventoryFileText)
+		if err != nil {
+			return RemoteScope{}, fmt.Errorf("load --inventory-file %q: %w", inventoryFileText, err)
+		}
+		if len(document.Entries) > maxHosts {
+			return RemoteScope{}, fmt.Errorf("--inventory-file contains %d hosts, which exceeds --max-hosts=%d", len(document.Entries), maxHosts)
+		}
+
+		overridePorts, err := parseOptionalPorts(input.Ports)
+		if err != nil {
+			return RemoteScope{}, err
+		}
+
+		targets, err := compileInventoryTargets(document.Entries, overridePorts)
+		if err != nil {
+			return RemoteScope{}, fmt.Errorf("--inventory-file %q: %w", inventoryFileText, err)
+		}
+
+		return RemoteScope{
+			InputKind:      RemoteScopeInputKindInventoryFile,
+			InventoryFile:  inventoryFileText,
+			Ports:          overridePorts,
+			Targets:        targets,
+			Profile:        profile,
+			MaxHosts:       maxHosts,
+			HostCount:      len(targets),
+			MaxConcurrency: maxConcurrency,
+			Timeout:        timeout,
+			DryRun:         input.DryRun,
+		}, nil
+	}
+
+	ports, err := requirePorts(input.Ports)
+	if err != nil {
+		return RemoteScope{}, err
 	}
 
 	if targetsFileText != "" {
@@ -200,10 +259,22 @@ func parseRemoteProfile(raw string) (RemoteProfile, error) {
 	return profile, nil
 }
 
-func parsePorts(raw string) ([]int, error) {
+func requirePorts(raw string) ([]int, error) {
+	ports, err := parseOptionalPorts(raw)
+	if err != nil {
+		return nil, err
+	}
+	if len(ports) == 0 {
+		return nil, fmt.Errorf("--ports is required")
+	}
+
+	return ports, nil
+}
+
+func parseOptionalPorts(raw string) ([]int, error) {
 	portsText := strings.TrimSpace(raw)
 	if portsText == "" {
-		return nil, fmt.Errorf("--ports is required")
+		return nil, nil
 	}
 
 	parts := strings.Split(portsText, ",")
@@ -233,6 +304,27 @@ func parsePorts(raw string) ([]int, error) {
 
 	sort.Ints(ports)
 	return ports, nil
+}
+
+func compileInventoryTargets(entries []inventory.Entry, overridePorts []int) ([]RemoteScopeTarget, error) {
+	targets := make([]RemoteScopeTarget, 0, len(entries))
+	for _, entry := range entries {
+		ports := append([]int(nil), overridePorts...)
+		if len(ports) == 0 {
+			ports = append([]int(nil), entry.Ports...)
+		}
+		if len(ports) == 0 {
+			return nil, fmt.Errorf("host %q does not declare any ports and --ports was not provided", entry.Host)
+		}
+
+		targets = append(targets, RemoteScopeTarget{
+			Host:      entry.Host,
+			Ports:     ports,
+			Inventory: entry.Annotation(),
+		})
+	}
+
+	return targets, nil
 }
 
 func parseRemoteTargetsFile(path string) ([]string, error) {

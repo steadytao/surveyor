@@ -449,6 +449,10 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	if targetsFile != nil {
 		targetsFileValue = *targetsFile
 	}
+	if !opts.allowTargetsFile && strings.TrimSpace(*cidr) == "" {
+		fmt.Fprintln(stderr, "--cidr is required")
+		return 2
+	}
 
 	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
 		CIDR:           *cidr,
@@ -637,6 +641,10 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 	targetsFileValue := ""
 	if targetsFile != nil {
 		targetsFileValue = *targetsFile
+	}
+	if !opts.allowTargetsFile && strings.TrimSpace(*cidr) == "" {
+		fmt.Fprintln(stderr, "--cidr is required")
+		return 2
 	}
 
 	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
