@@ -147,3 +147,22 @@ The first diffing release does not include:
 - policy-engine logic
 
 Diffing should explain change, not pretend to decide everything about it.
+
+## Next planned layer
+
+The next planned analysis milestone is `v0.8.0 - Policy Refinement and Organisational Workflows`.
+
+That work should add grouped diff summaries over the existing technical change model, for example:
+
+- changes by owner
+- changes by environment
+- changes by inventory source
+- highest-risk regressions by group
+
+Important boundary:
+
+- the underlying entity-level diff model should remain technical and deterministic
+- grouped summaries should layer on top of existing changes
+- diffing should still not become a policy engine
+
+See [policy-workflows.md](policy-workflows.md) for the planned contract.
