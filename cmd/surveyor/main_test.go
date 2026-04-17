@@ -1242,6 +1242,9 @@ func TestRunAuditSubnetHelp(t *testing.T) {
 	if strings.Contains(stderr.String(), "  --inventory-file") {
 		t.Fatalf("stderr = %q, want no inventory-file flag line in subnet alias help", stderr.String())
 	}
+	if strings.Contains(stderr.String(), "  --adapter") {
+		t.Fatalf("stderr = %q, want no adapter flag line in subnet alias help", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "only accepts --cidr, not --targets-file") {
 		t.Fatalf("stderr = %q, want explicit CIDR-only alias guidance", stderr.String())
 	}
@@ -1263,6 +1266,9 @@ func TestRunAuditRemoteHelp(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "--inventory-file") {
 		t.Fatalf("stderr = %q, want inventory-file flag in remote help", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "--adapter") {
+		t.Fatalf("stderr = %q, want adapter flag in remote help", stderr.String())
 	}
 }
 
@@ -1373,6 +1379,59 @@ func TestRunAuditRemoteInventoryFileDryRunWritesPlan(t *testing.T) {
 	}
 }
 
+func TestRunAuditRemoteInventoryFileAdapterDryRunWritesPlan(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "caddy.json")
+	if err := os.WriteFile(inventoryFile, []byte(`{
+  "apps": {
+    "http": {
+      "servers": {
+        "edge": {
+          "listen": [":443"],
+          "routes": [
+            {
+              "match": [
+                {
+                  "host": ["api.example.com"]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "reverse_proxy"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"remote",
+		"--inventory-file", inventoryFile,
+		"--adapter", "caddy",
+		"--dry-run",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Inventory file: "+inventoryFile) ||
+		!strings.Contains(stdout.String(), "Adapter: caddy") {
+		t.Fatalf("stdout = %q, want adapter execution plan metadata", stdout.String())
+	}
+}
+
 func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
 	t.Parallel()
 
@@ -1413,13 +1472,32 @@ func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
 	}
 
 	tempDir := t.TempDir()
-	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
-	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
-		"version: 1",
-		"entries:",
-		"  - host: example.com",
-		"    ports: [443]",
-	}, "\n")), 0o644); err != nil {
+	inventoryFile := filepath.Join(tempDir, "caddy.json")
+	if err := os.WriteFile(inventoryFile, []byte(`{
+  "apps": {
+    "http": {
+      "servers": {
+        "edge": {
+          "listen": [":443"],
+          "routes": [
+            {
+              "match": [
+                {
+                  "host": ["example.com"]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "reverse_proxy"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}`), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -1431,6 +1509,7 @@ func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
 		"audit",
 		"remote",
 		"--inventory-file", inventoryFile,
+		"--adapter", "caddy",
 		"--json", jsonPath,
 	}, &stdout, &stderr, fixedNow)
 
@@ -1442,6 +1521,9 @@ func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
 	}
 	if gotScope.InventoryFile != inventoryFile {
 		t.Fatalf("scope.InventoryFile = %q, want %q", gotScope.InventoryFile, inventoryFile)
+	}
+	if gotScope.Adapter != core.InventoryAdapterCaddy {
+		t.Fatalf("scope.Adapter = %q, want %q", gotScope.Adapter, core.InventoryAdapterCaddy)
 	}
 	if len(gotScope.Targets) != 1 {
 		t.Fatalf("len(scope.Targets) = %d, want 1", len(gotScope.Targets))
@@ -1456,6 +1538,7 @@ func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
 	}
 	if !strings.Contains(string(jsonData), "\"input_kind\": \"inventory_file\"") ||
 		!strings.Contains(string(jsonData), "\"inventory_file\": ") ||
+		!strings.Contains(string(jsonData), "\"adapter\": \"caddy\"") ||
 		!strings.Contains(string(jsonData), "\"owner\": \"Platform\"") {
 		t.Fatalf("json output = %s, want inventory-backed audit metadata and annotation", string(jsonData))
 	}
@@ -1948,6 +2031,9 @@ func TestRunDiscoverSubnetHelp(t *testing.T) {
 	if strings.Contains(stderr.String(), "  --inventory-file") {
 		t.Fatalf("stderr = %q, want no inventory-file flag line in subnet alias help", stderr.String())
 	}
+	if strings.Contains(stderr.String(), "  --adapter") {
+		t.Fatalf("stderr = %q, want no adapter flag line in subnet alias help", stderr.String())
+	}
 	if !strings.Contains(stderr.String(), "only accepts --cidr, not --targets-file") {
 		t.Fatalf("stderr = %q, want explicit CIDR-only alias guidance", stderr.String())
 	}
@@ -1969,6 +2055,9 @@ func TestRunDiscoverRemoteHelp(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "--inventory-file") {
 		t.Fatalf("stderr = %q, want inventory-file flag in remote help", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "--adapter") {
+		t.Fatalf("stderr = %q, want adapter flag in remote help", stderr.String())
 	}
 }
 
@@ -2072,6 +2161,58 @@ func TestRunDiscoverRemoteInventoryFileDryRunWritesPlan(t *testing.T) {
 	}
 }
 
+func TestRunDiscoverRemoteInventoryFileAdapterDryRunWritesPlan(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "ingress.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(`
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payments-api
+  namespace: payments
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.example.com
+      secretName: payments-api-tls
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: payments-api
+                port:
+                  number: 80
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"discover",
+		"remote",
+		"--inventory-file", inventoryFile,
+		"--adapter", "kubernetes-ingress-v1",
+		"--dry-run",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Inventory file: "+inventoryFile) ||
+		!strings.Contains(stdout.String(), "Adapter: kubernetes-ingress-v1") {
+		t.Fatalf("stdout = %q, want adapter execution plan metadata", stdout.String())
+	}
+}
+
 func TestRunDiscoverRemoteInventoryFileWritesOutputs(t *testing.T) {
 	t.Parallel()
 
@@ -2102,13 +2243,31 @@ func TestRunDiscoverRemoteInventoryFileWritesOutputs(t *testing.T) {
 	}
 
 	tempDir := t.TempDir()
-	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
-	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
-		"version: 1",
-		"entries:",
-		"  - host: example.com",
-		"    ports: [443]",
-	}, "\n")), 0o644); err != nil {
+	inventoryFile := filepath.Join(tempDir, "ingress.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(`
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example
+  namespace: default
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - example.com
+      secretName: example-tls
+  rules:
+    - host: example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: example
+                port:
+                  number: 80
+`), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -2120,6 +2279,7 @@ func TestRunDiscoverRemoteInventoryFileWritesOutputs(t *testing.T) {
 		"discover",
 		"remote",
 		"--inventory-file", inventoryFile,
+		"--adapter", "kubernetes-ingress-v1",
 		"--json", jsonPath,
 	}, &stdout, &stderr, fixedNow)
 
@@ -2131,6 +2291,9 @@ func TestRunDiscoverRemoteInventoryFileWritesOutputs(t *testing.T) {
 	}
 	if gotScope.InventoryFile != inventoryFile {
 		t.Fatalf("scope.InventoryFile = %q, want %q", gotScope.InventoryFile, inventoryFile)
+	}
+	if gotScope.Adapter != core.InventoryAdapterKubernetesIngressV1 {
+		t.Fatalf("scope.Adapter = %q, want %q", gotScope.Adapter, core.InventoryAdapterKubernetesIngressV1)
 	}
 	if len(gotScope.Targets) != 1 {
 		t.Fatalf("len(scope.Targets) = %d, want 1", len(gotScope.Targets))
@@ -2144,6 +2307,7 @@ func TestRunDiscoverRemoteInventoryFileWritesOutputs(t *testing.T) {
 	}
 	if !strings.Contains(string(jsonData), "\"input_kind\": \"inventory_file\"") ||
 		!strings.Contains(string(jsonData), "\"inventory_file\": ") ||
+		!strings.Contains(string(jsonData), "\"adapter\": \"kubernetes-ingress-v1\"") ||
 		!strings.Contains(string(jsonData), "\"owner\": \"Platform\"") {
 		t.Fatalf("json output = %s, want inventory-backed discovery metadata and annotation", string(jsonData))
 	}

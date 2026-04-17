@@ -90,7 +90,8 @@ func TestParseReportHeaderInventoryScope(t *testing.T) {
   "scope": {
     "scope_kind": "remote",
     "input_kind": "inventory_file",
-    "inventory_file": "examples/inventory.yaml"
+    "inventory_file": "examples/inventory.yaml",
+    "adapter": "caddy"
   }
 }`))
 	if err != nil {
@@ -99,6 +100,9 @@ func TestParseReportHeaderInventoryScope(t *testing.T) {
 
 	if got, want := header.Scope.InventoryFile, "examples/inventory.yaml"; got != want {
 		t.Fatalf("header.Scope.InventoryFile = %q, want %q", got, want)
+	}
+	if got, want := header.Scope.Adapter, core.InventoryAdapterCaddy; got != want {
+		t.Fatalf("header.Scope.Adapter = %q, want %q", got, want)
 	}
 }
 
@@ -199,6 +203,39 @@ func TestValidateCompatibilityInventoryAuditAllowsScopeDifference(t *testing.T) 
 			ScopeKind:     core.ReportScopeKindRemote,
 			InputKind:     core.ReportInputKindInventoryFile,
 			InventoryFile: "examples/inventory-b.yaml",
+		},
+	}
+
+	comparison, err := ValidateCompatibility(baseline, current)
+	if err != nil {
+		t.Fatalf("ValidateCompatibility() error = %v", err)
+	}
+	if !comparison.ScopeChanged {
+		t.Fatal("comparison.ScopeChanged = false, want true")
+	}
+}
+
+func TestValidateCompatibilityInventoryAuditDetectsAdapterDifference(t *testing.T) {
+	t.Parallel()
+
+	baseline := ReportHeader{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/caddy.json via caddy adapter"),
+		GeneratedAt:    time.Date(2026, time.April, 20, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/caddy.json",
+			Adapter:       core.InventoryAdapterCaddy,
+		},
+	}
+	current := ReportHeader{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/caddy.json via kubernetes-ingress-v1 adapter"),
+		GeneratedAt:    time.Date(2026, time.April, 21, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/caddy.json",
+			Adapter:       core.InventoryAdapterKubernetesIngressV1,
 		},
 	}
 

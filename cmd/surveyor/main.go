@@ -479,6 +479,7 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
 	}
 	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
+	adapter := fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
 	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the profile-safe command default")
@@ -522,6 +523,7 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 		CIDR:           *cidr,
 		TargetsFile:    targetsFileValue,
 		InventoryFile:  inventoryFileValue,
+		Adapter:        *adapter,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
@@ -683,6 +685,7 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
 	}
 	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
+	adapter := fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
 	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the profile-safe command default")
@@ -726,6 +729,7 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 		CIDR:           *cidr,
 		TargetsFile:    targetsFileValue,
 		InventoryFile:  inventoryFileValue,
+		Adapter:        *adapter,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
@@ -1324,7 +1328,7 @@ func printAuditLocalUsage(w io.Writer) {
 
 func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
+	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--ports 443,8443] [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Canonical remote audit command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
@@ -1335,11 +1339,13 @@ func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor audit remote --inventory-file inventory.yaml")
+	fmt.Fprintln(w, "  surveyor audit remote --inventory-file caddy.json --adapter caddy")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to audit, for example 10.0.0.0/24")
 	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file; blank lines and # comments are ignored")
 	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file (.yaml, .yml, .json or .csv)")
+	fmt.Fprintln(w, "  --adapter           Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
 	fmt.Fprintln(w, "  --ports             Explicit remote ports, required for --cidr and --targets-file; overrides inventory entry ports when set")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
@@ -1394,7 +1400,7 @@ func printDiscoverLocalUsage(w io.Writer) {
 
 func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
+	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--ports 443,8443] [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Canonical remote discovery command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
@@ -1405,11 +1411,13 @@ func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "  surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor discover remote --inventory-file inventory.yaml")
+	fmt.Fprintln(w, "  surveyor discover remote --inventory-file ingress.yaml --adapter kubernetes-ingress-v1")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to discover, for example 10.0.0.0/24")
 	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file; blank lines and # comments are ignored")
 	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file (.yaml, .yml, .json or .csv)")
+	fmt.Fprintln(w, "  --adapter           Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
 	fmt.Fprintln(w, "  --ports             Explicit remote ports, required for --cidr and --targets-file; overrides inventory entry ports when set")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
@@ -1461,6 +1469,9 @@ func renderRemoteExecutionPlanMarkdown(commandName string, scope config.RemoteSc
 	if scope.InventoryFile != "" {
 		builder.WriteString(fmt.Sprintf("- Inventory file: %s\n", scope.InventoryFile))
 	}
+	if scope.Adapter != "" {
+		builder.WriteString(fmt.Sprintf("- Adapter: %s\n", scope.Adapter))
+	}
 	builder.WriteString(fmt.Sprintf("- Host count: %d\n", scope.HostCount))
 	builder.WriteString(fmt.Sprintf("- Ports: %s\n", describeRemotePlanPorts(scope)))
 	builder.WriteString(fmt.Sprintf("- Profile: %s\n", scope.Profile))
@@ -1506,6 +1517,7 @@ func remoteReportMetadata(scope config.RemoteScope) (*core.ReportScope, *core.Re
 			CIDR:          cidr,
 			TargetsFile:   scope.TargetsFile,
 			InventoryFile: scope.InventoryFile,
+			Adapter:       scope.Adapter,
 			Ports:         append([]int(nil), scope.Ports...),
 		}, &core.ReportExecution{
 			Profile:        string(scope.Profile),

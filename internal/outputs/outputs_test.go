@@ -269,6 +269,21 @@ func TestBuildAuditReportInventoryScopeDescription(t *testing.T) {
 	}
 }
 
+func TestBuildAuditReportInventoryAdapterScopeDescription(t *testing.T) {
+	t.Parallel()
+
+	report := BuildAuditReportWithMetadata(nil, time.Date(2026, time.April, 21, 4, 10, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/caddy.json",
+		Adapter:       core.InventoryAdapterCaddy,
+	}, nil)
+
+	if got, want := report.ScopeDescription, "remote audit from inventory file examples/caddy.json via caddy adapter"; got != want {
+		t.Fatalf("report.ScopeDescription = %q, want %q", got, want)
+	}
+}
+
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
 
@@ -563,6 +578,21 @@ func TestRenderInventoryAuditMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "audit-inventory.golden.md")
 	if markdown != want {
 		t.Fatalf("inventory audit markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderInventoryAuditMarkdownShowsAdapter(t *testing.T) {
+	t.Parallel()
+
+	report := sampleInventoryAuditReport()
+	report.Scope.Adapter = core.InventoryAdapterCaddy
+
+	markdown := RenderAuditMarkdown(report)
+	if !strings.Contains(markdown, "Inventory file: examples/inventory.yaml") {
+		t.Fatalf("markdown = %q, want inventory file line", markdown)
+	}
+	if !strings.Contains(markdown, "Adapter: caddy") {
+		t.Fatalf("markdown = %q, want adapter line", markdown)
 	}
 }
 
