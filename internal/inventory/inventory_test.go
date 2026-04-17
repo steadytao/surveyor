@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,19 @@ import (
 
 	"github.com/steadytao/surveyor/internal/core"
 )
+
+type stubAdapter struct {
+	name  core.InventoryAdapter
+	parse func([]byte, core.InventorySourceFormat, string) (Document, error)
+}
+
+func (adapter stubAdapter) Name() core.InventoryAdapter {
+	return adapter.name
+}
+
+func (adapter stubAdapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+	return adapter.parse(data, format, sourceName)
+}
 
 func TestParseYAMLInventory(t *testing.T) {
 	t.Parallel()
@@ -255,6 +269,140 @@ entries:
 	}
 	if got, want := document.Format, core.InventorySourceFormatYAML; got != want {
 		t.Fatalf("document.Format = %q, want %q", got, want)
+	}
+}
+
+func TestParseWithAdapterUsesRegisteredAdapter(t *testing.T) {
+	t.Parallel()
+
+	adapterName := core.InventoryAdapter("test-adapter")
+	if err := RegisterAdapter(stubAdapter{
+		name: adapterName,
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+			if got, want := format, core.InventorySourceFormatJSON; got != want {
+				return Document{}, fmt.Errorf("format = %q, want %q", got, want)
+			}
+			if got, want := sourceName, "adapter.json"; got != want {
+				return Document{}, fmt.Errorf("sourceName = %q, want %q", got, want)
+			}
+
+			return Document{
+				Format:     format,
+				SourceName: sourceName,
+				Entries: []Entry{
+					{
+						Host:  "api.example.com",
+						Ports: []int{443},
+						Provenance: []core.InventoryProvenance{
+							{
+								SourceKind:   core.InventorySourceKindInventoryFile,
+								SourceFormat: core.InventorySourceFormatJSON,
+								SourceName:   sourceName,
+								SourceRecord: "records[0]",
+								Adapter:      adapterName,
+								SourceObject: "object-0",
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}); err != nil {
+		t.Fatalf("RegisterAdapter() error = %v", err)
+	}
+	t.Cleanup(func() {
+		UnregisterAdapter(adapterName)
+	})
+
+	document, err := ParseWithAdapter([]byte(`{"ignored":true}`), core.InventorySourceFormatJSON, "adapter.json", core.InventoryAdapter("TEST-ADAPTER"))
+	if err != nil {
+		t.Fatalf("ParseWithAdapter() error = %v", err)
+	}
+
+	if got, want := len(document.Entries), 1; got != want {
+		t.Fatalf("len(document.Entries) = %d, want %d", got, want)
+	}
+	if got, want := document.Entries[0].Provenance[0].Adapter, adapterName; got != want {
+		t.Fatalf("document.Entries[0].Provenance[0].Adapter = %q, want %q", got, want)
+	}
+}
+
+func TestParseWithAdapterRejectsUnsupportedAdapter(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseWithAdapter([]byte(`{}`), core.InventorySourceFormatJSON, "adapter.json", core.InventoryAdapter("missing-adapter"))
+	if err == nil {
+		t.Fatal("ParseWithAdapter() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), `unsupported inventory adapter "missing-adapter"`) {
+		t.Fatalf("ParseWithAdapter() error = %q, want unsupported-adapter error", err.Error())
+	}
+}
+
+func TestRegisterAdapterRejectsDuplicateName(t *testing.T) {
+	t.Parallel()
+
+	adapterName := core.InventoryAdapter("duplicate-adapter")
+	if err := RegisterAdapter(stubAdapter{
+		name: adapterName,
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+			return Document{}, nil
+		},
+	}); err != nil {
+		t.Fatalf("RegisterAdapter() first error = %v", err)
+	}
+	t.Cleanup(func() {
+		UnregisterAdapter(adapterName)
+	})
+
+	err := RegisterAdapter(stubAdapter{
+		name: adapterName,
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+			return Document{}, nil
+		},
+	})
+	if err == nil {
+		t.Fatal("RegisterAdapter() duplicate error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), `inventory adapter "duplicate-adapter" is already registered`) {
+		t.Fatalf("RegisterAdapter() duplicate error = %q, want duplicate-name error", err.Error())
+	}
+}
+
+func TestRegisterAdapterNormalizesName(t *testing.T) {
+	t.Parallel()
+
+	adapterName := core.InventoryAdapter("Mixed-Case-Adapter")
+	if err := RegisterAdapter(stubAdapter{
+		name: adapterName,
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+			return Document{
+				Format:     format,
+				SourceName: sourceName,
+				Entries: []Entry{
+					{
+						Host: "api.example.com",
+					},
+				},
+			}, nil
+		},
+	}); err != nil {
+		t.Fatalf("RegisterAdapter() error = %v", err)
+	}
+	t.Cleanup(func() {
+		UnregisterAdapter(adapterName)
+	})
+
+	if !HasAdapter(core.InventoryAdapter("mixed-case-adapter")) {
+		t.Fatal("HasAdapter() = false, want true for normalized name")
+	}
+
+	document, err := ParseWithAdapter([]byte(`{}`), core.InventorySourceFormatJSON, "adapter.json", core.InventoryAdapter("mixed-case-adapter"))
+	if err != nil {
+		t.Fatalf("ParseWithAdapter() error = %v", err)
+	}
+	if got, want := len(document.Entries), 1; got != want {
+		t.Fatalf("len(document.Entries) = %d, want %d", got, want)
 	}
 }
 

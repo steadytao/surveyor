@@ -39,6 +39,7 @@ type RemoteScopeInput struct {
 	CIDR           string
 	TargetsFile    string
 	InventoryFile  string
+	Adapter        string
 	Ports          string
 	Profile        string
 	MaxHosts       int
@@ -64,6 +65,7 @@ type RemoteScope struct {
 	CIDR           netip.Prefix
 	TargetsFile    string
 	InventoryFile  string
+	Adapter        core.InventoryAdapter
 	Hosts          []string
 	Ports          []int
 	Targets        []RemoteScopeTarget
@@ -105,6 +107,7 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	cidrText := strings.TrimSpace(input.CIDR)
 	targetsFileText := strings.TrimSpace(input.TargetsFile)
 	inventoryFileText := strings.TrimSpace(input.InventoryFile)
+	adapterText := strings.TrimSpace(input.Adapter)
 
 	scopeInputCount := 0
 	if cidrText != "" {
@@ -121,6 +124,9 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 	if scopeInputCount == 0 {
 		return RemoteScope{}, fmt.Errorf("one of --cidr, --targets-file or --inventory-file is required")
+	}
+	if inventoryFileText == "" && adapterText != "" {
+		return RemoteScope{}, fmt.Errorf("--adapter requires --inventory-file")
 	}
 
 	profile, err := parseRemoteProfile(input.Profile)
@@ -155,7 +161,17 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 
 	if inventoryFileText != "" {
-		document, err := inventory.Load(inventoryFileText)
+		adapter, err := parseInventoryAdapter(adapterText)
+		if err != nil {
+			return RemoteScope{}, err
+		}
+
+		var document inventory.Document
+		if adapter != "" {
+			document, err = inventory.LoadWithAdapter(inventoryFileText, adapter)
+		} else {
+			document, err = inventory.Load(inventoryFileText)
+		}
 		if err != nil {
 			return RemoteScope{}, fmt.Errorf("load --inventory-file %q: %w", inventoryFileText, err)
 		}
@@ -176,6 +192,7 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 		return RemoteScope{
 			InputKind:      RemoteScopeInputKindInventoryFile,
 			InventoryFile:  inventoryFileText,
+			Adapter:        adapter,
 			Ports:          overridePorts,
 			Targets:        targets,
 			Profile:        profile,
@@ -243,6 +260,20 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 		Timeout:        timeout,
 		DryRun:         input.DryRun,
 	}, nil
+}
+
+func parseInventoryAdapter(raw string) (core.InventoryAdapter, error) {
+	adapterText := strings.ToLower(strings.TrimSpace(raw))
+	if adapterText == "" {
+		return "", nil
+	}
+
+	adapter := core.InventoryAdapter(adapterText)
+	if !inventory.HasAdapter(adapter) {
+		return "", fmt.Errorf("unsupported --adapter %q", raw)
+	}
+
+	return adapter, nil
 }
 
 func parseRemoteProfile(raw string) (RemoteProfile, error) {

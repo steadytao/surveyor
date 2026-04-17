@@ -97,6 +97,16 @@ var supportedCSVHeaders = map[string]struct{}{
 // Load reads an inventory file from disk, infers its format from the file
 // extension and returns the canonical imported-inventory model.
 func Load(path string) (Document, error) {
+	return load(path, "")
+}
+
+// LoadWithAdapter reads an inventory file from disk and parses it through one
+// registered product-specific adapter.
+func LoadWithAdapter(path string, adapterName core.InventoryAdapter) (Document, error) {
+	return load(path, normalizeAdapterName(string(adapterName)))
+}
+
+func load(path string, adapterName core.InventoryAdapter) (Document, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Document{}, fmt.Errorf("read inventory file %q: %w", path, err)
@@ -107,11 +117,25 @@ func Load(path string) (Document, error) {
 		return Document{}, err
 	}
 
-	return Parse(data, format, path)
+	return parse(data, format, path, adapterName)
 }
 
 // Parse decodes one imported inventory document in the declared format.
 func Parse(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+	return parse(data, format, sourceName, "")
+}
+
+// ParseWithAdapter decodes one imported inventory document in the declared
+// format through one registered product-specific adapter.
+func ParseWithAdapter(data []byte, format core.InventorySourceFormat, sourceName string, adapterName core.InventoryAdapter) (Document, error) {
+	return parse(data, format, sourceName, normalizeAdapterName(string(adapterName)))
+}
+
+func parse(data []byte, format core.InventorySourceFormat, sourceName string, adapterName core.InventoryAdapter) (Document, error) {
+	if adapterName != "" {
+		return parseWithAdapter(data, format, sourceName, adapterName)
+	}
+
 	switch format {
 	case core.InventorySourceFormatYAML:
 		return parseYAML(data, sourceName)
