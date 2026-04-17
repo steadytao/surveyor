@@ -456,3 +456,163 @@ func TestReportJSONIncludesWorkflowSections(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildAuditReportAddsGroupedSummariesForInventoryMetadata(t *testing.T) {
+	t.Parallel()
+
+	baselineReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 24, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "api.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+						Provenance: []core.InventoryProvenance{
+							{
+								SourceKind:   core.InventorySourceKindInventoryFile,
+								SourceFormat: core.InventorySourceFormatYAML,
+								SourceName:   "examples/inventory.yaml",
+								SourceRecord: "entries[0]",
+							},
+						},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host:           "api.example.com",
+					Port:           443,
+					Reachable:      true,
+					ScannedAt:      time.Date(2026, time.April, 24, 1, 0, 0, 0, time.UTC),
+					Classification: "modern_tls_classical_identity",
+				},
+			},
+		},
+	}
+
+	currentReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 24, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "api.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+						Provenance: []core.InventoryProvenance{
+							{
+								SourceKind:   core.InventorySourceKindInventoryFile,
+								SourceFormat: core.InventorySourceFormatYAML,
+								SourceName:   "examples/inventory.yaml",
+								SourceRecord: "entries[0]",
+							},
+						},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status: core.AuditSelectionStatusSkipped,
+					Reason: "endpoint did not respond during remote discovery",
+				},
+			},
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "admin.example.com",
+					Port:      8443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "platform",
+						Environment: "dev",
+						Provenance: []core.InventoryProvenance{
+							{
+								SourceKind:   core.InventorySourceKindInventoryFile,
+								SourceFormat: core.InventorySourceFormatCSV,
+								SourceName:   "exports/cmdb.csv",
+								SourceRecord: "line 2",
+							},
+						},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/8443",
+				},
+			},
+		},
+	}
+
+	report, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 24, 3, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	if got, want := len(report.GroupedSummaries), 3; got != want {
+		t.Fatalf("len(report.GroupedSummaries) = %d, want %d", got, want)
+	}
+
+	ownerSummary := report.GroupedSummaries[0]
+	if got, want := ownerSummary.GroupBy, core.WorkflowGroupByOwner; got != want {
+		t.Fatalf("ownerSummary.GroupBy = %q, want %q", got, want)
+	}
+	if got, want := ownerSummary.Groups[0].Key, "payments"; got != want {
+		t.Fatalf("ownerSummary.Groups[0].Key = %q, want %q", got, want)
+	}
+	if got, want := ownerSummary.Groups[0].TotalItems, 1; got != want {
+		t.Fatalf("ownerSummary.Groups[0].TotalItems = %d, want %d", got, want)
+	}
+	if got, want := ownerSummary.Groups[1].Key, "platform"; got != want {
+		t.Fatalf("ownerSummary.Groups[1].Key = %q, want %q", got, want)
+	}
+	if got, want := ownerSummary.Groups[1].TotalItems, 1; got != want {
+		t.Fatalf("ownerSummary.Groups[1].TotalItems = %d, want %d", got, want)
+	}
+
+	environmentSummary := report.GroupedSummaries[1]
+	if got, want := environmentSummary.GroupBy, core.WorkflowGroupByEnvironment; got != want {
+		t.Fatalf("environmentSummary.GroupBy = %q, want %q", got, want)
+	}
+	if got, want := environmentSummary.Groups[0].Key, "dev"; got != want {
+		t.Fatalf("environmentSummary.Groups[0].Key = %q, want %q", got, want)
+	}
+	if got, want := environmentSummary.Groups[1].Key, "prod"; got != want {
+		t.Fatalf("environmentSummary.Groups[1].Key = %q, want %q", got, want)
+	}
+
+	sourceSummary := report.GroupedSummaries[2]
+	if got, want := sourceSummary.GroupBy, core.WorkflowGroupBySource; got != want {
+		t.Fatalf("sourceSummary.GroupBy = %q, want %q", got, want)
+	}
+	if got, want := sourceSummary.Groups[0].Key, "examples/inventory.yaml"; got != want {
+		t.Fatalf("sourceSummary.Groups[0].Key = %q, want %q", got, want)
+	}
+	if got, want := sourceSummary.Groups[1].Key, "exports/cmdb.csv"; got != want {
+		t.Fatalf("sourceSummary.Groups[1].Key = %q, want %q", got, want)
+	}
+}
