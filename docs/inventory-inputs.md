@@ -266,9 +266,24 @@ The generic ingestion substrate now exists before vendor-specific adapters.
 That means:
 
 - `v0.7.0` focuses on generic imported inventory support
-- `v1.1.0` is a better place for platform-specific import adapters
+- `v0.9.0` is the right place for the first stable platform-specific adapters
 
-Examples of later adapter work:
+The first stable adapter set should stay narrow:
+
+- `Caddy`
+- `Kubernetes Ingress v1`
+
+Important boundary:
+
+- not generic Kubernetes
+- not `Service` import
+- not Gateway API
+- not live cloud or CMDB connectors
+
+Those adapters should extend the existing `--inventory-file` path with
+explicit adapter selection, not replace the generic imported-inventory model.
+
+Examples of later, broader adapter work:
 
 - AWS-style exports
 - Azure-style exports
