@@ -351,6 +351,187 @@ func TestBuildAuditReportIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestBuildAuditReportUsesInventoryMetadataForRanking(t *testing.T) {
+	t.Parallel()
+
+	source := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 24, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "dev.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "platform",
+						Environment: "dev",
+						Tags:        []string{"internal"},
+						Provenance: []core.InventoryProvenance{
+							{
+								SourceKind:   core.InventorySourceKindInventoryFile,
+								SourceFormat: core.InventorySourceFormatYAML,
+								SourceName:   "examples/inventory.yaml",
+								SourceRecord: "entries[0]",
+							},
+						},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host:           "dev.example.com",
+					Port:           443,
+					Reachable:      true,
+					ScannedAt:      time.Date(2026, time.April, 24, 1, 0, 0, 0, time.UTC),
+					Classification: "modern_tls_classical_identity",
+					Findings: []core.Finding{
+						{
+							Code:     "classical-certificate-identity",
+							Severity: core.SeverityMedium,
+							Summary:  "The observed certificate identity remains classical.",
+						},
+					},
+				},
+			},
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "prod.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+						Tags:        []string{"critical", "external"},
+						Provenance: []core.InventoryProvenance{
+							{
+								SourceKind:   core.InventorySourceKindInventoryFile,
+								SourceFormat: core.InventorySourceFormatYAML,
+								SourceName:   "examples/inventory.yaml",
+								SourceRecord: "entries[1]",
+							},
+						},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host:           "prod.example.com",
+					Port:           443,
+					Reachable:      true,
+					ScannedAt:      time.Date(2026, time.April, 24, 1, 0, 0, 0, time.UTC),
+					Classification: "modern_tls_classical_identity",
+					Findings: []core.Finding{
+						{
+							Code:     "classical-certificate-identity",
+							Severity: core.SeverityMedium,
+							Summary:  "The observed certificate identity remains classical.",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	report, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 24, 2, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	if got, want := report.Items[0].TargetIdentity, "remote|prod.example.com|443|tcp"; got != want {
+		t.Fatalf("report.Items[0].TargetIdentity = %q, want %q", got, want)
+	}
+	if !strings.Contains(report.Items[0].Reason, "production environment") {
+		t.Fatalf("report.Items[0].Reason = %q, want production context", report.Items[0].Reason)
+	}
+	if !strings.Contains(report.Items[0].Reason, "owned by payments") {
+		t.Fatalf("report.Items[0].Reason = %q, want owner context", report.Items[0].Reason)
+	}
+}
+
+func TestBuildAuditReportAddsWorkflowFindingsForInventoryMetadataGaps(t *testing.T) {
+	t.Parallel()
+
+	source := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml over ports 443"),
+		GeneratedAt:    time.Date(2026, time.April, 24, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+			Ports:         []int{443},
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "api.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Ports: []int{8443},
+						Tags:  []string{"external"},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host:           "api.example.com",
+					Port:           443,
+					Reachable:      true,
+					ScannedAt:      time.Date(2026, time.April, 24, 1, 0, 0, 0, time.UTC),
+					Classification: "modern_tls_classical_identity",
+				},
+			},
+		},
+	}
+
+	report, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 24, 2, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	gotCodes := make([]string, 0, len(report.WorkflowFindings))
+	for _, finding := range report.WorkflowFindings {
+		gotCodes = append(gotCodes, finding.Code)
+	}
+	slices.Sort(gotCodes)
+	wantCodes := []string{
+		"inventory-ports-overridden",
+		"missing-environment",
+		"missing-owner",
+		"weak-provenance",
+	}
+	if !slices.Equal(gotCodes, wantCodes) {
+		t.Fatalf("report.WorkflowFindings codes = %v, want %v", gotCodes, wantCodes)
+	}
+
+	for _, finding := range report.WorkflowFindings {
+		if got, want := finding.TargetIdentity, "remote|api.example.com|443|tcp"; got != want {
+			t.Fatalf("finding.TargetIdentity = %q, want %q", got, want)
+		}
+	}
+}
+
 func TestReportJSONIncludesWorkflowSections(t *testing.T) {
 	t.Parallel()
 
