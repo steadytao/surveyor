@@ -73,6 +73,10 @@ Current responsibilities:
 
 This package should stay import-focused. It should normalise approved external inventory into one stable internal shape rather than grow vendor-specific adapter logic into the core.
 
+The next planned layer should sit above this package, not inside it. `v0.9.0`
+should add explicit platform adapters and adapter selection while preserving
+`internal/inventory` as the canonical generic normalisation boundary.
+
 ### `internal/core`
 
 Owns the canonical result model shared across the rest of the project.
@@ -347,6 +351,11 @@ That widens the remote scope model without weakening the existing discovery, hin
 
 Structured imported inventory now sits on top of the same remote model rather than introducing a second remote command family. See [inventory-inputs.md](inventory-inputs.md) for the current contract.
 
+The next planned layer should extend the same `inventory_file` path with
+explicit adapter selection rather than introducing a parallel import-specific
+command family. See [platform-adapters.md](platform-adapters.md) for the
+planned contract.
+
 ## Current analysis layer
 
 The current analysis layer sits on top of the canonical JSON reports:
@@ -373,9 +382,19 @@ That workflow layer remains output- and interpretation-focused. It does not rewr
 
 The next planned layer is `v0.9.0 - Platform-Specific Import Adapters`.
 
+That work should stay import-focused:
+
+- explicit adapter selection
+- stable adapter provenance and warnings
+- `Caddy` and `Kubernetes Ingress v1` as the first adapter set
+
+It should not widen scanner scope, add live connectors or weaken the current
+generic imported-inventory boundary.
+
 See:
 
 - [baselines.md](baselines.md)
 - [diffing.md](diffing.md)
 - [prioritisation.md](prioritisation.md)
 - [policy-workflows.md](policy-workflows.md)
+- [platform-adapters.md](platform-adapters.md)

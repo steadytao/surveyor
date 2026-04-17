@@ -249,12 +249,23 @@ Current limits remain deliberate:
 
 The next planned layer is `v0.9.0 - Platform-Specific Import Adapters`.
 
+That planned layer should:
+
+- add explicit platform import adapters on top of the current `--inventory-file` path
+- keep the generic imported-inventory model as the canonical internal boundary
+- start with a small stable adapter set:
+  - `Caddy`
+  - `Kubernetes Ingress v1`
+
+It should not turn the current remote model into a live connector layer, generic Kubernetes parser or second command family.
+
 See:
 
 - [docs/baselines.md](docs/baselines.md)
 - [docs/diffing.md](docs/diffing.md)
 - [docs/prioritisation.md](docs/prioritisation.md)
 - [docs/policy-workflows.md](docs/policy-workflows.md)
+- [docs/platform-adapters.md](docs/platform-adapters.md)
 
 ## Development
 
