@@ -97,11 +97,19 @@ func describeRemoteScope(prefix string, scope *core.ReportScope) string {
 		}
 	case core.ReportInputKindInventoryFile:
 		if scope.InventoryFile != "" {
-			return fmt.Sprintf("%s from inventory file %s%s", prefix, scope.InventoryFile, portsSuffix(scope.Ports))
+			return fmt.Sprintf("%s from inventory file %s%s%s", prefix, scope.InventoryFile, adapterSuffix(scope.Adapter), portsSuffix(scope.Ports))
 		}
 	}
 
 	return prefix
+}
+
+func adapterSuffix(adapter core.InventoryAdapter) string {
+	if adapter == "" {
+		return ""
+	}
+
+	return " via " + string(adapter) + " adapter"
 }
 
 func portsSuffix(ports []int) string {

@@ -13,6 +13,9 @@ func renderInventoryFileScope(builder *strings.Builder, scope *core.ReportScope)
 	}
 
 	builder.WriteString(fmt.Sprintf("- Inventory file: %s\n", scope.InventoryFile))
+	if scope.Adapter != "" {
+		builder.WriteString(fmt.Sprintf("- Adapter: %s\n", scope.Adapter))
+	}
 }
 
 func renderScopePorts(builder *strings.Builder, scope *core.ReportScope) {

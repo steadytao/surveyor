@@ -20,12 +20,13 @@ type DiscoveryHint struct {
 
 // ReportScope records the declared scope a discovery or audit report covers.
 type ReportScope struct {
-	ScopeKind     ReportScopeKind `json:"scope_kind"`
-	InputKind     ReportInputKind `json:"input_kind,omitempty"`
-	CIDR          string          `json:"cidr,omitempty"`
-	TargetsFile   string          `json:"targets_file,omitempty"`
-	InventoryFile string          `json:"inventory_file,omitempty"`
-	Ports         []int           `json:"ports,omitempty"`
+	ScopeKind     ReportScopeKind  `json:"scope_kind"`
+	InputKind     ReportInputKind  `json:"input_kind,omitempty"`
+	CIDR          string           `json:"cidr,omitempty"`
+	TargetsFile   string           `json:"targets_file,omitempty"`
+	InventoryFile string           `json:"inventory_file,omitempty"`
+	Adapter       InventoryAdapter `json:"adapter,omitempty"`
+	Ports         []int            `json:"ports,omitempty"`
 }
 
 // ReportExecution records the execution settings that materially shaped a
