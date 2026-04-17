@@ -497,6 +497,7 @@ func deduplicateEntries(entries []Entry) ([]Entry, error) {
 
 		existing.Ports = mergePorts(existing.Ports, entry.Ports)
 		existing.Provenance = append(existing.Provenance, entry.Provenance...)
+		existing.AdapterWarnings = mergeAdapterWarnings(existing.AdapterWarnings, entry.AdapterWarnings)
 		byHost[entry.Host] = existing
 	}
 
@@ -539,6 +540,33 @@ func mergePorts(left []int, right []int) []int {
 	}
 
 	sort.Ints(merged)
+	return merged
+}
+
+func mergeAdapterWarnings(left []core.InventoryAdapterWarning, right []core.InventoryAdapterWarning) []core.InventoryAdapterWarning {
+	if len(left) == 0 && len(right) == 0 {
+		return nil
+	}
+
+	merged := make([]core.InventoryAdapterWarning, 0, len(left)+len(right))
+	seen := make(map[string]struct{}, len(left)+len(right))
+	appendUnique := func(warnings []core.InventoryAdapterWarning) {
+		for _, warning := range warnings {
+			key := warning.Code + "\x00" + warning.Summary + "\x00" + strings.Join(warning.Evidence, "\x00")
+			if _, ok := seen[key]; ok {
+				continue
+			}
+
+			seen[key] = struct{}{}
+			warningClone := warning
+			warningClone.Evidence = append([]string(nil), warning.Evidence...)
+			merged = append(merged, warningClone)
+		}
+	}
+
+	appendUnique(left)
+	appendUnique(right)
+
 	return merged
 }
 
