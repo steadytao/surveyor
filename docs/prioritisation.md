@@ -127,3 +127,29 @@ The first prioritisation release does not include:
 - diff-input prioritisation
 
 This milestone is about making Surveyor outputs more operationally useful, not about building a governance platform.
+
+## Next planned layer
+
+The next planned analysis milestone is `v0.8.0 - Policy Refinement and Organisational Workflows`.
+
+That work should make the current profiles more useful by considering:
+
+- owner
+- environment
+- tags
+- provenance/source
+- scope metadata
+
+It should also add:
+
+- grouped summaries for teams
+- metadata-quality workflow findings
+- restrained filtering and grouping controls
+
+Important boundary:
+
+- the prioritisation layer should become more metadata-aware
+- it should not become policy-as-code
+- it should not require a dashboard or database
+
+See [policy-workflows.md](policy-workflows.md) for the planned contract.

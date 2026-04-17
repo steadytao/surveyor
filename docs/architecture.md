@@ -181,6 +181,8 @@ Current responsibilities:
 
 This package should stay a lightweight decision-support layer. It should rank current evidence, not pretend to be a full policy engine.
 
+The next planned layer should extend this package carefully rather than bolt on a parallel policy system. The expected `v0.8.0` work is metadata-aware ranking, grouped summaries and workflow findings, not policy-as-code.
+
 ## Data flow
 
 The current TLS data flow is:
@@ -314,6 +316,7 @@ The current architecture still does not include:
 - organisation-wide or cloud inventory discovery
 - discovery-only diffing
 - diff-input prioritisation
+- metadata-aware policy refinement and organisational workflow summaries
 - policy engines
 - stateful storage
 
@@ -363,8 +366,17 @@ Current limits remain deliberate:
 - discovery-only diffing is still deferred
 - diff-input prioritisation is still deferred
 
+The next planned layer should sit above the current diff and prioritisation boundary without weakening it:
+
+- grouped summaries by owner, environment and source
+- richer prioritisation reasons that use imported metadata
+- workflow findings for missing or weak inventory metadata
+
+That work should remain output- and interpretation-focused. It should not rewrite the underlying technical diff model or collapse observed facts into policy claims.
+
 See:
 
 - [baselines.md](baselines.md)
 - [diffing.md](diffing.md)
 - [prioritisation.md](prioritisation.md)
+- [policy-workflows.md](policy-workflows.md)

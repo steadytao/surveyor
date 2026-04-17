@@ -241,11 +241,22 @@ It still does not include:
 - discovery-only diffing
 - another deep scanner in the same milestone
 
+The next planned layer is `v0.8.0 - Policy Refinement and Organisational Workflows`.
+
+That planned layer should:
+
+- refine prioritisation with owner, environment, tag, provenance and scope context
+- add grouped summaries for diff and prioritisation output
+- surface metadata-quality workflow findings
+
+It should not turn the current analysis layer into policy-as-code, a dashboard or a storage-backed governance platform.
+
 See:
 
 - [docs/baselines.md](docs/baselines.md)
 - [docs/diffing.md](docs/diffing.md)
 - [docs/prioritisation.md](docs/prioritisation.md)
+- [docs/policy-workflows.md](docs/policy-workflows.md)
 
 ## Development
 
