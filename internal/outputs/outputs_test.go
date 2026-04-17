@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/steadytao/surveyor/internal/baseline"
 	"github.com/steadytao/surveyor/internal/core"
 	diffreport "github.com/steadytao/surveyor/internal/diff"
 	prioritizereport "github.com/steadytao/surveyor/internal/prioritize"
@@ -332,6 +333,22 @@ func TestMarshalRemoteDiscoveryJSON(t *testing.T) {
 	}
 }
 
+func TestMarshalSubnetDiscoveryJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleSubnetDiscoveryReport()
+
+	data, err := MarshalDiscoveryJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalDiscoveryJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "discovery-subnet.golden.json")
+	if string(data) != want {
+		t.Fatalf("subnet discovery json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
 func TestMarshalInventoryDiscoveryJSON(t *testing.T) {
 	t.Parallel()
 
@@ -393,6 +410,22 @@ func TestMarshalRemoteAuditJSON(t *testing.T) {
 	want := readGoldenFile(t, "audit-remote.golden.json")
 	if string(data) != want {
 		t.Fatalf("remote audit json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
+func TestMarshalSubnetAuditJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleSubnetAuditReport()
+
+	data, err := MarshalAuditJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalAuditJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "audit-subnet.golden.json")
+	if string(data) != want {
+		t.Fatalf("subnet audit json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
 	}
 }
 
@@ -546,6 +579,18 @@ func TestRenderRemoteDiscoveryMarkdown(t *testing.T) {
 	}
 }
 
+func TestRenderSubnetDiscoveryMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleSubnetDiscoveryReport()
+
+	markdown := RenderDiscoveryMarkdown(report)
+	want := readGoldenFile(t, "discovery-subnet.golden.md")
+	if markdown != want {
+		t.Fatalf("subnet discovery markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
 func TestRenderInventoryDiscoveryMarkdown(t *testing.T) {
 	t.Parallel()
 
@@ -610,6 +655,18 @@ func TestRenderRemoteAuditMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "audit-remote.golden.md")
 	if markdown != want {
 		t.Fatalf("remote audit markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderSubnetAuditMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleSubnetAuditReport()
+
+	markdown := RenderAuditMarkdown(report)
+	want := readGoldenFile(t, "audit-subnet.golden.md")
+	if markdown != want {
+		t.Fatalf("subnet audit markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
 	}
 }
 
@@ -700,6 +757,79 @@ func TestRenderWorkflowPrioritizationMarkdown(t *testing.T) {
 	}
 }
 
+func TestExamplesMatchGoldens(t *testing.T) {
+	t.Parallel()
+
+	stems := []string{
+		"report",
+		"discovery",
+		"discovery-remote",
+		"discovery-inventory",
+		"discovery-subnet",
+		"discovery-caddy",
+		"audit",
+		"audit-remote",
+		"audit-inventory",
+		"audit-subnet",
+		"audit-kubernetes",
+		"diff",
+		"diff-workflow",
+		"priorities",
+		"priorities-workflow",
+	}
+	suffixes := []string{".json", ".md"}
+
+	for _, stem := range stems {
+		stem := stem
+		for _, suffix := range suffixes {
+			suffix := suffix
+			t.Run(stem+suffix, func(t *testing.T) {
+				t.Parallel()
+
+				example := readExampleFile(t, stem+suffix)
+				golden := readGoldenFile(t, stem+".golden"+suffix)
+				if example != golden {
+					t.Fatalf("example %s does not match golden %s\nwant:\n%s\ngot:\n%s", stem+suffix, stem+".golden"+suffix, golden, example)
+				}
+			})
+		}
+	}
+}
+
+func TestExampleJSONReportsParseAsCanonicalHeaders(t *testing.T) {
+	t.Parallel()
+
+	files := []string{
+		"report.json",
+		"discovery.json",
+		"discovery-remote.json",
+		"discovery-inventory.json",
+		"discovery-subnet.json",
+		"discovery-caddy.json",
+		"audit.json",
+		"audit-remote.json",
+		"audit-inventory.json",
+		"audit-subnet.json",
+		"audit-kubernetes.json",
+		"diff.json",
+		"diff-workflow.json",
+		"priorities.json",
+		"priorities-workflow.json",
+	}
+
+	for _, name := range files {
+		name := name
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			data := readExampleJSONFile(t, name)
+			if _, err := baseline.ParseReportHeader(data); err != nil {
+				t.Fatalf("ParseReportHeader(%q) error = %v", name, err)
+			}
+		})
+	}
+}
+
 func readGoldenFile(t *testing.T, name string) string {
 	t.Helper()
 
@@ -712,6 +842,30 @@ func readGoldenFile(t *testing.T, name string) string {
 	// Golden text files may be checked out with CRLF on some runners. Normalize
 	// here so the tests assert content, not Git line-ending policy.
 	return strings.ReplaceAll(string(data), "\r\n", "\n")
+}
+
+func readExampleFile(t *testing.T, name string) string {
+	t.Helper()
+
+	path := filepath.Join("..", "..", "examples", name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+
+	return strings.ReplaceAll(string(data), "\r\n", "\n")
+}
+
+func readExampleJSONFile(t *testing.T, name string) []byte {
+	t.Helper()
+
+	path := filepath.Join("..", "..", "examples", name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+
+	return data
 }
 
 func sampleReport() core.Report {
@@ -902,6 +1056,57 @@ func sampleRemoteDiscoveryReport() core.DiscoveryReport {
 	})
 }
 
+func sampleSubnetDiscoveryReport() core.DiscoveryReport {
+	return BuildDiscoveryReportWithMetadata([]core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "10.0.0.10",
+			Port:      443,
+			Transport: "tcp",
+			State:     "responsive",
+			Hints: []core.DiscoveryHint{
+				{
+					Protocol:   "tls",
+					Confidence: "low",
+					Evidence:   []string{"transport=tcp", "port=443"},
+				},
+			},
+		},
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "10.0.0.11",
+			Port:      443,
+			Transport: "tcp",
+			State:     "candidate",
+			Errors:    []string{"connection refused"},
+		},
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "10.0.0.12",
+			Port:      8443,
+			Transport: "tcp",
+			State:     "responsive",
+			Hints: []core.DiscoveryHint{
+				{
+					Protocol:   "tls",
+					Confidence: "low",
+					Evidence:   []string{"transport=tcp", "port=8443"},
+				},
+			},
+		},
+	}, time.Date(2026, time.April, 18, 1, 15, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind: core.ReportScopeKindRemote,
+		InputKind: core.ReportInputKindCIDR,
+		CIDR:      "10.0.0.0/30",
+		Ports:     []int{443, 8443},
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+}
+
 func sampleRemoteAuditReport() core.AuditReport {
 	return BuildAuditReportWithMetadata([]core.AuditResult{
 		{
@@ -956,6 +1161,101 @@ func sampleRemoteAuditReport() core.AuditReport {
 		InputKind:   core.ReportInputKindTargetsFile,
 		TargetsFile: "examples/approved-hosts.txt",
 		Ports:       []int{443},
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+}
+
+func sampleSubnetAuditReport() core.AuditReport {
+	return BuildAuditReportWithMetadata([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "10.0.0.10",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Hints: []core.DiscoveryHint{
+					{
+						Protocol:   "tls",
+						Confidence: "low",
+						Evidence:   []string{"transport=tcp", "port=443"},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:                   "10.0.0.10",
+				Port:                   443,
+				ScannedAt:              time.Date(2026, time.April, 18, 1, 20, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.3",
+				CipherSuite:            "TLS_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafKeySize:            2048,
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "10.0.0.11",
+				Port:      443,
+				Transport: "tcp",
+				State:     "candidate",
+				Errors:    []string{"connection refused"},
+			},
+			Selection: core.AuditSelection{
+				Status: core.AuditSelectionStatusSkipped,
+				Reason: "endpoint did not respond during remote discovery",
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "10.0.0.12",
+				Port:      8443,
+				Transport: "tcp",
+				State:     "responsive",
+				Hints: []core.DiscoveryHint{
+					{
+						Protocol:   "tls",
+						Confidence: "low",
+						Evidence:   []string{"transport=tcp", "port=8443"},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/8443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:                   "10.0.0.12",
+				Port:                   8443,
+				ScannedAt:              time.Date(2026, time.April, 18, 1, 21, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.3",
+				CipherSuite:            "TLS_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "rsa",
+				LeafKeySize:            2048,
+				LeafSignatureAlgorithm: "sha256-rsa",
+				Classification:         "modern_tls_classical_identity",
+			},
+		},
+	}, time.Date(2026, time.April, 18, 1, 30, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind: core.ReportScopeKindRemote,
+		InputKind: core.ReportInputKindCIDR,
+		CIDR:      "10.0.0.0/30",
+		Ports:     []int{443, 8443},
 	}, &core.ReportExecution{
 		Profile:        "cautious",
 		MaxHosts:       256,

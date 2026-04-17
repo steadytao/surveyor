@@ -520,6 +520,40 @@ https://api.example.com:8443 {
 	}
 }
 
+func TestParseRemoteScopeInventoryFileAutoDetectsCaddyAdapterFromCaddyfileSuffix(t *testing.T) {
+	useFakeCaddy(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "edge.caddyfile")
+	if err := os.WriteFile(inventoryFile, []byte(`
+https://api.example.com:8443 {
+	respond "ok"
+}
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		InventoryFile: inventoryFile,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.Adapter, core.InventoryAdapterCaddy; got != want {
+		t.Fatalf("scope.Adapter = %q, want %q", got, want)
+	}
+	if got, want := len(scope.Targets), 1; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+	if got, want := scope.Targets[0].Host, "api.example.com"; got != want {
+		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[0].Ports, []int{8443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
+	}
+}
+
 func TestParseRemoteScopeInventoryFileUsesAdapterBinaryOverride(t *testing.T) {
 	binaryPath := writeFakeCaddyBinary(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
 
