@@ -118,6 +118,9 @@ func TestRunDiffHelp(t *testing.T) {
 	if !strings.Contains(stderr.String(), "surveyor diff baseline.json current.json") {
 		t.Fatalf("stderr = %q, want diff help text", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "--group-by") || !strings.Contains(stderr.String(), "--include-environment") {
+		t.Fatalf("stderr = %q, want workflow flag help text", stderr.String())
+	}
 }
 
 func TestRunDiffRejectsMissingInputs(t *testing.T) {
@@ -406,6 +409,43 @@ func TestRunDiffRejectsIncompatibleReports(t *testing.T) {
 	}
 }
 
+func TestRunDiffRejectsWorkflowViewForTLSReports(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	baselinePath := filepath.Join(tempDir, "baseline.json")
+	currentPath := filepath.Join(tempDir, "current.json")
+
+	writeTempTLSReport(t, baselinePath, core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+	})
+	writeTempTLSReport(t, currentPath, core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"diff", baselinePath, currentPath, "--group-by", "owner"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "supported only for audit input") {
+		t.Fatalf("stderr = %q, want workflow-view rejection", stderr.String())
+	}
+}
+
 func TestRunDiffAcceptsInventoryBackedAuditReports(t *testing.T) {
 	t.Parallel()
 
@@ -448,6 +488,126 @@ func TestRunDiffAcceptsInventoryBackedAuditReports(t *testing.T) {
 	}
 }
 
+func TestRunDiffAppliesWorkflowViewToAuditReports(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	baselinePath := filepath.Join(tempDir, "baseline.json")
+	currentPath := filepath.Join(tempDir, "current.json")
+	jsonPath := filepath.Join(tempDir, "diff.json")
+
+	writeTempAuditReport(t, baselinePath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "prod.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+					},
+				},
+				Selection: core.AuditSelection{Status: core.AuditSelectionStatusSelected, SelectedScanner: "tls", Reason: "tls hint on tcp/443"},
+			},
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "dev.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "platform",
+						Environment: "dev",
+					},
+				},
+				Selection: core.AuditSelection{Status: core.AuditSelectionStatusSelected, SelectedScanner: "tls", Reason: "tls hint on tcp/443"},
+			},
+		},
+	})
+	writeTempAuditReport(t, currentPath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "prod.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+					},
+				},
+				Selection: core.AuditSelection{Status: core.AuditSelectionStatusSkipped, Reason: "endpoint did not respond during remote discovery"},
+			},
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "dev.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "platform",
+						Environment: "dev",
+					},
+				},
+				Selection: core.AuditSelection{Status: core.AuditSelectionStatusSkipped, Reason: "endpoint did not respond during remote discovery"},
+			},
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"diff",
+		baselinePath,
+		currentPath,
+		"--group-by", "owner",
+		"--include-environment", "prod",
+		"-j", jsonPath,
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile(json) error = %v", err)
+	}
+
+	jsonText := string(jsonData)
+	if !strings.Contains(jsonText, `"workflow_view": {`) || !strings.Contains(jsonText, `"group_by": "owner"`) || !strings.Contains(jsonText, `"field": "environment"`) || !strings.Contains(jsonText, `"values": [`) || !strings.Contains(jsonText, `"prod"`) {
+		t.Fatalf("json output missing workflow view\n%s", jsonText)
+	}
+	if !strings.Contains(jsonText, `"grouped_summaries": [`) || !strings.Contains(jsonText, `"group_by": "owner"`) || !strings.Contains(jsonText, `"key": "payments"`) {
+		t.Fatalf("json output missing grouped summary\n%s", jsonText)
+	}
+	if strings.Contains(jsonText, "dev.example.com") {
+		t.Fatalf("json output = %s, want filtered diff output without dev endpoint", jsonText)
+	}
+}
+
 func TestRunPrioritizeHelp(t *testing.T) {
 	t.Parallel()
 
@@ -464,6 +624,9 @@ func TestRunPrioritizeHelp(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "surveyor prioritise current.json") {
 		t.Fatalf("stderr = %q, want prioritise alias in help text", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "--group-by") || !strings.Contains(stderr.String(), "--include-tag") {
+		t.Fatalf("stderr = %q, want workflow flag help text", stderr.String())
 	}
 }
 
@@ -613,6 +776,101 @@ func TestRunPrioritizeAcceptsInventoryBackedAuditReport(t *testing.T) {
 	}
 }
 
+func TestRunPrioritizeAppliesWorkflowViewToAuditReports(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	currentPath := filepath.Join(tempDir, "current.json")
+	jsonPath := filepath.Join(tempDir, "priorities.json")
+
+	writeTempAuditReport(t, currentPath, core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "prod.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+						Tags:        []string{"external"},
+					},
+				},
+				Selection: core.AuditSelection{Status: core.AuditSelectionStatusSelected, SelectedScanner: "tls", Reason: "tls hint on tcp/443"},
+				TLSResult: &core.TargetResult{
+					Host: "prod.example.com",
+					Port: 443,
+					Findings: []core.Finding{
+						{Code: "legacy-tls-version", Severity: core.SeverityHigh, Summary: "Legacy TLS remains enabled."},
+					},
+				},
+			},
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "dev.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "platform",
+						Environment: "dev",
+						Tags:        []string{"internal"},
+					},
+				},
+				Selection: core.AuditSelection{Status: core.AuditSelectionStatusSelected, SelectedScanner: "tls", Reason: "tls hint on tcp/443"},
+				TLSResult: &core.TargetResult{
+					Host: "dev.example.com",
+					Port: 443,
+					Findings: []core.Finding{
+						{Code: "classical-certificate-identity", Severity: core.SeverityMedium, Summary: "The observed certificate identity remains classical."},
+					},
+				},
+			},
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"prioritize",
+		currentPath,
+		"--group-by", "owner",
+		"--include-tag", "external",
+		"-j", jsonPath,
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("ReadFile(json) error = %v", err)
+	}
+
+	jsonText := string(jsonData)
+	if !strings.Contains(jsonText, `"workflow_view": {`) || !strings.Contains(jsonText, `"group_by": "owner"`) || !strings.Contains(jsonText, `"field": "tag"`) || !strings.Contains(jsonText, `"external"`) {
+		t.Fatalf("json output missing workflow view\n%s", jsonText)
+	}
+	if !strings.Contains(jsonText, `"grouped_summaries": [`) || !strings.Contains(jsonText, `"key": "payments"`) {
+		t.Fatalf("json output missing grouped summary\n%s", jsonText)
+	}
+	if strings.Contains(jsonText, "dev.example.com") {
+		t.Fatalf("json output = %s, want filtered prioritization output without dev endpoint", jsonText)
+	}
+}
+
 func TestRunPrioritizeSupportsTrailingFlagsAfterInput(t *testing.T) {
 	t.Parallel()
 
@@ -701,6 +959,34 @@ func TestRunPrioritizeRejectsUnsupportedReportKind(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "report_kind \"discovery\" is not supported for prioritization") {
 		t.Fatalf("stderr = %q, want unsupported report kind failure", stderr.String())
+	}
+}
+
+func TestRunPrioritizeRejectsWorkflowViewForTLSReports(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	currentPath := filepath.Join(tempDir, "current.json")
+
+	writeTempTLSReport(t, currentPath, core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS targets"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind: core.ReportScopeKindExplicit,
+			InputKind: core.ReportInputKindConfig,
+		},
+	})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"prioritize", currentPath, "--group-by", "owner"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 1 {
+		t.Fatalf("run() exitCode = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "supported only for audit input") {
+		t.Fatalf("stderr = %q, want workflow-view rejection", stderr.String())
 	}
 }
 

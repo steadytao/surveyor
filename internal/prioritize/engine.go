@@ -40,9 +40,12 @@ func ParseProfile(raw string) (Profile, error) {
 
 // BuildTLSReport assembles the canonical prioritization report for a current
 // TLS report.
-func BuildTLSReport(source core.Report, profile Profile, generatedAt time.Time) (Report, error) {
+func BuildTLSReport(source core.Report, profile Profile, generatedAt time.Time, workflowView *core.WorkflowContext) (Report, error) {
 	if err := validateSourceProfile(profile); err != nil {
 		return Report{}, err
+	}
+	if hasWorkflowView(workflowView) {
+		return Report{}, fmt.Errorf("workflow grouping and filtering are supported only for audit input")
 	}
 
 	rankedItems := make([]rankedItem, 0, len(source.Results))
@@ -59,7 +62,9 @@ func BuildTLSReport(source core.Report, profile Profile, generatedAt time.Time) 
 		source.ReportKind,
 		source.GeneratedAt,
 		source.Scope,
+		nil,
 		rankedItems,
+		nil,
 		nil,
 		generatedAt,
 	), nil
@@ -67,16 +72,19 @@ func BuildTLSReport(source core.Report, profile Profile, generatedAt time.Time) 
 
 // BuildAuditReport assembles the canonical prioritization report for a current
 // audit report.
-func BuildAuditReport(source core.AuditReport, profile Profile, generatedAt time.Time) (Report, error) {
+func BuildAuditReport(source core.AuditReport, profile Profile, generatedAt time.Time, workflowView *core.WorkflowContext) (Report, error) {
 	if err := validateSourceProfile(profile); err != nil {
 		return Report{}, err
 	}
 
+	inventoryByIdentity := make(map[string]*core.InventoryAnnotation, len(source.Results))
 	rankedItems := make([]rankedItem, 0, len(source.Results))
 	workflowFindings := make([]core.WorkflowFinding, 0)
 	for _, result := range source.Results {
+		targetIdentity := baseline.AuditResultIdentityKey(result)
+		inventoryByIdentity[targetIdentity] = result.DiscoveredEndpoint.Inventory
 		context := rankingContext{
-			targetIdentity: baseline.AuditResultIdentityKey(result),
+			targetIdentity: targetIdentity,
 			scope:          source.Scope,
 			inventory:      result.DiscoveredEndpoint.Inventory,
 		}
@@ -84,14 +92,20 @@ func BuildAuditReport(source core.AuditReport, profile Profile, generatedAt time
 		workflowFindings = append(workflowFindings, workflowFindingsForAuditResult(result, source.Scope)...)
 	}
 
+	filteredItems := filterRankedItems(rankedItems, inventoryByIdentity, workflowView)
+	filteredWorkflowFindings := filterWorkflowFindings(workflowFindings, inventoryByIdentity, workflowView)
+	groupedSummaries := buildAuditGroupedSummaries(filteredItems, inventoryByIdentity, workflowView)
+
 	return buildReport(
 		core.NewReportMetadata(core.ReportKindPrioritization, source.ScopeKind, source.ScopeDescription),
 		profile,
 		source.ReportKind,
 		source.GeneratedAt,
 		source.Scope,
-		rankedItems,
-		workflowFindings,
+		workflowView,
+		filteredItems,
+		groupedSummaries,
+		filteredWorkflowFindings,
 		generatedAt,
 	), nil
 }
@@ -105,7 +119,7 @@ func validateSourceProfile(profile Profile) error {
 	}
 }
 
-func buildReport(metadata core.ReportMetadata, profile Profile, sourceReportKind core.ReportKind, sourceGeneratedAt time.Time, scope *core.ReportScope, rankedItems []rankedItem, workflowFindings []core.WorkflowFinding, generatedAt time.Time) Report {
+func buildReport(metadata core.ReportMetadata, profile Profile, sourceReportKind core.ReportKind, sourceGeneratedAt time.Time, scope *core.ReportScope, workflowView *core.WorkflowContext, rankedItems []rankedItem, groupedSummaries []core.GroupedSummary, workflowFindings []core.WorkflowFinding, generatedAt time.Time) Report {
 	sortRankedItems(rankedItems)
 	sortWorkflowFindings(workflowFindings)
 
@@ -124,7 +138,9 @@ func buildReport(metadata core.ReportMetadata, profile Profile, sourceReportKind
 		SourceReportKind:  sourceReportKind,
 		SourceGeneratedAt: sourceGeneratedAt.UTC(),
 		Scope:             cloneReportScope(scope),
+		WorkflowView:      core.CloneWorkflowContext(workflowView),
 		Summary:           buildSummary(items),
+		GroupedSummaries:  core.CloneGroupedSummaries(groupedSummaries),
 		WorkflowFindings:  core.CloneWorkflowFindings(workflowFindings),
 		Items:             items,
 	}
@@ -486,6 +502,90 @@ func workflowFindingsForAuditResult(result core.AuditResult, scope *core.ReportS
 	return findings
 }
 
+func hasWorkflowView(view *core.WorkflowContext) bool {
+	return view != nil && (view.GroupBy != "" || len(view.Filters) > 0)
+}
+
+func filterRankedItems(items []rankedItem, inventoryByIdentity map[string]*core.InventoryAnnotation, workflowView *core.WorkflowContext) []rankedItem {
+	if workflowView == nil || len(workflowView.Filters) == 0 {
+		return append([]rankedItem(nil), items...)
+	}
+
+	filtered := make([]rankedItem, 0, len(items))
+	for _, item := range items {
+		if core.MatchesWorkflowFilters(inventoryByIdentity[item.TargetIdentity], workflowView.Filters) {
+			filtered = append(filtered, item)
+		}
+	}
+
+	return filtered
+}
+
+func filterWorkflowFindings(findings []core.WorkflowFinding, inventoryByIdentity map[string]*core.InventoryAnnotation, workflowView *core.WorkflowContext) []core.WorkflowFinding {
+	if workflowView == nil || len(workflowView.Filters) == 0 {
+		return append([]core.WorkflowFinding(nil), findings...)
+	}
+
+	filtered := make([]core.WorkflowFinding, 0, len(findings))
+	for _, finding := range findings {
+		if core.MatchesWorkflowFilters(inventoryByIdentity[finding.TargetIdentity], workflowView.Filters) {
+			filtered = append(filtered, finding)
+		}
+	}
+
+	return filtered
+}
+
+func buildAuditGroupedSummaries(items []rankedItem, inventoryByIdentity map[string]*core.InventoryAnnotation, workflowView *core.WorkflowContext) []core.GroupedSummary {
+	if workflowView == nil || workflowView.GroupBy == "" || len(items) == 0 {
+		return nil
+	}
+
+	accumulators := map[string]*groupedSummaryAccumulator{}
+	for _, item := range items {
+		for _, key := range core.WorkflowGroupKeys(workflowView.GroupBy, inventoryByIdentity[item.TargetIdentity]) {
+			accumulator := accumulators[key]
+			if accumulator == nil {
+				accumulator = &groupedSummaryAccumulator{
+					severityBreakdown: map[string]int{},
+					codeBreakdown:     map[string]int{},
+				}
+				accumulators[key] = accumulator
+			}
+
+			accumulator.totalItems += 1
+			accumulator.severityBreakdown[string(item.Severity)] += 1
+			accumulator.codeBreakdown[item.Code] += 1
+		}
+	}
+
+	if len(accumulators) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(accumulators))
+	for key := range accumulators {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+
+	groups := make([]core.GroupedSummaryGroup, 0, len(keys))
+	for _, key := range keys {
+		accumulator := accumulators[key]
+		groups = append(groups, core.GroupedSummaryGroup{
+			Key:               key,
+			TotalItems:        accumulator.totalItems,
+			SeverityBreakdown: cloneStringIntMap(accumulator.severityBreakdown),
+			CodeBreakdown:     cloneStringIntMap(accumulator.codeBreakdown),
+		})
+	}
+
+	return []core.GroupedSummary{{
+		GroupBy: workflowView.GroupBy,
+		Groups:  groups,
+	}}
+}
+
 func hasFindingCode(findings []core.Finding, code string) bool {
 	for _, finding := range findings {
 		if finding.Code == code {
@@ -494,6 +594,12 @@ func hasFindingCode(findings []core.Finding, code string) bool {
 	}
 
 	return false
+}
+
+type groupedSummaryAccumulator struct {
+	totalItems        int
+	severityBreakdown map[string]int
+	codeBreakdown     map[string]int
 }
 
 func sortRankedItems(items []rankedItem) {
@@ -552,6 +658,19 @@ func cloneStrings(values []string) []string {
 	}
 
 	return append([]string(nil), values...)
+}
+
+func cloneStringIntMap(values map[string]int) map[string]int {
+	if len(values) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]int, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+
+	return cloned
 }
 
 func cloneReportScope(scope *core.ReportScope) *core.ReportScope {
