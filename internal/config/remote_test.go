@@ -511,6 +511,35 @@ https://api.example.com:8443 {
 	}
 }
 
+func TestParseRemoteScopeInventoryFileUsesExplicitCaddyAdapterWithNonStandardFileName(t *testing.T) {
+	useFakeCaddy(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "site.conf")
+	if err := os.WriteFile(inventoryFile, []byte(`
+https://api.example.com:8443 {
+	respond "ok"
+}
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		InventoryFile: inventoryFile,
+		Adapter:       string(core.InventoryAdapterCaddy),
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.Adapter, core.InventoryAdapterCaddy; got != want {
+		t.Fatalf("scope.Adapter = %q, want %q", got, want)
+	}
+	if got, want := len(scope.Targets), 1; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+}
+
 func fakeCaddyAdaptedJSON() string {
 	return `{"apps":{"http":{"servers":{"edge":{"listen":[":8443"],"routes":[{"@id":"site-api","match":[{"host":["api.example.com"]}],"handle":[{"handler":"static_response"}]}]}}}}}`
 }

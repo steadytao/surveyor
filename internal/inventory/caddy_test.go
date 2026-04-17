@@ -345,6 +345,27 @@ https://api.example.com:8443 {
 	}
 }
 
+func TestLoadWithCaddyAdapterAcceptsNonStandardCaddyfileName(t *testing.T) {
+	useFakeCaddy(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
+
+	path := writeFile(t, "site.conf", `
+https://api.example.com:8443 {
+	respond "ok"
+}
+`)
+
+	document, err := LoadWithAdapter(path, core.InventoryAdapterCaddy, AdapterOptions{})
+	if err != nil {
+		t.Fatalf("LoadWithAdapter() error = %v", err)
+	}
+	if got, want := document.Format, core.InventorySourceFormatCaddyfile; got != want {
+		t.Fatalf("document.Format = %q, want %q", got, want)
+	}
+	if got, want := len(document.Entries), 1; got != want {
+		t.Fatalf("len(document.Entries) = %d, want %d", got, want)
+	}
+}
+
 func TestLoadRejectsCaddyfilePathWithoutAdapter(t *testing.T) {
 	t.Parallel()
 
