@@ -58,7 +58,7 @@ func TestDiscoveredEndpointJSONShape(t *testing.T) {
 	}
 }
 
-func TestDiscoveredEndpointInventoryAnnotationJSONShape(t *testing.T) {
+func TestDiscoveredEndpointInventoryAnnotationJSONShapeForCaddyJSON(t *testing.T) {
 	t.Parallel()
 
 	endpoint := DiscoveredEndpoint{
@@ -77,9 +77,18 @@ func TestDiscoveredEndpointInventoryAnnotationJSONShape(t *testing.T) {
 			Provenance: []InventoryProvenance{
 				{
 					SourceKind:   InventorySourceKindInventoryFile,
-					SourceFormat: InventorySourceFormatCSV,
-					SourceName:   "cmdb-export.csv",
-					SourceRecord: "line 14",
+					SourceFormat: InventorySourceFormatJSON,
+					SourceName:   "caddy.json",
+					SourceRecord: "servers[0]",
+					Adapter:      InventoryAdapterCaddy,
+					SourceObject: "site api.example.com",
+				},
+			},
+			AdapterWarnings: []InventoryAdapterWarning{
+				{
+					Code:     "ambiguous-port",
+					Summary:  "The adapted source did not declare one explicit listener port.",
+					Evidence: []string{"adapter=caddy", "source_name=caddy.json", "source_object=site api.example.com"},
 				},
 			},
 		},
@@ -99,9 +108,71 @@ func TestDiscoveredEndpointInventoryAnnotationJSONShape(t *testing.T) {
 		`"tags":["external","critical"]`,
 		`"notes":"Internet-facing service"`,
 		`"source_kind":"inventory_file"`,
-		`"source_format":"csv"`,
-		`"source_name":"cmdb-export.csv"`,
-		`"source_record":"line 14"`,
+		`"source_format":"json"`,
+		`"source_name":"caddy.json"`,
+		`"source_record":"servers[0]"`,
+		`"adapter":"caddy"`,
+		`"source_object":"site api.example.com"`,
+		`"adapter_warnings":[{"code":"ambiguous-port"`,
+		`"summary":"The adapted source did not declare one explicit listener port."`,
+	}
+
+	for _, substring := range wantSubstrings {
+		if !strings.Contains(jsonText, substring) {
+			t.Fatalf("json output missing substring %q\nfull output: %s", substring, jsonText)
+		}
+	}
+}
+
+func TestDiscoveredEndpointInventoryAnnotationJSONShapeForKubernetesIngressManifest(t *testing.T) {
+	t.Parallel()
+
+	endpoint := DiscoveredEndpoint{
+		ScopeKind: EndpointScopeKindRemote,
+		Host:      "api.example.com",
+		Port:      443,
+		Transport: "tcp",
+		State:     "responsive",
+		Inventory: &InventoryAnnotation{
+			Ports:       []int{443},
+			Name:        "payments-api",
+			Owner:       "payments",
+			Environment: "prod",
+			Tags:        []string{"external", "ingress"},
+			Provenance: []InventoryProvenance{
+				{
+					SourceKind:   InventorySourceKindInventoryFile,
+					SourceFormat: InventorySourceFormatYAML,
+					SourceName:   "ingress.yaml",
+					SourceRecord: "documents[0]",
+					Adapter:      InventoryAdapterKubernetesIngressV1,
+					SourceObject: "Ingress/default/payments-api",
+				},
+			},
+			AdapterWarnings: []InventoryAdapterWarning{
+				{
+					Code:     "controller-specific-behaviour",
+					Summary:  "The ingress controller may affect effective exposure and TLS handling.",
+					Evidence: []string{"adapter=kubernetes-ingress-v1", "source_name=ingress.yaml", "source_object=Ingress/default/payments-api"},
+				},
+			},
+		},
+	}
+
+	data, err := json.Marshal(endpoint)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	jsonText := string(data)
+	wantSubstrings := []string{
+		`"source_format":"yaml"`,
+		`"source_name":"ingress.yaml"`,
+		`"source_record":"documents[0]"`,
+		`"adapter":"kubernetes-ingress-v1"`,
+		`"source_object":"Ingress/default/payments-api"`,
+		`"code":"controller-specific-behaviour"`,
+		`"summary":"The ingress controller may affect effective exposure and TLS handling."`,
 	}
 
 	for _, substring := range wantSubstrings {
@@ -206,5 +277,48 @@ func TestDiscoveryReportInventoryScopeJSONShape(t *testing.T) {
 		if !strings.Contains(jsonText, substring) {
 			t.Fatalf("json output missing substring %q\nfull output: %s", substring, jsonText)
 		}
+	}
+}
+
+func TestCloneDiscoveredEndpointClonesInventoryAdapterWarnings(t *testing.T) {
+	t.Parallel()
+
+	endpoint := DiscoveredEndpoint{
+		ScopeKind: EndpointScopeKindRemote,
+		Host:      "api.example.com",
+		Port:      443,
+		Transport: "tcp",
+		State:     "responsive",
+		Inventory: &InventoryAnnotation{
+			Provenance: []InventoryProvenance{
+				{
+					SourceKind:   InventorySourceKindInventoryFile,
+					SourceFormat: InventorySourceFormatYAML,
+					SourceName:   "ingress.yaml",
+					SourceRecord: "documents[0]",
+					Adapter:      InventoryAdapterKubernetesIngressV1,
+					SourceObject: "Ingress/default/payments-api",
+				},
+			},
+			AdapterWarnings: []InventoryAdapterWarning{
+				{
+					Code:     "controller-specific-behaviour",
+					Summary:  "The ingress controller may affect effective exposure and TLS handling.",
+					Evidence: []string{"adapter=kubernetes-ingress-v1", "source_object=Ingress/default/payments-api"},
+				},
+			},
+		},
+	}
+
+	cloned := CloneDiscoveredEndpoint(endpoint)
+
+	endpoint.Inventory.Provenance[0].SourceObject = "mutated"
+	endpoint.Inventory.AdapterWarnings[0].Evidence[0] = "mutated"
+
+	if got, want := cloned.Inventory.Provenance[0].SourceObject, "Ingress/default/payments-api"; got != want {
+		t.Fatalf("cloned.Inventory.Provenance[0].SourceObject = %q, want %q", got, want)
+	}
+	if got, want := cloned.Inventory.AdapterWarnings[0].Evidence[0], "adapter=kubernetes-ingress-v1"; got != want {
+		t.Fatalf("cloned.Inventory.AdapterWarnings[0].Evidence[0] = %q, want %q", got, want)
 	}
 }

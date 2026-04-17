@@ -216,13 +216,13 @@ That keeps the project growing upward before it grows sideways.
 The current remote scope model lives in [docs/remote-scope.md](remote-scope.md).
 The current structured inventory input contract lives in [docs/inventory-inputs.md](inventory-inputs.md).
 
-The next planned layer is [docs/platform-adapters.md](platform-adapters.md):
+The next planned layer is [docs/import-adapters.md](import-adapters.md):
 
 - explicit platform adapters on top of `--inventory-file`
 - the same canonical `discover remote` and `audit remote` command family
-- a small first adapter set:
-  - `Caddy`
-  - `Kubernetes Ingress v1`
+- two first supported sources:
+  - Caddy JSON
+  - Kubernetes Ingress v1 manifests
 
 Later work should focus on those stable adapters first, not a second generic
 scope model or a live connector surface.

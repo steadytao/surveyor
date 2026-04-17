@@ -268,6 +268,14 @@ func cloneInventoryAnnotation(annotation *core.InventoryAnnotation) *core.Invent
 	cloned.Ports = append([]int(nil), annotation.Ports...)
 	cloned.Tags = append([]string(nil), annotation.Tags...)
 	cloned.Provenance = append([]core.InventoryProvenance(nil), annotation.Provenance...)
+	if len(annotation.AdapterWarnings) > 0 {
+		cloned.AdapterWarnings = make([]core.InventoryAdapterWarning, 0, len(annotation.AdapterWarnings))
+		for _, warning := range annotation.AdapterWarnings {
+			warningClone := warning
+			warningClone.Evidence = append([]string(nil), warning.Evidence...)
+			cloned.AdapterWarnings = append(cloned.AdapterWarnings, warningClone)
+		}
+	}
 	return &cloned
 }
 

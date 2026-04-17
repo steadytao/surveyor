@@ -197,9 +197,18 @@ func TestBuildDiscoveryReportClonesInventoryAnnotation(t *testing.T) {
 				Provenance: []core.InventoryProvenance{
 					{
 						SourceKind:   core.InventorySourceKindInventoryFile,
-						SourceFormat: core.InventorySourceFormatCSV,
-						SourceName:   "cmdb-export.csv",
-						SourceRecord: "line 14",
+						SourceFormat: core.InventorySourceFormatYAML,
+						SourceName:   "ingress.yaml",
+						SourceRecord: "documents[0]",
+						Adapter:      core.InventoryAdapterKubernetesIngressV1,
+						SourceObject: "Ingress/default/payments-api",
+					},
+				},
+				AdapterWarnings: []core.InventoryAdapterWarning{
+					{
+						Code:     "controller-specific-behaviour",
+						Summary:  "The ingress controller may affect effective exposure and TLS handling.",
+						Evidence: []string{"adapter=kubernetes-ingress-v1", "source_name=ingress.yaml", "source_object=Ingress/default/payments-api"},
 					},
 				},
 			},
@@ -211,6 +220,8 @@ func TestBuildDiscoveryReportClonesInventoryAnnotation(t *testing.T) {
 	input[0].Inventory.Ports[0] = 9443
 	input[0].Inventory.Tags[0] = "internal"
 	input[0].Inventory.Provenance[0].SourceRecord = "line 99"
+	input[0].Inventory.Provenance[0].SourceObject = "mutated"
+	input[0].Inventory.AdapterWarnings[0].Evidence[0] = "mutated"
 
 	if got, want := report.Results[0].Inventory.Ports[0], 443; got != want {
 		t.Fatalf("report.Results[0].Inventory.Ports[0] = %d, want %d", got, want)
@@ -218,8 +229,14 @@ func TestBuildDiscoveryReportClonesInventoryAnnotation(t *testing.T) {
 	if got, want := report.Results[0].Inventory.Tags[0], "external"; got != want {
 		t.Fatalf("report.Results[0].Inventory.Tags[0] = %q, want %q", got, want)
 	}
-	if got, want := report.Results[0].Inventory.Provenance[0].SourceRecord, "line 14"; got != want {
+	if got, want := report.Results[0].Inventory.Provenance[0].SourceRecord, "documents[0]"; got != want {
 		t.Fatalf("report.Results[0].Inventory.Provenance[0].SourceRecord = %q, want %q", got, want)
+	}
+	if got, want := report.Results[0].Inventory.Provenance[0].SourceObject, "Ingress/default/payments-api"; got != want {
+		t.Fatalf("report.Results[0].Inventory.Provenance[0].SourceObject = %q, want %q", got, want)
+	}
+	if got, want := report.Results[0].Inventory.AdapterWarnings[0].Evidence[0], "adapter=kubernetes-ingress-v1"; got != want {
+		t.Fatalf("report.Results[0].Inventory.AdapterWarnings[0].Evidence[0] = %q, want %q", got, want)
 	}
 }
 

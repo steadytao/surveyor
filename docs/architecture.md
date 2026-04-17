@@ -353,8 +353,8 @@ Structured imported inventory now sits on top of the same remote model rather th
 
 The next planned layer should extend the same `inventory_file` path with
 explicit adapter selection rather than introducing a parallel import-specific
-command family. See [platform-adapters.md](platform-adapters.md) for the
-planned contract.
+command family. See [import-adapters.md](import-adapters.md) and
+[adapter-contract.md](adapter-contract.md) for the planned contract.
 
 ## Current analysis layer
 
@@ -386,7 +386,7 @@ That work should stay import-focused:
 
 - explicit adapter selection
 - stable adapter provenance and warnings
-- `Caddy` and `Kubernetes Ingress v1` as the first adapter set
+- Caddy JSON and Kubernetes Ingress v1 manifests as the first supported sources
 
 It should not widen scanner scope, add live connectors or weaken the current
 generic imported-inventory boundary.
@@ -397,4 +397,7 @@ See:
 - [diffing.md](diffing.md)
 - [prioritisation.md](prioritisation.md)
 - [policy-workflows.md](policy-workflows.md)
-- [platform-adapters.md](platform-adapters.md)
+- [import-adapters.md](import-adapters.md)
+- [adapter-contract.md](adapter-contract.md)
+- [adapter-caddy.md](adapter-caddy.md)
+- [adapter-kubernetes.md](adapter-kubernetes.md)

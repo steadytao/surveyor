@@ -27,27 +27,44 @@ type Document struct {
 // Entry records one imported inventory target plus its structured metadata and
 // provenance. It remains separate from executable remote scope.
 type Entry struct {
-	Host        string
-	Ports       []int
-	Name        string
-	Owner       string
-	Environment string
-	Tags        []string
-	Notes       string
-	Provenance  []core.InventoryProvenance
+	Host            string
+	Ports           []int
+	Name            string
+	Owner           string
+	Environment     string
+	Tags            []string
+	Notes           string
+	Provenance      []core.InventoryProvenance
+	AdapterWarnings []core.InventoryAdapterWarning
 }
 
 // Annotation returns the imported context in the shared core annotation shape.
 func (entry Entry) Annotation() *core.InventoryAnnotation {
 	return &core.InventoryAnnotation{
-		Ports:       append([]int(nil), entry.Ports...),
-		Name:        entry.Name,
-		Owner:       entry.Owner,
-		Environment: entry.Environment,
-		Tags:        append([]string(nil), entry.Tags...),
-		Notes:       entry.Notes,
-		Provenance:  append([]core.InventoryProvenance(nil), entry.Provenance...),
+		Ports:           append([]int(nil), entry.Ports...),
+		Name:            entry.Name,
+		Owner:           entry.Owner,
+		Environment:     entry.Environment,
+		Tags:            append([]string(nil), entry.Tags...),
+		Notes:           entry.Notes,
+		Provenance:      append([]core.InventoryProvenance(nil), entry.Provenance...),
+		AdapterWarnings: cloneAdapterWarnings(entry.AdapterWarnings),
 	}
+}
+
+func cloneAdapterWarnings(warnings []core.InventoryAdapterWarning) []core.InventoryAdapterWarning {
+	if len(warnings) == 0 {
+		return nil
+	}
+
+	cloned := make([]core.InventoryAdapterWarning, 0, len(warnings))
+	for _, warning := range warnings {
+		warningClone := warning
+		warningClone.Evidence = append([]string(nil), warning.Evidence...)
+		cloned = append(cloned, warningClone)
+	}
+
+	return cloned
 }
 
 type rawManifest struct {
