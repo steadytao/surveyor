@@ -61,7 +61,7 @@ func (values *stringSliceFlag) Set(raw string) error {
 var newLocalAuditRunner = func(now func() time.Time) auditRunner {
 	return auditflow.LocalRunner{
 		TLSScanner:      tlsinventory.Scanner{Now: now},
-		ScanConcurrency: 8,
+		ScanConcurrency: auditflow.DefaultScanConcurrency,
 	}
 }
 
@@ -364,7 +364,7 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 		Now: scannerNow,
 	}
 
-	results := scanExplicitTargets(context.Background(), scanner, targets, 8)
+	results := scanExplicitTargets(context.Background(), scanner, targets, auditflow.DefaultScanConcurrency)
 
 	report := outputs.BuildReportWithMetadata(results, scannerNow().UTC(), explicitReportScopeMetadata(*configPath, *targetsArg))
 
@@ -554,8 +554,8 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
-	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the profile-safe command default")
-	maxAttempts := fs.Int("max-attempts", 0, "Hard cap on expanded host:port attempts, defaulting to the profile-safe command default")
+	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the fixed command default")
+	maxAttempts := fs.Int("max-attempts", 0, "Hard cap on expanded host:port attempts, defaulting to the fixed command default")
 	maxConcurrency := fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts")
 	timeout := fs.Duration("timeout", 0, "Per probe or connection attempt timeout")
 
@@ -774,8 +774,8 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
-	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the profile-safe command default")
-	maxAttempts := fs.Int("max-attempts", 0, "Hard cap on expanded host:port attempts, defaulting to the profile-safe command default")
+	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the fixed command default")
+	maxAttempts := fs.Int("max-attempts", 0, "Hard cap on expanded host:port attempts, defaulting to the fixed command default")
 	maxConcurrency := fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts")
 	timeout := fs.Duration("timeout", 0, "Per probe or connection attempt timeout")
 

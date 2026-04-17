@@ -11,6 +11,10 @@ import (
 	"github.com/steadytao/surveyor/internal/scanners/tlsinventory"
 )
 
+// DefaultScanConcurrency is the default worker count for independent TLS scan
+// handoff when the caller does not supply a narrower limit.
+const DefaultScanConcurrency = 8
+
 // Discoverer returns local endpoint facts for audit orchestration.
 type Discoverer interface {
 	Enumerate(context.Context) ([]core.DiscoveredEndpoint, error)
@@ -134,7 +138,7 @@ func normalizedScanConcurrency(values ...int) int {
 		}
 	}
 
-	return 8
+	return DefaultScanConcurrency
 }
 
 func applyAuditScanResults(ctx context.Context, scanner TargetScanner, results []core.AuditResult, jobs []auditScanJob, maxConcurrency int) {

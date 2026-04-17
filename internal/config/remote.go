@@ -34,7 +34,8 @@ const (
 )
 
 // RemoteScopeInput is the raw input shape for remote commands.
-// Zero-valued pace controls mean "use the selected profile default".
+// Zero-valued concurrency and timeout use the selected profile defaults; host
+// and attempt caps use fixed command defaults.
 type RemoteScopeInput struct {
 	CIDR           string
 	TargetsFile    string
