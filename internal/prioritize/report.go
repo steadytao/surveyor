@@ -36,11 +36,14 @@ type Item struct {
 // Report is the canonical prioritization report over a current Surveyor report.
 type Report struct {
 	core.ReportMetadata
-	GeneratedAt       time.Time         `json:"generated_at"`
-	Profile           Profile           `json:"profile"`
-	SourceReportKind  core.ReportKind   `json:"source_report_kind"`
-	SourceGeneratedAt time.Time         `json:"source_generated_at"`
-	Scope             *core.ReportScope `json:"scope,omitempty"`
-	Summary           Summary           `json:"summary"`
-	Items             []Item            `json:"items"`
+	GeneratedAt       time.Time              `json:"generated_at"`
+	Profile           Profile                `json:"profile"`
+	SourceReportKind  core.ReportKind        `json:"source_report_kind"`
+	SourceGeneratedAt time.Time              `json:"source_generated_at"`
+	Scope             *core.ReportScope      `json:"scope,omitempty"`
+	WorkflowView      *core.WorkflowContext  `json:"workflow_view,omitempty"`
+	Summary           Summary                `json:"summary"`
+	GroupedSummaries  []core.GroupedSummary  `json:"grouped_summaries,omitempty"`
+	WorkflowFindings  []core.WorkflowFinding `json:"workflow_findings,omitempty"`
+	Items             []Item                 `json:"items"`
 }

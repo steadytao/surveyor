@@ -1,7 +1,9 @@
 package diff
 
 import (
+	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -382,5 +384,75 @@ func TestBuildAuditReportIsDeterministic(t *testing.T) {
 			left.Severity == right.Severity
 	}) {
 		t.Fatal("BuildAuditReport() produced non-deterministic change ordering")
+	}
+}
+
+func TestReportJSONIncludesWorkflowSections(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		ReportMetadata:      core.NewReportMetadata(core.ReportKindDiff, core.ReportScopeKindRemote, "diff of audit reports"),
+		GeneratedAt:         time.Date(2026, time.April, 24, 2, 0, 0, 0, time.UTC),
+		BaselineReportKind:  core.ReportKindAudit,
+		CurrentReportKind:   core.ReportKindAudit,
+		BaselineGeneratedAt: time.Date(2026, time.April, 23, 2, 0, 0, 0, time.UTC),
+		CurrentGeneratedAt:  time.Date(2026, time.April, 24, 2, 0, 0, 0, time.UTC),
+		WorkflowView: &core.WorkflowContext{
+			GroupBy: core.WorkflowGroupByOwner,
+			Filters: []core.WorkflowFilter{
+				{
+					Field:  core.WorkflowFilterFieldEnvironment,
+					Values: []string{"prod"},
+				},
+			},
+		},
+		Summary: Summary{
+			TotalBaselineEntities: 1,
+			TotalCurrentEntities:  1,
+			ChangedEntities:       1,
+		},
+		GroupedSummaries: []core.GroupedSummary{
+			{
+				GroupBy: core.WorkflowGroupByOwner,
+				Groups: []core.GroupedSummaryGroup{
+					{
+						Key:        "payments",
+						TotalItems: 1,
+						DirectionBreakdown: map[string]int{
+							"worsened": 1,
+						},
+						ChangeBreakdown: map[string]int{
+							"classification_changed": 1,
+						},
+					},
+				},
+			},
+		},
+		WorkflowFindings: []core.WorkflowFinding{
+			{
+				Severity:       core.SeverityLow,
+				Code:           "missing-owner",
+				Summary:        "The imported endpoint is missing owner metadata.",
+				TargetIdentity: "remote|api.example.com|443|tcp",
+			},
+		},
+	}
+
+	data, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	jsonText := string(data)
+	wantSubstrings := []string{
+		`"workflow_view":{"group_by":"owner","filters":[{"field":"environment","values":["prod"]}]}`,
+		`"grouped_summaries":[{"group_by":"owner","groups":[{"key":"payments","total_items":1`,
+		`"workflow_findings":[{"severity":"low","code":"missing-owner","summary":"The imported endpoint is missing owner metadata.","target_identity":"remote|api.example.com|443|tcp"}]`,
+	}
+
+	for _, substring := range wantSubstrings {
+		if !strings.Contains(jsonText, substring) {
+			t.Fatalf("json output missing substring %q\nfull output: %s", substring, jsonText)
+		}
 	}
 }
