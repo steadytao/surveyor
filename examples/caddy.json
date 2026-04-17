@@ -1,0 +1,46 @@
+{
+  "apps": {
+    "http": {
+      "servers": {
+        "edge": {
+          "listen": [
+            "tcp/:443-444",
+            "udp/:443"
+          ],
+          "routes": [
+            {
+              "@id": "site-api",
+              "match": [
+                {
+                  "host": [
+                    "api.example.com"
+                  ]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "reverse_proxy"
+                }
+              ]
+            },
+            {
+              "@id": "wildcard-route",
+              "match": [
+                {
+                  "host": [
+                    "*.example.com"
+                  ]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "static_response"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

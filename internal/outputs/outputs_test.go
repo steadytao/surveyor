@@ -348,6 +348,22 @@ func TestMarshalInventoryDiscoveryJSON(t *testing.T) {
 	}
 }
 
+func TestMarshalCaddyDiscoveryJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleCaddyDiscoveryReport()
+
+	data, err := MarshalDiscoveryJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalDiscoveryJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "discovery-caddy.golden.json")
+	if string(data) != want {
+		t.Fatalf("caddy discovery json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
 func TestMarshalAuditJSON(t *testing.T) {
 	t.Parallel()
 
@@ -393,6 +409,22 @@ func TestMarshalInventoryAuditJSON(t *testing.T) {
 	want := readGoldenFile(t, "audit-inventory.golden.json")
 	if string(data) != want {
 		t.Fatalf("inventory audit json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
+func TestMarshalKubernetesAuditJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleKubernetesAuditReport()
+
+	data, err := MarshalAuditJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalAuditJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "audit-kubernetes.golden.json")
+	if string(data) != want {
+		t.Fatalf("kubernetes audit json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
 	}
 }
 
@@ -526,6 +558,18 @@ func TestRenderInventoryDiscoveryMarkdown(t *testing.T) {
 	}
 }
 
+func TestRenderCaddyDiscoveryMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleCaddyDiscoveryReport()
+
+	markdown := RenderDiscoveryMarkdown(report)
+	want := readGoldenFile(t, "discovery-caddy.golden.md")
+	if markdown != want {
+		t.Fatalf("caddy discovery markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
 func TestRenderDiscoveryMarkdownUsesBracketedIPv6Heading(t *testing.T) {
 	t.Parallel()
 
@@ -578,6 +622,18 @@ func TestRenderInventoryAuditMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "audit-inventory.golden.md")
 	if markdown != want {
 		t.Fatalf("inventory audit markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderKubernetesAuditMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleKubernetesAuditReport()
+
+	markdown := RenderAuditMarkdown(report)
+	want := readGoldenFile(t, "audit-kubernetes.golden.md")
+	if markdown != want {
+		t.Fatalf("kubernetes audit markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
 	}
 }
 
@@ -1059,6 +1115,161 @@ func sampleInventoryAuditReport() core.AuditReport {
 		ScopeKind:     core.ReportScopeKindRemote,
 		InputKind:     core.ReportInputKindInventoryFile,
 		InventoryFile: "examples/inventory.yaml",
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+}
+
+func sampleCaddyDiscoveryReport() core.DiscoveryReport {
+	return BuildDiscoveryReportWithMetadata([]core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "api.example.com",
+			Port:      443,
+			Transport: "tcp",
+			State:     "responsive",
+			Inventory: &core.InventoryAnnotation{
+				Ports: []int{443, 444},
+				Provenance: []core.InventoryProvenance{
+					{
+						SourceKind:   core.InventorySourceKindInventoryFile,
+						SourceFormat: core.InventorySourceFormatJSON,
+						SourceName:   "examples/caddy.json",
+						SourceRecord: "apps.http.servers.edge.routes[0]",
+						Adapter:      core.InventoryAdapterCaddy,
+						SourceObject: "server edge @id site-api",
+					},
+				},
+				AdapterWarnings: []core.InventoryAdapterWarning{
+					{
+						Code:    "non-tcp-listener-ignored",
+						Summary: "Caddy listener does not use TCP and cannot be mapped into Surveyor remote scope.",
+						Evidence: []string{
+							"adapter=caddy",
+							"source_name=examples/caddy.json",
+							"source_object=server edge",
+							"listener=udp/:443",
+						},
+					},
+					{
+						Code:    "non-concrete-host-ignored",
+						Summary: "Caddy route contains a wildcard or placeholder host that Surveyor cannot map to a concrete remote target.",
+						Evidence: []string{
+							"adapter=caddy",
+							"source_name=examples/caddy.json",
+							"source_object=server edge @id wildcard-route",
+							"host=*.example.com",
+						},
+					},
+				},
+			},
+			Hints: []core.DiscoveryHint{
+				{
+					Protocol:   "tls",
+					Confidence: "low",
+					Evidence:   []string{"transport=tcp", "port=443"},
+				},
+			},
+		},
+	}, time.Date(2026, time.April, 26, 1, 15, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/caddy.json",
+		Adapter:       core.InventoryAdapterCaddy,
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+}
+
+func sampleKubernetesAuditReport() core.AuditReport {
+	return BuildAuditReportWithMetadata([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "api.example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Inventory: &core.InventoryAnnotation{
+					Ports: []int{80, 443},
+					Provenance: []core.InventoryProvenance{
+						{
+							SourceKind:   core.InventorySourceKindInventoryFile,
+							SourceFormat: core.InventorySourceFormatYAML,
+							SourceName:   "examples/ingress.yaml",
+							SourceRecord: "documents[0].spec.tls[0].hosts[0]",
+							Adapter:      core.InventoryAdapterKubernetesIngressV1,
+							SourceObject: "Ingress/payments/payments-api",
+						},
+						{
+							SourceKind:   core.InventorySourceKindInventoryFile,
+							SourceFormat: core.InventorySourceFormatYAML,
+							SourceName:   "examples/ingress.yaml",
+							SourceRecord: "documents[0].spec.rules[0]",
+							Adapter:      core.InventoryAdapterKubernetesIngressV1,
+							SourceObject: "Ingress/payments/payments-api",
+						},
+					},
+					AdapterWarnings: []core.InventoryAdapterWarning{
+						{
+							Code:    "ingress-controller-required",
+							Summary: "Ingress effective exposure and TLS behaviour depend on the ingress controller; the manifest alone does not prove live external exposure.",
+							Evidence: []string{
+								"adapter=kubernetes-ingress-v1",
+								"source_name=examples/ingress.yaml",
+								"source_object=Ingress/payments/payments-api",
+								"source_record=documents[0]",
+							},
+						},
+						{
+							Code:    "ingress-class-unspecified",
+							Summary: "The Ingress manifest omits ingressClassName, so controller selection depends on cluster defaults or controller-specific behaviour.",
+							Evidence: []string{
+								"adapter=kubernetes-ingress-v1",
+								"source_name=examples/ingress.yaml",
+								"source_object=Ingress/payments/payments-api",
+								"source_record=documents[0].spec",
+							},
+						},
+					},
+				},
+				Hints: []core.DiscoveryHint{
+					{
+						Protocol:   "tls",
+						Confidence: "low",
+						Evidence:   []string{"transport=tcp", "port=443"},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:                   "api.example.com",
+				Port:                   443,
+				ScannedAt:              time.Date(2026, time.April, 26, 1, 20, 0, 0, time.UTC),
+				Reachable:              true,
+				TLSVersion:             "TLS 1.3",
+				CipherSuite:            "TLS_AES_128_GCM_SHA256",
+				LeafKeyAlgorithm:       "ecdsa",
+				LeafKeySize:            256,
+				LeafSignatureAlgorithm: "ecdsa-with-SHA256",
+				Classification:         "modern_tls_ready",
+			},
+		},
+	}, time.Date(2026, time.April, 26, 1, 30, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/ingress.yaml",
+		Adapter:       core.InventoryAdapterKubernetesIngressV1,
 	}, &core.ReportExecution{
 		Profile:        "cautious",
 		MaxHosts:       256,

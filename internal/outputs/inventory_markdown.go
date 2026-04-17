@@ -61,10 +61,19 @@ func renderInventoryAnnotation(builder *strings.Builder, annotation *core.Invent
 			builder.WriteString(fmt.Sprintf("  - %s\n", formatInventoryProvenance(provenance)))
 		}
 	}
+	if len(annotation.AdapterWarnings) > 0 {
+		builder.WriteString("- Adapter warnings:\n")
+		for _, warning := range annotation.AdapterWarnings {
+			builder.WriteString(fmt.Sprintf("  - %s: %s\n", warning.Code, warning.Summary))
+			for _, evidence := range warning.Evidence {
+				builder.WriteString(fmt.Sprintf("    - evidence: %s\n", evidence))
+			}
+		}
+	}
 }
 
 func formatInventoryProvenance(provenance core.InventoryProvenance) string {
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, 6)
 	if provenance.SourceKind != "" {
 		parts = append(parts, "kind="+string(provenance.SourceKind))
 	}
@@ -76,6 +85,12 @@ func formatInventoryProvenance(provenance core.InventoryProvenance) string {
 	}
 	if provenance.SourceRecord != "" {
 		parts = append(parts, "record="+provenance.SourceRecord)
+	}
+	if provenance.Adapter != "" {
+		parts = append(parts, "adapter="+string(provenance.Adapter))
+	}
+	if provenance.SourceObject != "" {
+		parts = append(parts, "object="+provenance.SourceObject)
 	}
 
 	return strings.Join(parts, ", ")

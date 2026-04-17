@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "discovery",
+  "scope_kind": "remote",
+  "scope_description": "remote discovery from inventory file examples/caddy.json via caddy adapter",
+  "generated_at": "2026-04-26T01:15:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "input_kind": "inventory_file",
+    "inventory_file": "examples/caddy.json",
+    "adapter": "caddy"
+  },
+  "execution": {
+    "profile": "cautious",
+    "max_hosts": 256,
+    "max_concurrency": 8,
+    "timeout": "3s"
+  },
+  "results": [
+    {
+      "scope_kind": "remote",
+      "host": "api.example.com",
+      "port": 443,
+      "transport": "tcp",
+      "state": "responsive",
+      "inventory": {
+        "ports": [
+          443,
+          444
+        ],
+        "provenance": [
+          {
+            "source_kind": "inventory_file",
+            "source_format": "json",
+            "source_name": "examples/caddy.json",
+            "source_record": "apps.http.servers.edge.routes[0]",
+            "adapter": "caddy",
+            "source_object": "server edge @id site-api"
+          }
+        ],
+        "adapter_warnings": [
+          {
+            "code": "non-tcp-listener-ignored",
+            "summary": "Caddy listener does not use TCP and cannot be mapped into Surveyor remote scope.",
+            "evidence": [
+              "adapter=caddy",
+              "source_name=examples/caddy.json",
+              "source_object=server edge",
+              "listener=udp/:443"
+            ]
+          },
+          {
+            "code": "non-concrete-host-ignored",
+            "summary": "Caddy route contains a wildcard or placeholder host that Surveyor cannot map to a concrete remote target.",
+            "evidence": [
+              "adapter=caddy",
+              "source_name=examples/caddy.json",
+              "source_object=server edge @id wildcard-route",
+              "host=*.example.com"
+            ]
+          }
+        ]
+      },
+      "hints": [
+        {
+          "protocol": "tls",
+          "confidence": "low",
+          "evidence": [
+            "transport=tcp",
+            "port=443"
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_endpoints": 1,
+    "tcp_endpoints": 1,
+    "udp_endpoints": 0,
+    "hint_breakdown": {
+      "tls": 1
+    }
+  }
+}
