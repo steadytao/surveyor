@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "discovery",
+  "scope_kind": "remote",
+  "scope_description": "remote discovery within CIDR 10.0.0.0/30 over ports 443,8443",
+  "generated_at": "2026-04-18T01:15:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "input_kind": "cidr",
+    "cidr": "10.0.0.0/30",
+    "ports": [
+      443,
+      8443
+    ]
+  },
+  "execution": {
+    "profile": "cautious",
+    "max_hosts": 256,
+    "max_concurrency": 8,
+    "timeout": "3s"
+  },
+  "results": [
+    {
+      "scope_kind": "remote",
+      "host": "10.0.0.10",
+      "port": 443,
+      "transport": "tcp",
+      "state": "responsive",
+      "hints": [
+        {
+          "protocol": "tls",
+          "confidence": "low",
+          "evidence": [
+            "transport=tcp",
+            "port=443"
+          ]
+        }
+      ]
+    },
+    {
+      "scope_kind": "remote",
+      "host": "10.0.0.11",
+      "port": 443,
+      "transport": "tcp",
+      "state": "candidate",
+      "errors": [
+        "connection refused"
+      ]
+    },
+    {
+      "scope_kind": "remote",
+      "host": "10.0.0.12",
+      "port": 8443,
+      "transport": "tcp",
+      "state": "responsive",
+      "hints": [
+        {
+          "protocol": "tls",
+          "confidence": "low",
+          "evidence": [
+            "transport=tcp",
+            "port=8443"
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_endpoints": 3,
+    "tcp_endpoints": 3,
+    "udp_endpoints": 0,
+    "hint_breakdown": {
+      "tls": 2
+    }
+  }
+}

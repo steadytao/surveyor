@@ -4,7 +4,7 @@
   "report_kind": "tls_scan",
   "scope_kind": "explicit",
   "scope_description": "explicit TLS targets from config",
-  "generated_at": "2026-04-14T01:45:00Z",
+  "generated_at": "2026-04-14T01:30:00Z",
   "scope": {
     "scope_kind": "explicit",
     "input_kind": "config"
@@ -51,14 +51,35 @@
           "recommendation": "Inventory certificate replacement and related PKI dependencies as part of migration planning."
         }
       ]
+    },
+    {
+      "host": "legacy.example.com",
+      "port": 443,
+      "scanned_at": "2026-04-14T01:01:00Z",
+      "reachable": false,
+      "classification": "unreachable",
+      "findings": [
+        {
+          "code": "target-unreachable",
+          "severity": "medium",
+          "summary": "The target could not be reached with a TLS connection.",
+          "evidence": [
+            "tls connection failed: connection attempt failed"
+          ]
+        }
+      ],
+      "errors": [
+        "tls connection failed: connection attempt failed"
+      ]
     }
   ],
   "summary": {
-    "total_targets": 1,
+    "total_targets": 2,
     "reachable_targets": 1,
-    "unreachable_targets": 0,
+    "unreachable_targets": 1,
     "classification_breakdown": {
-      "modern_tls_classical_identity": 1
+      "modern_tls_classical_identity": 1,
+      "unreachable": 1
     }
   }
 }

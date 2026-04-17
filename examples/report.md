@@ -1,13 +1,14 @@
 # Surveyor TLS Inventory Report
 
-- Generated: 2026-04-14T01:45:00Z
-- Total targets: 1
+- Generated: 2026-04-14T01:30:00Z
+- Total targets: 2
 - Reachable targets: 1
-- Unreachable targets: 0
+- Unreachable targets: 1
 
 ## Classification summary
 
 - modern_tls_classical_identity: 1
+- unreachable: 1
 
 ## Targets
 
@@ -31,3 +32,20 @@
   - evidence: leaf_key_algorithm=rsa
   - evidence: leaf_signature_algorithm=sha256-rsa
   - recommendation: Inventory certificate replacement and related PKI dependencies as part of migration planning.
+
+### legacy.example.com:443
+
+- Host: legacy.example.com
+- Port: 443
+- Scanned at: 2026-04-14T01:01:00Z
+- Reachable: false
+- Classification: unreachable
+
+#### Findings
+
+- target-unreachable (medium): The target could not be reached with a TLS connection.
+  - evidence: tls connection failed: connection attempt failed
+
+#### Errors
+
+- tls connection failed: connection attempt failed
