@@ -97,43 +97,47 @@ var supportedCSVHeaders = map[string]struct{}{
 // Load reads an inventory file from disk, infers its format from the file
 // extension and returns the canonical imported-inventory model.
 func Load(path string) (Document, error) {
-	return load(path, "")
+	return load(path, "", AdapterOptions{})
 }
 
 // LoadWithAdapter reads an inventory file from disk and parses it through one
 // registered product-specific adapter.
-func LoadWithAdapter(path string, adapterName core.InventoryAdapter) (Document, error) {
-	return load(path, normalizeAdapterName(string(adapterName)))
+func LoadWithAdapter(path string, adapterName core.InventoryAdapter, options AdapterOptions) (Document, error) {
+	return load(path, normalizeAdapterName(string(adapterName)), options)
 }
 
-func load(path string, adapterName core.InventoryAdapter) (Document, error) {
+func load(path string, adapterName core.InventoryAdapter, options AdapterOptions) (Document, error) {
+	format, err := detectFormat(path, adapterName)
+	if err != nil {
+		return Document{}, err
+	}
+
+	if adapterName == core.InventoryAdapterCaddy && format == core.InventorySourceFormatCaddyfile {
+		return parse(nil, format, path, adapterName, options)
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Document{}, fmt.Errorf("read inventory file %q: %w", path, err)
 	}
 
-	format, err := detectFormat(path)
-	if err != nil {
-		return Document{}, err
-	}
-
-	return parse(data, format, path, adapterName)
+	return parse(data, format, path, adapterName, options)
 }
 
 // Parse decodes one imported inventory document in the declared format.
 func Parse(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
-	return parse(data, format, sourceName, "")
+	return parse(data, format, sourceName, "", AdapterOptions{})
 }
 
 // ParseWithAdapter decodes one imported inventory document in the declared
 // format through one registered product-specific adapter.
-func ParseWithAdapter(data []byte, format core.InventorySourceFormat, sourceName string, adapterName core.InventoryAdapter) (Document, error) {
-	return parse(data, format, sourceName, normalizeAdapterName(string(adapterName)))
+func ParseWithAdapter(data []byte, format core.InventorySourceFormat, sourceName string, adapterName core.InventoryAdapter, options AdapterOptions) (Document, error) {
+	return parse(data, format, sourceName, normalizeAdapterName(string(adapterName)), options)
 }
 
-func parse(data []byte, format core.InventorySourceFormat, sourceName string, adapterName core.InventoryAdapter) (Document, error) {
+func parse(data []byte, format core.InventorySourceFormat, sourceName string, adapterName core.InventoryAdapter, options AdapterOptions) (Document, error) {
 	if adapterName != "" {
-		return parseWithAdapter(data, format, sourceName, adapterName)
+		return parseWithAdapter(data, format, sourceName, adapterName, options)
 	}
 
 	switch format {
@@ -148,7 +152,25 @@ func parse(data []byte, format core.InventorySourceFormat, sourceName string, ad
 	}
 }
 
-func detectFormat(path string) (core.InventorySourceFormat, error) {
+// DetectAdapter infers one product adapter from an inventory path when the
+// file name is unambiguous. It is intentionally conservative.
+func DetectAdapter(path string) core.InventoryAdapter {
+	if isCaddyfilePath(path) {
+		return core.InventoryAdapterCaddy
+	}
+
+	return ""
+}
+
+func detectFormat(path string, adapterName core.InventoryAdapter) (core.InventorySourceFormat, error) {
+	if isCaddyfilePath(path) {
+		if adapterName == core.InventoryAdapterCaddy {
+			return core.InventorySourceFormatCaddyfile, nil
+		}
+
+		return "", fmt.Errorf("unsupported inventory file %q: Caddyfile input requires --adapter caddy", path)
+	}
+
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".yaml", ".yml":
 		return core.InventorySourceFormatYAML, nil
@@ -159,6 +181,11 @@ func detectFormat(path string) (core.InventorySourceFormat, error) {
 	default:
 		return "", fmt.Errorf("unsupported inventory file %q: expected .yaml, .yml, .json or .csv", path)
 	}
+}
+
+func isCaddyfilePath(path string) bool {
+	base := filepath.Base(strings.TrimSpace(path))
+	return strings.EqualFold(base, "Caddyfile") || strings.EqualFold(filepath.Ext(base), ".caddyfile")
 }
 
 func parseYAML(data []byte, sourceName string) (Document, error) {

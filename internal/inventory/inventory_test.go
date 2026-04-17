@@ -12,15 +12,15 @@ import (
 
 type stubAdapter struct {
 	name  core.InventoryAdapter
-	parse func([]byte, core.InventorySourceFormat, string) (Document, error)
+	parse func([]byte, core.InventorySourceFormat, string, AdapterOptions) (Document, error)
 }
 
 func (adapter stubAdapter) Name() core.InventoryAdapter {
 	return adapter.name
 }
 
-func (adapter stubAdapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
-	return adapter.parse(data, format, sourceName)
+func (adapter stubAdapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string, options AdapterOptions) (Document, error) {
+	return adapter.parse(data, format, sourceName, options)
 }
 
 func TestParseYAMLInventory(t *testing.T) {
@@ -278,7 +278,7 @@ func TestParseWithAdapterUsesRegisteredAdapter(t *testing.T) {
 	adapterName := core.InventoryAdapter("test-adapter")
 	if err := RegisterAdapter(stubAdapter{
 		name: adapterName,
-		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string, _ AdapterOptions) (Document, error) {
 			if got, want := format, core.InventorySourceFormatJSON; got != want {
 				return Document{}, fmt.Errorf("format = %q, want %q", got, want)
 			}
@@ -314,7 +314,7 @@ func TestParseWithAdapterUsesRegisteredAdapter(t *testing.T) {
 		UnregisterAdapter(adapterName)
 	})
 
-	document, err := ParseWithAdapter([]byte(`{"ignored":true}`), core.InventorySourceFormatJSON, "adapter.json", core.InventoryAdapter("TEST-ADAPTER"))
+	document, err := ParseWithAdapter([]byte(`{"ignored":true}`), core.InventorySourceFormatJSON, "adapter.json", core.InventoryAdapter("TEST-ADAPTER"), AdapterOptions{})
 	if err != nil {
 		t.Fatalf("ParseWithAdapter() error = %v", err)
 	}
@@ -330,7 +330,7 @@ func TestParseWithAdapterUsesRegisteredAdapter(t *testing.T) {
 func TestParseWithAdapterRejectsUnsupportedAdapter(t *testing.T) {
 	t.Parallel()
 
-	_, err := ParseWithAdapter([]byte(`{}`), core.InventorySourceFormatJSON, "adapter.json", core.InventoryAdapter("missing-adapter"))
+	_, err := ParseWithAdapter([]byte(`{}`), core.InventorySourceFormatJSON, "adapter.json", core.InventoryAdapter("missing-adapter"), AdapterOptions{})
 	if err == nil {
 		t.Fatal("ParseWithAdapter() error = nil, want non-nil")
 	}
@@ -345,7 +345,7 @@ func TestRegisterAdapterRejectsDuplicateName(t *testing.T) {
 	adapterName := core.InventoryAdapter("duplicate-adapter")
 	if err := RegisterAdapter(stubAdapter{
 		name: adapterName,
-		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string, _ AdapterOptions) (Document, error) {
 			return Document{}, nil
 		},
 	}); err != nil {
@@ -357,7 +357,7 @@ func TestRegisterAdapterRejectsDuplicateName(t *testing.T) {
 
 	err := RegisterAdapter(stubAdapter{
 		name: adapterName,
-		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string, _ AdapterOptions) (Document, error) {
 			return Document{}, nil
 		},
 	})
@@ -375,7 +375,7 @@ func TestRegisterAdapterNormalizesName(t *testing.T) {
 	adapterName := core.InventoryAdapter("Mixed-Case-Adapter")
 	if err := RegisterAdapter(stubAdapter{
 		name: adapterName,
-		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string, _ AdapterOptions) (Document, error) {
 			return Document{
 				Format:     format,
 				SourceName: sourceName,
@@ -397,7 +397,7 @@ func TestRegisterAdapterNormalizesName(t *testing.T) {
 		t.Fatal("HasAdapter() = false, want true for normalized name")
 	}
 
-	document, err := ParseWithAdapter([]byte(`{}`), core.InventorySourceFormatJSON, "adapter.json", core.InventoryAdapter("mixed-case-adapter"))
+	document, err := ParseWithAdapter([]byte(`{}`), core.InventorySourceFormatJSON, "adapter.json", core.InventoryAdapter("mixed-case-adapter"), AdapterOptions{})
 	if err != nil {
 		t.Fatalf("ParseWithAdapter() error = %v", err)
 	}

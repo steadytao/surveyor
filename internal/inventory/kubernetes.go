@@ -92,7 +92,7 @@ func (kubernetesIngressV1Adapter) Name() core.InventoryAdapter {
 	return core.InventoryAdapterKubernetesIngressV1
 }
 
-func (kubernetesIngressV1Adapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
+func (kubernetesIngressV1Adapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string, _ AdapterOptions) (Document, error) {
 	manifests, err := parseKubernetesManifests(data, format)
 	if err != nil {
 		return Document{}, err

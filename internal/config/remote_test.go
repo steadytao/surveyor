@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -15,15 +16,15 @@ import (
 
 type stubInventoryAdapter struct {
 	name  core.InventoryAdapter
-	parse func([]byte, core.InventorySourceFormat, string) (inventory.Document, error)
+	parse func([]byte, core.InventorySourceFormat, string, inventory.AdapterOptions) (inventory.Document, error)
 }
 
 func (adapter stubInventoryAdapter) Name() core.InventoryAdapter {
 	return adapter.name
 }
 
-func (adapter stubInventoryAdapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string) (inventory.Document, error) {
-	return adapter.parse(data, format, sourceName)
+func (adapter stubInventoryAdapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string, options inventory.AdapterOptions) (inventory.Document, error) {
+	return adapter.parse(data, format, sourceName, options)
 }
 
 func TestParseRemoteScopeDefaults(t *testing.T) {
@@ -312,7 +313,7 @@ func TestParseRemoteScopeInventoryFileUsesRegisteredAdapter(t *testing.T) {
 	adapterName := core.InventoryAdapter("test-adapter")
 	if err := inventory.RegisterAdapter(stubInventoryAdapter{
 		name: adapterName,
-		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (inventory.Document, error) {
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string, _ inventory.AdapterOptions) (inventory.Document, error) {
 			if got, want := format, core.InventorySourceFormatJSON; got != want {
 				return inventory.Document{}, fmt.Errorf("format = %q, want %q", got, want)
 			}
@@ -436,6 +437,116 @@ func TestParseRemoteScopeInventoryFileUsesCaddyAdapter(t *testing.T) {
 	if got, want := scope.Targets[0].Inventory.Provenance[0].SourceObject, "server edge @id site-api"; got != want {
 		t.Fatalf("scope.Targets[0].Inventory.Provenance[0].SourceObject = %q, want %q", got, want)
 	}
+}
+
+func TestParseRemoteScopeInventoryFileAutoDetectsCaddyAdapterFromCaddyfile(t *testing.T) {
+	useFakeCaddy(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "Caddyfile")
+	if err := os.WriteFile(inventoryFile, []byte(`
+https://api.example.com:8443 {
+	respond "ok"
+}
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		InventoryFile: inventoryFile,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.Adapter, core.InventoryAdapterCaddy; got != want {
+		t.Fatalf("scope.Adapter = %q, want %q", got, want)
+	}
+	if got, want := len(scope.Targets), 1; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+	if got, want := scope.Targets[0].Host, "api.example.com"; got != want {
+		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[0].Ports, []int{8443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
+	}
+	if scope.Targets[0].Inventory == nil {
+		t.Fatal("scope.Targets[0].Inventory = nil, want non-nil")
+	}
+	if got, want := scope.Targets[0].Inventory.Provenance[0].SourceFormat, core.InventorySourceFormatCaddyfile; got != want {
+		t.Fatalf("scope.Targets[0].Inventory.Provenance[0].SourceFormat = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[0].Inventory.Provenance[0].Adapter, core.InventoryAdapterCaddy; got != want {
+		t.Fatalf("scope.Targets[0].Inventory.Provenance[0].Adapter = %q, want %q", got, want)
+	}
+}
+
+func TestParseRemoteScopeInventoryFileUsesAdapterBinaryOverride(t *testing.T) {
+	binaryPath := writeFakeCaddyBinary(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "Caddyfile")
+	if err := os.WriteFile(inventoryFile, []byte(`
+https://api.example.com:8443 {
+	respond "ok"
+}
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		InventoryFile: inventoryFile,
+		AdapterBinary: binaryPath,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.Adapter, core.InventoryAdapterCaddy; got != want {
+		t.Fatalf("scope.Adapter = %q, want %q", got, want)
+	}
+	if got, want := len(scope.Targets), 1; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+}
+
+func fakeCaddyAdaptedJSON() string {
+	return `{"apps":{"http":{"servers":{"edge":{"listen":[":8443"],"routes":[{"@id":"site-api","match":[{"host":["api.example.com"]}],"handle":[{"handler":"static_response"}]}]}}}}}`
+}
+
+func useFakeCaddy(t *testing.T, jsonOutput string, stderrOutput string) {
+	t.Helper()
+
+	t.Setenv("SURVEYOR_CADDY_BIN", writeFakeCaddyBinary(t, jsonOutput, stderrOutput))
+}
+
+func writeFakeCaddyBinary(t *testing.T, jsonOutput string, stderrOutput string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	binaryPath := filepath.Join(dir, "caddy")
+	script := "#!/bin/sh\ncat \"$0.stderr\" 1>&2\ncat \"$0.json\"\n"
+	if runtime.GOOS == "windows" {
+		binaryPath += ".cmd"
+		script = "@echo off\r\ntype \"%~f0.stderr\" 1>&2\r\ntype \"%~f0.json\"\r\n"
+	}
+	if err := os.WriteFile(binaryPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile(script) error = %v", err)
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(binaryPath, 0o755); err != nil {
+			t.Fatalf("Chmod(script) error = %v", err)
+		}
+	}
+	if err := os.WriteFile(binaryPath+".json", []byte(jsonOutput), 0o644); err != nil {
+		t.Fatalf("WriteFile(script json) error = %v", err)
+	}
+	if err := os.WriteFile(binaryPath+".stderr", []byte(stderrOutput), 0o644); err != nil {
+		t.Fatalf("WriteFile(script stderr) error = %v", err)
+	}
+
+	return binaryPath
 }
 
 func TestParseRemoteScopeInventoryFileUsesKubernetesIngressAdapter(t *testing.T) {
@@ -591,6 +702,15 @@ func TestParseRemoteScopeInvalidInput(t *testing.T) {
 				Adapter: "caddy",
 			},
 			wantErrText: "--adapter requires --inventory-file",
+		},
+		{
+			name: "adapter binary without inventory file",
+			input: RemoteScopeInput{
+				CIDR:          "10.0.0.0/24",
+				Ports:         "443",
+				AdapterBinary: "caddy",
+			},
+			wantErrText: "--adapter-bin requires --inventory-file",
 		},
 		{
 			name: "invalid cidr",

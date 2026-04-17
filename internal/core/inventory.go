@@ -13,9 +13,10 @@ const (
 type InventorySourceFormat string
 
 const (
-	InventorySourceFormatYAML InventorySourceFormat = "yaml"
-	InventorySourceFormatJSON InventorySourceFormat = "json"
-	InventorySourceFormatCSV  InventorySourceFormat = "csv"
+	InventorySourceFormatYAML      InventorySourceFormat = "yaml"
+	InventorySourceFormatJSON      InventorySourceFormat = "json"
+	InventorySourceFormatCSV       InventorySourceFormat = "csv"
+	InventorySourceFormatCaddyfile InventorySourceFormat = "caddyfile"
 )
 
 // InventoryAdapter records one explicit product-level adapter family applied to

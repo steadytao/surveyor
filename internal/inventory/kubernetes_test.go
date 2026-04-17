@@ -36,7 +36,7 @@ spec:
                 name: payments-api
                 port:
                   number: 80
-`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1)
+`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1, AdapterOptions{})
 	if err != nil {
 		t.Fatalf("ParseWithAdapter() error = %v", err)
 	}
@@ -89,7 +89,7 @@ spec:
                 name: public-http
                 port:
                   number: 80
-`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1)
+`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1, AdapterOptions{})
 	if err != nil {
 		t.Fatalf("ParseWithAdapter() error = %v", err)
 	}
@@ -147,7 +147,7 @@ spec:
                 name: concrete
                 port:
                   number: 80
-`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1)
+`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1, AdapterOptions{})
 	if err != nil {
 		t.Fatalf("ParseWithAdapter() error = %v", err)
 	}
@@ -200,7 +200,7 @@ spec:
     - hosts:
         - api.example.com
       secretName: public-https-tls
-`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1)
+`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1, AdapterOptions{})
 	if err != nil {
 		t.Fatalf("ParseWithAdapter() error = %v", err)
 	}
@@ -241,7 +241,7 @@ func TestParseWithKubernetesAdapterSupportsJSONList(t *testing.T) {
       }
     }
   ]
-}`), core.InventorySourceFormatJSON, "ingress.json", core.InventoryAdapterKubernetesIngressV1)
+}`), core.InventorySourceFormatJSON, "ingress.json", core.InventoryAdapterKubernetesIngressV1, AdapterOptions{})
 	if err != nil {
 		t.Fatalf("ParseWithAdapter() error = %v", err)
 	}
@@ -265,7 +265,7 @@ metadata:
 spec:
   rules:
     - host: legacy.example.com
-`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1)
+`), core.InventorySourceFormatYAML, "ingress.yaml", core.InventoryAdapterKubernetesIngressV1, AdapterOptions{})
 	if err == nil {
 		t.Fatal("ParseWithAdapter() error = nil, want non-nil")
 	}
@@ -302,7 +302,7 @@ spec:
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	document, err := LoadWithAdapter(path, core.InventoryAdapterKubernetesIngressV1)
+	document, err := LoadWithAdapter(path, core.InventoryAdapterKubernetesIngressV1, AdapterOptions{})
 	if err != nil {
 		t.Fatalf("LoadWithAdapter() error = %v", err)
 	}
