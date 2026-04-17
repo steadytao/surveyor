@@ -31,6 +31,14 @@ surveyor audit subnet ...
 Those aliases continue to mean the CIDR-backed remote path only. They are
 compatibility affordances, not the long-term design centre.
 
+CIDR is the standard notation for an IP range, for example:
+
+- `192.168.1.0/24` for a typical subnet
+- `10.0.0.5/32` for a single host
+
+The `subnet` aliases remain because many operators recognise “subnet” more
+readily than “CIDR”.
+
 ## Scope model
 
 The current remote scope model represents:

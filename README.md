@@ -1,306 +1,81 @@
 # Surveyor
 
-Surveyor is a cryptographic inventory and migration-readiness tool.
+Surveyor is a TLS-first cryptographic inventory and migration-readiness tool.
 
-It currently starts with two narrow questions:
+It is built for a narrow, practical question set:
 
-- what endpoints is this machine exposing locally
-- what does a TLS-facing service actually present today, and what does that imply for post-quantum migration work tomorrow
+- what transport-facing endpoints exist
+- what does a TLS service actually present today
+- where do classical certificate and PKI dependencies still exist
+- what should a team look at first for migration readiness or change risk
 
-The point is not to produce a vague “PQ score”. The point is to give teams a clear inventory of what they are running, where classical public-key dependencies still exist, and what probably needs attention first.
+Surveyor is not trying to collapse that work into a vague “PQ score”. It is
+trying to produce a defensible inventory and a clear next-action surface.
+
+## Menu
+
+- [Status](#status)
+- [What Surveyor Is](#what-surveyor-is)
+- [What Surveyor Is Not](#what-surveyor-is-not)
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Command Surface](#command-surface)
+- [Remote Scope](#remote-scope)
+- [Import Adapters](#import-adapters)
+- [Reports And Analysis](#reports-and-analysis)
+- [Documentation](#documentation)
+- [Development](#development)
+- [Contributing](#contributing)
+- [Security](#security)
+- [Licence](#licence)
+- [Changelog](#changelog)
 
 ## Status
 
 Surveyor is in early development.
 
-The first milestone was intentionally narrow. It completed as a TLS inventory MVP for explicitly provided targets.
+The current shipped surface includes:
 
-The current repository now includes a generalised remote inventory surface around `surveyor discover remote` and `surveyor audit remote`.
-
-The current repository already includes:
-
-- local and remote audit orchestration for supported TLS-like endpoints
-- local endpoint discovery
-- scoped remote discovery across CIDR, simple file-backed host scope and structured inventory manifests
-- baseline-compatible report metadata on current JSON reports
-- saved-report diffing for compatible TLS and audit reports
-- current-report prioritisation for compatible TLS and audit reports
-- conservative protocol hints for discovery results
-- remote scope parsing and validation
-- structured imported inventory parsing from YAML, JSON and CSV
-- platform-specific import adapters on top of `--inventory-file`
-  - Caddy JSON
-  - Caddyfile, via external `caddy adapt`
-  - Kubernetes Ingress v1 manifests
-- target parsing and validation
-- TLS connection and protocol inspection
-- certificate chain parsing
-- public-key and signature algorithm inventory
-- conservative readiness classification
-- machine-readable and human-readable reporting
-
-The repository now includes usable CLI paths for local audit, remote audit, local discovery, remote discovery and the explicit-target TLS inventory slice.
-
-## Releases
+- explicit TLS inventory through `surveyor scan tls`
+- local discovery and local audit
+- remote discovery and remote audit
+- structured imported inventory through `--inventory-file`
+- platform-specific import adapters for Caddy and Kubernetes Ingress v1
+- saved-report diffing for compatible `tls_scan` and `audit` reports
+- current-report prioritisation for compatible `tls_scan` and `audit` reports
+- workflow grouping and filtering for inventory-backed audit diff and prioritisation views
 
 Published releases appear here:
 
 <https://github.com/steadytao/surveyor/releases>
 
-When releases are published, assets include downloadable binaries for Linux, macOS and Windows on amd64 and arm64.
+## What Surveyor Is
 
-## Why this project exists
+Surveyor currently aims to be:
 
-Post-quantum migration is not mainly a cryptography-library problem. For most teams it is an inventory and prioritisation problem.
+- a TLS-first cryptographic inventory tool
+- a local and remote discovery tool for explicitly declared scope
+- an audit tool that chains discovery into the existing TLS scanner conservatively
+- a report generator with canonical JSON and derived Markdown
+- a narrow decision-support layer for diffing and prioritisation
 
-Before anything can be migrated, someone needs to answer practical questions:
+## What Surveyor Is Not
 
-- where classical public-key cryptography is in use
-- which services, certificates, and trust paths depend on it
-- what is externally exposed
-- what is straightforward to replace
-- what needs manual review or architectural change
+Surveyor is not currently:
 
-Surveyor exists to make that visible.
+- a general-purpose vulnerability scanner
+- a post-quantum cryptography implementation
+- a PKI replacement system
+- a dashboard or storage platform
+- a live connector platform
+- a policy engine
+- a multi-protocol scanner
 
-## Current scope
+It also does not scan undeclared address ranges or silently widen scope.
 
-The current repository is still intentionally narrow.
+## Install
 
-That means Surveyor currently aims to:
-
-- run local audit by chaining discovery into the existing TLS scanner conservatively
-- run remote audit within explicitly declared remote scope and explicit port surface
-- enumerate local listening or bound endpoints without active probing
-- enumerate remote TCP reachability within explicitly declared CIDR, file-backed host or structured inventory scope and explicit port surface
-- attach conservative protocol hints to discovery results
-- compare compatible saved TLS and audit reports deterministically
-- rank current TLS and audit reports for migration-readiness or change-risk
-- connect to explicit TLS targets
-- collect handshake and certificate facts
-- classify migration posture conservatively
-- emit structured results and a readable report
-
-It does not currently aim to:
-
-- implement post-quantum cryptography
-- replace PKI systems
-- scan undeclared or implicit address ranges
-- act as a general-purpose vulnerability scanner
-- produce exploit tooling
-- flatten complex migration work into a binary “quantum-safe” label
-
-## Current implementation
-
-Surveyor currently has implemented internal slices for:
-
-- local and remote audit orchestration for discovery-to-TLS handoff
-- local discovery and scoped remote discovery
-- remote scope parsing and validation
-- YAML config parsing and validation for explicit TLS targets
-- TLS handshake collection against explicit targets
-- X.509 certificate and chain metadata extraction
-- conservative readiness classification
-- canonical JSON report assembly
-- derived Markdown reporting
-
-The current code and docs are organised around JSON as the canonical result contract and Markdown as derived output.
-
-## CLI
-
-The current CLI supports local audit, remote audit, local discovery, remote discovery and explicit-target TLS inventory.
-
-Analysis:
-
-```bash
-surveyor diff baseline.json current.json -o diff.md -j diff.json
-surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
-surveyor prioritise current.json --profile change-risk -o priorities.md -j priorities.json
-```
-
-Audit:
-
-```bash
-surveyor audit local -o audit.md -j audit.json
-surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 -o audit-remote.md -j audit-remote.json
-surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 -o audit-remote.md -j audit-remote.json
-surveyor audit remote --inventory-file examples/inventory.yaml -o audit-inventory.md -j audit-inventory.json
-surveyor audit remote --inventory-file examples/ingress.yaml --adapter kubernetes-ingress-v1 -o audit-kubernetes.md -j audit-kubernetes.json
-surveyor audit remote --inventory-file Caddyfile --adapter-bin /path/to/caddy -o audit-caddy.md -j audit-caddy.json
-```
-
-Discovery:
-
-```bash
-surveyor discover local -o discovery.md -j discovery.json
-surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 -o discovery-remote.md -j discovery-remote.json
-surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 -o discovery-remote.md -j discovery-remote.json
-surveyor discover remote --inventory-file examples/inventory.yaml -o discovery-inventory.md -j discovery-inventory.json
-surveyor discover remote --inventory-file examples/caddy.json --adapter caddy -o discovery-caddy.md -j discovery-caddy.json
-surveyor discover remote --inventory-file Caddyfile --adapter-bin /path/to/caddy -o discovery-caddy.md -j discovery-caddy.json
-```
-
-TLS inventory:
-
-```bash
-surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
-```
-
-For ad hoc local or one-off scans, explicit command-line targets are also supported:
-
-```bash
-surveyor scan tls -t example.com:443,127.0.0.1:8000,[::1]:443
-```
-
-Rules:
-
-- `audit local` only hands supported TLS-like endpoints into the current TLS scanner and keeps discovered facts, hints and verified scan results separate
-- `audit remote` only walks explicitly declared remote scope and declared ports, then hands supported TLS-like remote endpoints into the current TLS scanner
-- `discover local` is observational only, it does not perform active probing or verified protocol scans
-- `discover remote` performs bounded remote TCP reachability probing within explicitly declared scope, and it does not perform verified protocol scans
-- `diff` currently supports `tls_scan` to `tls_scan` and `audit` to `audit` comparisons only
-- `prioritize` currently supports current `tls_scan` and `audit` reports only
-- `prioritise` is a CLI alias for `prioritize`
-- use exactly one of `--config` or `--targets`
-- `--targets` requires explicit `host:port` entries
-- the canonical remote commands require exactly one of `--cidr`, `--targets-file` or `--inventory-file`
-- `--adapter` selects a platform-specific inventory adapter when needed
-- `--adapter-bin` supplies an explicit adapter executable path when the selected adapter needs one
-- `Caddyfile` and `*.caddyfile` auto-detect the `caddy` adapter when the file name is unambiguous
-- `--ports` is required for `--cidr` and `--targets-file`, and overrides per-entry inventory ports when set
-- `discover subnet` and `audit subnet` remain CIDR-only compatibility aliases from `v0.4.x`
-- `--profile` sets default remote pace, explicit `--max-hosts`, `--max-concurrency` and `--timeout` override it
-- `--dry-run` performs no network I/O and prints the execution plan
-- `--json` is not supported with `--dry-run`
-- discovery and audit reports now carry explicit scope metadata, and remote runs also carry execution metadata
-- remote IP-target TLS results should be read as literal connection-path observations, not hostname-validation or virtual-host coverage claims
-- IPv6 targets must use bracket form, for example `[::1]:443`
-- if no output paths are given, Markdown is written to stdout
-
-Example verification:
-
-```bash
-go build -o surveyor ./cmd/surveyor
-./surveyor audit local -o audit.md -j audit.json
-./surveyor discover local -o discovery.md -j discovery.json
-./surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
-./surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
-./surveyor discover remote --inventory-file examples/inventory.yaml --dry-run
-./surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
-./surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
-./surveyor audit remote --inventory-file examples/inventory.yaml --dry-run
-./surveyor diff baseline.json current.json -o diff.md -j diff.json
-./surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
-./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
-```
-
-For the current implementation boundaries, see:
-
-- [docs/audit.md](docs/audit.md)
-- [docs/architecture.md](docs/architecture.md)
-- [docs/discovery.md](docs/discovery.md)
-- [docs/output-schema.md](docs/output-schema.md)
-- [docs/baselines.md](docs/baselines.md)
-- [docs/diffing.md](docs/diffing.md)
-- [docs/prioritisation.md](docs/prioritisation.md)
-- [docs/classification.md](docs/classification.md)
-- [docs/references.md](docs/references.md)
-- [docs/safety.md](docs/safety.md)
-- [docs/release-checklist.md](docs/release-checklist.md)
-- [docs/inventory-inputs.md](docs/inventory-inputs.md) for the current structured inventory input contract
-
-## Remote boundary
-
-Generalised remote scope is now part of the current repository surface.
-
-The current remote boundary is still intentionally narrow:
-
-- explicit `--cidr`, `--targets-file` or `--inventory-file` scope required
-- explicit ports required for `--cidr` and `--targets-file`
-- inventory manifests may carry per-entry ports, and `--ports` overrides them when supplied
-- cautious by default
-- existing TLS scanner only for verified remote scanning
-- discovered facts, hints, selection decisions and verified scan results kept separate
-- `discover subnet` and `audit subnet` retained as CIDR-only compatibility aliases from `v0.4.x`
-
-See:
-
-- [docs/remote-inventory.md](docs/remote-inventory.md) for the current remote inventory boundary
-- [docs/remote-scope.md](docs/remote-scope.md) for the current remote scope model
-- [docs/inventory-inputs.md](docs/inventory-inputs.md) for the current structured inventory input layer
-
-## Current analysis layer
-
-The current repository includes a baseline, diffing, prioritisation and workflow layer over canonical Surveyor JSON reports.
-
-Current boundary:
-
-- current reports carry baseline-compatible metadata
-- `surveyor diff baseline.json current.json` is implemented
-- `surveyor prioritize current.json` is implemented
-- `surveyor prioritise current.json` is supported as a CLI alias
-- prioritisation profiles currently include `migration-readiness` and `change-risk`
-- diffing currently supports only compatible `tls_scan` and `audit` input
-- prioritisation currently supports current `tls_scan` and `audit` input
-- inventory-backed audit comparison and prioritisation support restrained workflow controls:
-  - `--group-by owner|environment|source`
-  - `--include-owner`
-  - `--include-environment`
-  - `--include-tag`
-- audit diff reports now carry grouped summaries by owner, environment and source when inventory metadata is present
-- audit prioritisation now uses inventory metadata conservatively in ranking reasons and emits workflow findings for weak imported metadata
-
-Current limits remain deliberate:
-
-- workflow grouping and filtering apply only to inventory-backed audit input or audit comparisons
-- TLS input rejects workflow controls
-- diffing still does not support discovery-only input
-- prioritisation still does not accept diff reports
-- the analysis layer is still not policy-as-code, a dashboard or a storage-backed governance platform
-
-The current `v0.9.0` layer adds platform-specific import adapters on top of the current `--inventory-file` path while keeping the generic imported-inventory model as the canonical internal boundary.
-
-Current adapter surface:
-
-- `--adapter caddy` for Caddy JSON and Caddyfile input
-- auto-detected `caddy` adapter for `Caddyfile` and `*.caddyfile`
-- `--adapter kubernetes-ingress-v1` for Kubernetes Ingress v1 manifests
-- `--adapter-bin` for explicit adapter executable selection where needed
-
-Current limits remain deliberate:
-
-- no live cloud or CMDB connectors
-- no generic Kubernetes parser
-- no second import command family
-
-The next planned layer is `v0.10.0 - Contract Hardening and Feedback Release`.
-
-See:
-
-- [docs/baselines.md](docs/baselines.md)
-- [docs/diffing.md](docs/diffing.md)
-- [docs/prioritisation.md](docs/prioritisation.md)
-- [docs/policy-workflows.md](docs/policy-workflows.md)
-- [docs/import-adapters.md](docs/import-adapters.md)
-- [docs/adapter-contract.md](docs/adapter-contract.md)
-- [docs/adapter-caddy.md](docs/adapter-caddy.md)
-- [docs/adapter-kubernetes.md](docs/adapter-kubernetes.md)
-
-## Development
-
-Surveyor is written in Go.
-
-The repository currently contains a working `cmd/surveyor` entrypoint for local and remote audit and discovery, explicit-target TLS inventory, saved-report diffing and current-report prioritisation, plus the internal packages and tests behind them.
-
-For now, the most useful verification command is:
-
-```bash
-go build -o surveyor ./cmd/surveyor
-go vet ./...
-go test ./...
-```
-
-The expected local build flow is:
+You can build Surveyor from source:
 
 ```bash
 git clone https://github.com/steadytao/surveyor.git
@@ -308,33 +83,202 @@ cd surveyor
 go build -o surveyor ./cmd/surveyor
 ```
 
-Then run:
+On Windows, use `.\surveyor.exe` instead of `./surveyor`.
+
+## Quick Start
+
+Explicit TLS inventory:
 
 ```bash
-./surveyor audit local -o audit.md -j audit.json
+surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
+```
+
+Local discovery and audit:
+
+```bash
+surveyor discover local -o discovery.md -j discovery.json
+surveyor audit local -o audit.md -j audit.json
+```
+
+Remote dry run inside declared scope:
+
+```bash
+surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
+surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
+```
+
+Adapter-backed remote audit:
+
+```bash
+surveyor audit remote --inventory-file examples/ingress.yaml --adapter kubernetes-ingress-v1 -o audit-kubernetes.md -j audit-kubernetes.json
+surveyor audit remote --inventory-file Caddyfile --adapter-bin /path/to/caddy -o audit-caddy.md -j audit-caddy.json
+```
+
+Analysis:
+
+```bash
+surveyor diff baseline.json current.json -o diff.md -j diff.json
+surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
+```
+
+## Command Surface
+
+Canonical commands:
+
+```bash
+surveyor scan tls
+surveyor discover local
+surveyor discover remote
+surveyor audit local
+surveyor audit remote
+surveyor diff
+surveyor prioritize
+```
+
+Compatibility aliases:
+
+- `surveyor discover subnet`
+- `surveyor audit subnet`
+- `surveyor prioritise`
+
+Primary docs and examples should use the canonical forms. The aliases remain for
+compatibility and usability, not as separate features.
+
+Current command examples:
+
+```bash
+surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443
+surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443
+surveyor discover remote --inventory-file examples/inventory.yaml
+surveyor discover remote --inventory-file examples/caddy.json --adapter caddy
+
+surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443
+surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443
+surveyor audit remote --inventory-file examples/inventory.yaml
+surveyor audit remote --inventory-file examples/ingress.yaml --adapter kubernetes-ingress-v1
+
+surveyor diff baseline.json current.json
+surveyor prioritize current.json --profile change-risk
+```
+
+## Remote Scope
+
+Remote commands require exactly one of:
+
+- `--cidr`
+- `--targets-file`
+- `--inventory-file`
+
+CIDR is the standard notation for an IP range, for example:
+
+- `192.168.1.0/24` for a typical subnet
+- `10.0.0.5/32` for a single host
+
+`discover subnet` and `audit subnet` exist because many operators recognise
+“subnet” more readily than “CIDR”. They are plain-language aliases for the
+CIDR-backed remote path.
+
+Current rules:
+
+- `--ports` is required for `--cidr` and `--targets-file`
+- `--ports` overrides per-entry ports when `--inventory-file` is used
+- `--dry-run` performs no network I/O and prints an execution plan
+- remote IP-literal TLS results are literal connection-path observations, not hostname-validation or virtual-host coverage claims
+
+## Import Adapters
+
+Surveyor supports generic imported inventory through `--inventory-file`, plus
+the first stable adapter layer on top of that path.
+
+Current adapter surface:
+
+- `--adapter caddy` for Caddy JSON and Caddyfile input
+- auto-detected `caddy` adapter for `Caddyfile` and `*.caddyfile`
+- `--adapter kubernetes-ingress-v1` for Kubernetes Ingress v1 manifests
+- `--adapter-bin PATH` when the selected adapter needs an external executable
+
+Current limits remain deliberate:
+
+- no live cloud or CMDB connectors
+- no generic Kubernetes parser
+- no second import command family
+
+## Reports And Analysis
+
+JSON is Surveyor’s canonical output. Markdown is derived from the same model.
+
+Current report kinds:
+
+- `tls_scan`
+- `discovery`
+- `audit`
+- `diff`
+- `prioritization`
+
+Current analysis boundaries:
+
+- diffing supports compatible `tls_scan` and `audit` reports only
+- prioritisation supports current `tls_scan` and `audit` reports only
+- workflow grouping and filtering apply only to inventory-backed audit diff and prioritisation views
+- discovery is a shipped report kind, but not currently a supported diff or prioritisation input
+
+The current `schema_version` line is `1.x`. Within `1.x`, contract changes
+should be additive. Removals, renames, semantic changes, requiredness changes
+and identity-key changes should require a breaking schema bump.
+
+## Documentation
+
+Start here for the docs map:
+
+- [docs/README.md](docs/README.md)
+
+Key documents:
+
+- [docs/discovery.md](docs/discovery.md)
+- [docs/audit.md](docs/audit.md)
+- [docs/remote-scope.md](docs/remote-scope.md)
+- [docs/import-adapters.md](docs/import-adapters.md)
+- [docs/output-schema.md](docs/output-schema.md)
+- [docs/baselines.md](docs/baselines.md)
+- [docs/diffing.md](docs/diffing.md)
+- [docs/prioritisation.md](docs/prioritisation.md)
+- [docs/safety.md](docs/safety.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
+
+## Development
+
+The main verification commands are:
+
+```bash
+go build ./cmd/surveyor
+go vet ./...
+go test ./...
+```
+
+Representative local checks:
+
+```bash
 ./surveyor discover local -o discovery.md -j discovery.json
+./surveyor audit local -o audit.md -j audit.json
 ./surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
-./surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
-./surveyor discover remote --inventory-file examples/inventory.yaml --dry-run
-./surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --dry-run
-./surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 --dry-run
 ./surveyor audit remote --inventory-file examples/inventory.yaml --dry-run
 ./surveyor diff baseline.json current.json -o diff.md -j diff.json
 ./surveyor prioritize current.json --profile migration-readiness -o priorities.md -j priorities.json
 ./surveyor scan tls -c examples/targets.yaml -o report.md -j report.json
 ```
 
-On Windows, run `.\surveyor.exe` instead of `./surveyor`.
-
 ## Contributing
 
 Well-scoped contributions are welcome.
 
-If you want to work on Surveyor, start by reading [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md). For larger changes, please open an issue first so the scope and direction can be discussed before work starts.
+Start with [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md). For larger
+changes, open an issue first so scope and direction can be discussed before
+implementation starts.
 
 ## Security
 
-If you believe you have found a security issue in Surveyor itself, do not open a public issue.
+If you believe you have found a security issue in Surveyor itself, do not open a
+public issue.
 
 See [.github/SECURITY.md](.github/SECURITY.md) for reporting instructions.
 
