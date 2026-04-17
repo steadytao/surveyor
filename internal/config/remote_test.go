@@ -438,6 +438,66 @@ func TestParseRemoteScopeInventoryFileUsesCaddyAdapter(t *testing.T) {
 	}
 }
 
+func TestParseRemoteScopeInventoryFileUsesKubernetesIngressAdapter(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "ingress.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(`
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payments-api
+  namespace: payments
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.example.com
+      secretName: payments-api-tls
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: payments-api
+                port:
+                  number: 80
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		InventoryFile: inventoryFile,
+		Adapter:       string(core.InventoryAdapterKubernetesIngressV1),
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.Adapter, core.InventoryAdapterKubernetesIngressV1; got != want {
+		t.Fatalf("scope.Adapter = %q, want %q", got, want)
+	}
+	if got, want := len(scope.Targets), 1; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+	if got, want := scope.Targets[0].Host, "api.example.com"; got != want {
+		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[0].Ports, []int{80, 443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
+	}
+	if scope.Targets[0].Inventory == nil {
+		t.Fatal("scope.Targets[0].Inventory = nil, want non-nil")
+	}
+	if got, want := scope.Targets[0].Inventory.Provenance[0].SourceObject, "Ingress/payments/payments-api"; got != want {
+		t.Fatalf("scope.Targets[0].Inventory.Provenance[0].SourceObject = %q, want %q", got, want)
+	}
+}
+
 func TestParseRemoteScopeProfileDefaults(t *testing.T) {
 	t.Parallel()
 
