@@ -35,6 +35,7 @@ Before a release, confirm that Surveyor can:
 
 Before a release, confirm that:
 - `README.md` describes the actual shipped state, not planned behaviour that no longer matches
+- `docs/README.md` gives a coherent map of the current docs surface
 - `docs/audit.md` matches the implemented audit slice
 - `docs/discovery.md` matches the implemented discovery slice
 - `docs/remote-inventory.md` matches the implemented remote slice
