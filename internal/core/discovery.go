@@ -34,6 +34,8 @@ type ReportScope struct {
 type ReportExecution struct {
 	Profile        string `json:"profile,omitempty"`
 	MaxHosts       int    `json:"max_hosts,omitempty"`
+	MaxAttempts    int    `json:"max_attempts,omitempty"`
+	AttemptCount   int    `json:"attempt_count,omitempty"`
 	MaxConcurrency int    `json:"max_concurrency,omitempty"`
 	Timeout        string `json:"timeout,omitempty"`
 }

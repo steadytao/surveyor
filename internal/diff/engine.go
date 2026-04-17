@@ -339,7 +339,8 @@ func auditIdentityMatchesWorkflowView(currentResult *core.AuditResult, baselineR
 	}
 
 	context := selectAuditGroupingContext(currentResult, baselineResult)
-	return core.MatchesWorkflowFilters(context.inventory, workflowView.Filters)
+	return core.MatchesWorkflowFilters(context.currentInventory, workflowView.Filters) ||
+		core.MatchesWorkflowFilters(context.baselineInventory, workflowView.Filters)
 }
 
 func filterChangesByIdentity(changes []Change, includedKeys map[string]struct{}) []Change {
@@ -865,7 +866,8 @@ type auditGroupingDimensions struct {
 }
 
 type auditGroupingContext struct {
-	inventory *core.InventoryAnnotation
+	currentInventory  *core.InventoryAnnotation
+	baselineInventory *core.InventoryAnnotation
 }
 
 type groupedSummaryAccumulator struct {
@@ -1024,43 +1026,59 @@ func auditResultForIdentity(identityKey string, resultsByID map[string]core.Audi
 }
 
 func selectAuditGroupingContext(currentResult *core.AuditResult, baselineResult *core.AuditResult) auditGroupingContext {
-	if currentResult != nil && currentResult.DiscoveredEndpoint.Inventory != nil {
-		return auditGroupingContext{inventory: currentResult.DiscoveredEndpoint.Inventory}
+	context := auditGroupingContext{}
+	if currentResult != nil {
+		context.currentInventory = currentResult.DiscoveredEndpoint.Inventory
 	}
-	if baselineResult != nil && baselineResult.DiscoveredEndpoint.Inventory != nil {
-		return auditGroupingContext{inventory: baselineResult.DiscoveredEndpoint.Inventory}
+	if baselineResult != nil {
+		context.baselineInventory = baselineResult.DiscoveredEndpoint.Inventory
 	}
 
-	return auditGroupingContext{}
+	return context
 }
 
 func groupKeysForAuditDimension(groupBy core.WorkflowGroupBy, context auditGroupingContext, dimensions auditGroupingDimensions) []string {
-	inventory := context.inventory
+	keys := []string{}
+	seen := map[string]struct{}{}
+	appendKeys := func(values []string) {
+		for _, value := range values {
+			if _, ok := seen[value]; ok {
+				continue
+			}
+			seen[value] = struct{}{}
+			keys = append(keys, value)
+		}
+	}
+
 	switch groupBy {
 	case core.WorkflowGroupByOwner:
 		if !dimensions.owner {
 			return nil
 		}
-		if inventory == nil || strings.TrimSpace(inventory.Owner) == "" {
-			return []string{"unknown"}
-		}
-		return []string{strings.TrimSpace(inventory.Owner)}
+		appendKeys(core.WorkflowGroupKeys(core.WorkflowGroupByOwner, context.baselineInventory))
+		appendKeys(core.WorkflowGroupKeys(core.WorkflowGroupByOwner, context.currentInventory))
 	case core.WorkflowGroupByEnvironment:
 		if !dimensions.environment {
 			return nil
 		}
-		if inventory == nil || strings.TrimSpace(inventory.Environment) == "" {
-			return []string{"unknown"}
-		}
-		return []string{strings.TrimSpace(inventory.Environment)}
+		appendKeys(core.WorkflowGroupKeys(core.WorkflowGroupByEnvironment, context.baselineInventory))
+		appendKeys(core.WorkflowGroupKeys(core.WorkflowGroupByEnvironment, context.currentInventory))
 	case core.WorkflowGroupBySource:
 		if !dimensions.source {
 			return nil
 		}
-		return core.WorkflowGroupKeys(core.WorkflowGroupBySource, inventory)
+		appendKeys(core.WorkflowGroupKeys(core.WorkflowGroupBySource, context.baselineInventory))
+		appendKeys(core.WorkflowGroupKeys(core.WorkflowGroupBySource, context.currentInventory))
 	default:
 		return nil
 	}
+
+	if len(keys) == 0 {
+		return nil
+	}
+
+	sort.Strings(keys)
+	return keys
 }
 
 func tlsReportHeader(report core.Report) baseline.ReportHeader {

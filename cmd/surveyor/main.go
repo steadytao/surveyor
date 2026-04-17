@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	auditflow "github.com/steadytao/surveyor/internal/audit"
@@ -30,6 +31,10 @@ type auditRunner interface {
 
 type discoverer interface {
 	Enumerate(context.Context) ([]core.DiscoveredEndpoint, error)
+}
+
+type explicitTargetScanner interface {
+	ScanTarget(context.Context, config.Target) core.TargetResult
 }
 
 type stringSliceFlag []string
@@ -55,14 +60,16 @@ func (values *stringSliceFlag) Set(raw string) error {
 // dependency graph through main.
 var newLocalAuditRunner = func(now func() time.Time) auditRunner {
 	return auditflow.LocalRunner{
-		TLSScanner: tlsinventory.Scanner{Now: now},
+		TLSScanner:      tlsinventory.Scanner{Now: now},
+		ScanConcurrency: 8,
 	}
 }
 
 var newRemoteAuditRunner = func(scope config.RemoteScope, now func() time.Time) auditRunner {
 	return auditflow.RemoteRunner{
-		Scope:      scope,
-		TLSScanner: tlsinventory.Scanner{Now: now, Timeout: scope.Timeout},
+		Scope:           scope,
+		TLSScanner:      tlsinventory.Scanner{Now: now, Timeout: scope.Timeout},
+		ScanConcurrency: scope.MaxConcurrency,
 	}
 }
 
@@ -357,10 +364,7 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 		Now: scannerNow,
 	}
 
-	results := make([]core.TargetResult, 0, len(targets))
-	for _, target := range targets {
-		results = append(results, scanner.ScanTarget(context.Background(), target))
-	}
+	results := scanExplicitTargets(context.Background(), scanner, targets, 8)
 
 	report := outputs.BuildReportWithMetadata(results, scannerNow().UTC(), explicitReportScopeMetadata(*configPath, *targetsArg))
 
@@ -394,6 +398,71 @@ func runScanTLS(args []string, stdout io.Writer, stderr io.Writer, now func() ti
 	}
 
 	return 0
+}
+
+type indexedExplicitTarget struct {
+	index  int
+	target config.Target
+}
+
+type indexedExplicitScanResult struct {
+	index  int
+	result core.TargetResult
+}
+
+func scanExplicitTargets(ctx context.Context, scanner explicitTargetScanner, targets []config.Target, maxConcurrency int) []core.TargetResult {
+	if len(targets) == 0 {
+		return nil
+	}
+	if maxConcurrency <= 0 {
+		maxConcurrency = 1
+	}
+	if maxConcurrency > len(targets) {
+		maxConcurrency = len(targets)
+	}
+
+	jobs := make(chan indexedExplicitTarget)
+	results := make(chan indexedExplicitScanResult, maxConcurrency)
+
+	var workerGroup sync.WaitGroup
+	for worker := 0; worker < maxConcurrency; worker++ {
+		workerGroup.Add(1)
+		go func() {
+			defer workerGroup.Done()
+
+			for job := range jobs {
+				results <- indexedExplicitScanResult{
+					index:  job.index,
+					result: scanner.ScanTarget(ctx, job.target),
+				}
+			}
+		}()
+	}
+
+	ordered := make([]core.TargetResult, len(targets))
+	var collectGroup sync.WaitGroup
+	collectGroup.Add(1)
+	go func() {
+		defer collectGroup.Done()
+
+		for result := range results {
+			ordered[result.index] = result.result
+		}
+	}()
+
+	for index, target := range targets {
+		jobs <- indexedExplicitTarget{
+			index:  index,
+			target: target,
+		}
+	}
+	close(jobs)
+
+	workerGroup.Wait()
+	close(results)
+	collectGroup.Wait()
+
+	return ordered
 }
 
 func runDiscoverLocal(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time) int {
@@ -472,19 +541,21 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	cidr := fs.String("cidr", "", "CIDR scope to discover, for example 10.0.0.0/24")
 	var targetsFile *string
 	var inventoryFile *string
+	var adapter *string
 	var adapterBinary *string
 	if opts.allowTargetsFile {
 		targetsFile = fs.String("targets-file", "", "Path to a newline-delimited host or IP scope file")
 	}
 	if opts.allowInventoryFile {
 		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
+		adapter = fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
 		adapterBinary = fs.String("adapter-bin", "", "Path to an external adapter executable when the selected adapter needs one")
 	}
 	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
-	adapter := fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
 	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the profile-safe command default")
+	maxAttempts := fs.Int("max-attempts", 0, "Hard cap on expanded host:port attempts, defaulting to the profile-safe command default")
 	maxConcurrency := fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts")
 	timeout := fs.Duration("timeout", 0, "Per probe or connection attempt timeout")
 
@@ -516,6 +587,10 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	if inventoryFile != nil {
 		inventoryFileValue = *inventoryFile
 	}
+	adapterValue := ""
+	if adapter != nil {
+		adapterValue = *adapter
+	}
 	adapterBinaryValue := ""
 	if adapterBinary != nil {
 		adapterBinaryValue = *adapterBinary
@@ -529,11 +604,12 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 		CIDR:           *cidr,
 		TargetsFile:    targetsFileValue,
 		InventoryFile:  inventoryFileValue,
-		Adapter:        *adapter,
+		Adapter:        adapterValue,
 		AdapterBinary:  adapterBinaryValue,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
+		MaxAttempts:    *maxAttempts,
 		MaxConcurrency: *maxConcurrency,
 		Timeout:        *timeout,
 		DryRun:         *dryRun,
@@ -685,19 +761,21 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 	cidr := fs.String("cidr", "", "CIDR scope to audit, for example 10.0.0.0/24")
 	var targetsFile *string
 	var inventoryFile *string
+	var adapter *string
 	var adapterBinary *string
 	if opts.allowTargetsFile {
 		targetsFile = fs.String("targets-file", "", "Path to a newline-delimited host or IP scope file")
 	}
 	if opts.allowInventoryFile {
 		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
+		adapter = fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
 		adapterBinary = fs.String("adapter-bin", "", "Path to an external adapter executable when the selected adapter needs one")
 	}
 	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
-	adapter := fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
 	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
 	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
 	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the profile-safe command default")
+	maxAttempts := fs.Int("max-attempts", 0, "Hard cap on expanded host:port attempts, defaulting to the profile-safe command default")
 	maxConcurrency := fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts")
 	timeout := fs.Duration("timeout", 0, "Per probe or connection attempt timeout")
 
@@ -729,6 +807,10 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 	if inventoryFile != nil {
 		inventoryFileValue = *inventoryFile
 	}
+	adapterValue := ""
+	if adapter != nil {
+		adapterValue = *adapter
+	}
 	adapterBinaryValue := ""
 	if adapterBinary != nil {
 		adapterBinaryValue = *adapterBinary
@@ -742,11 +824,12 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 		CIDR:           *cidr,
 		TargetsFile:    targetsFileValue,
 		InventoryFile:  inventoryFileValue,
-		Adapter:        *adapter,
+		Adapter:        adapterValue,
 		AdapterBinary:  adapterBinaryValue,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
+		MaxAttempts:    *maxAttempts,
 		MaxConcurrency: *maxConcurrency,
 		Timeout:        *timeout,
 		DryRun:         *dryRun,
@@ -1342,7 +1425,7 @@ func printAuditLocalUsage(w io.Writer) {
 
 func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--adapter-bin PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
+	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--adapter-bin PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [--max-hosts N] [--max-attempts N] [-o audit.md] [-j audit.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Canonical remote audit command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
@@ -1367,6 +1450,7 @@ func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
+	fmt.Fprintln(w, "  --max-attempts      Hard cap on expanded host:port attempts, defaulting to the command default")
 	fmt.Fprintln(w, "  --max-concurrency   Maximum concurrent remote probe attempts")
 	fmt.Fprintln(w, "  --timeout           Per probe or connection attempt timeout")
 	fmt.Fprintln(w, "  -o, --output        Write Markdown report output to this path")
@@ -1392,6 +1476,7 @@ func printAuditSubnetUsage(w io.Writer) {
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
+	fmt.Fprintln(w, "  --max-attempts      Hard cap on expanded host:port attempts, defaulting to the command default")
 	fmt.Fprintln(w, "  --max-concurrency   Maximum concurrent remote probe attempts")
 	fmt.Fprintln(w, "  --timeout           Per probe or connection attempt timeout")
 	fmt.Fprintln(w, "  -o, --output        Write Markdown report output to this path")
@@ -1417,7 +1502,7 @@ func printDiscoverLocalUsage(w io.Writer) {
 
 func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--adapter-bin PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
+	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--adapter-bin PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [--max-hosts N] [--max-attempts N] [-o discovery.md] [-j discovery.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Canonical remote discovery command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
@@ -1443,6 +1528,7 @@ func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
+	fmt.Fprintln(w, "  --max-attempts      Hard cap on expanded host:port attempts, defaulting to the command default")
 	fmt.Fprintln(w, "  --max-concurrency   Maximum concurrent remote probe attempts")
 	fmt.Fprintln(w, "  --timeout           Per probe or connection attempt timeout")
 	fmt.Fprintln(w, "  -o, --output        Write Markdown report output to this path")
@@ -1468,6 +1554,7 @@ func printDiscoverSubnetUsage(w io.Writer) {
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
 	fmt.Fprintln(w, "  --max-hosts         Hard cap on expanded host count, defaulting to the command default")
+	fmt.Fprintln(w, "  --max-attempts      Hard cap on expanded host:port attempts, defaulting to the command default")
 	fmt.Fprintln(w, "  --max-concurrency   Maximum concurrent remote probe attempts")
 	fmt.Fprintln(w, "  --timeout           Per probe or connection attempt timeout")
 	fmt.Fprintln(w, "  -o, --output        Write Markdown report output to this path")
@@ -1494,9 +1581,11 @@ func renderRemoteExecutionPlanMarkdown(commandName string, scope config.RemoteSc
 		builder.WriteString(fmt.Sprintf("- Adapter: %s\n", scope.Adapter))
 	}
 	builder.WriteString(fmt.Sprintf("- Host count: %d\n", scope.HostCount))
+	builder.WriteString(fmt.Sprintf("- Attempt count: %d\n", scope.AttemptCount))
 	builder.WriteString(fmt.Sprintf("- Ports: %s\n", describeRemotePlanPorts(scope)))
 	builder.WriteString(fmt.Sprintf("- Profile: %s\n", scope.Profile))
 	builder.WriteString(fmt.Sprintf("- Max hosts: %d\n", scope.MaxHosts))
+	builder.WriteString(fmt.Sprintf("- Max attempts: %d\n", scope.MaxAttempts))
 	builder.WriteString(fmt.Sprintf("- Max concurrency: %d\n", scope.MaxConcurrency))
 	builder.WriteString(fmt.Sprintf("- Timeout per attempt: %s\n", scope.Timeout))
 	builder.WriteString("- Network I/O: disabled (dry run)\n")
@@ -1543,6 +1632,8 @@ func remoteReportMetadata(scope config.RemoteScope) (*core.ReportScope, *core.Re
 		}, &core.ReportExecution{
 			Profile:        string(scope.Profile),
 			MaxHosts:       scope.MaxHosts,
+			MaxAttempts:    scope.MaxAttempts,
+			AttemptCount:   scope.AttemptCount,
 			MaxConcurrency: scope.MaxConcurrency,
 			Timeout:        scope.Timeout.String(),
 		}

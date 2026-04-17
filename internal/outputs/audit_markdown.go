@@ -47,6 +47,12 @@ func RenderAuditMarkdown(report core.AuditReport) string {
 		if report.Execution.MaxHosts > 0 {
 			builder.WriteString(fmt.Sprintf("- Max hosts: %d\n", report.Execution.MaxHosts))
 		}
+		if report.Execution.MaxAttempts > 0 {
+			builder.WriteString(fmt.Sprintf("- Max attempts: %d\n", report.Execution.MaxAttempts))
+		}
+		if report.Execution.AttemptCount > 0 {
+			builder.WriteString(fmt.Sprintf("- Attempt count: %d\n", report.Execution.AttemptCount))
+		}
 		if report.Execution.MaxConcurrency > 0 {
 			builder.WriteString(fmt.Sprintf("- Max concurrency: %d\n", report.Execution.MaxConcurrency))
 		}

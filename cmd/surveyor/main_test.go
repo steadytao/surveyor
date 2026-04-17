@@ -60,6 +60,25 @@ func TestRunScanTLSRejectsConfigAndTargetsTogether(t *testing.T) {
 	}
 }
 
+func TestScanExplicitTargetsPreservesInputOrder(t *testing.T) {
+	t.Parallel()
+
+	results := scanExplicitTargets(context.Background(), delayedExplicitScanner{}, []config.Target{
+		{Host: "slow.example.com", Port: 443},
+		{Host: "fast.example.com", Port: 8443},
+	}, 2)
+
+	if got, want := len(results), 2; got != want {
+		t.Fatalf("len(results) = %d, want %d", got, want)
+	}
+	if got, want := results[0].Host, "slow.example.com"; got != want {
+		t.Fatalf("results[0].Host = %q, want %q", got, want)
+	}
+	if got, want := results[1].Host, "fast.example.com"; got != want {
+		t.Fatalf("results[1].Host = %q, want %q", got, want)
+	}
+}
+
 func TestRunHelp(t *testing.T) {
 	t.Parallel()
 
@@ -1252,6 +1271,22 @@ func TestRunAuditSubnetHelp(t *testing.T) {
 	}
 }
 
+func TestRunAuditSubnetRejectsAdapterFlag(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"audit", "subnet", "--cidr", "10.0.0.0/32", "--ports", "443", "--adapter", "caddy"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "flag provided but not defined: -adapter") {
+		t.Fatalf("stderr = %q, want parse-time adapter rejection", stderr.String())
+	}
+}
+
 func TestRunAuditRemoteHelp(t *testing.T) {
 	t.Parallel()
 
@@ -1351,6 +1386,9 @@ func TestRunAuditRemoteTargetsFileDryRunWritesPlan(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Input kind: targets_file") || !strings.Contains(stdout.String(), "Targets file: "+targetsFile) {
 		t.Fatalf("stdout = %q, want targets-file execution plan metadata", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "Attempt count: 4") || !strings.Contains(stdout.String(), "Max attempts: 2048") {
+		t.Fatalf("stdout = %q, want attempt-count execution plan metadata", stdout.String())
+	}
 }
 
 func TestRunAuditRemoteInventoryFileDryRunWritesPlan(t *testing.T) {
@@ -1384,6 +1422,9 @@ func TestRunAuditRemoteInventoryFileDryRunWritesPlan(t *testing.T) {
 		!strings.Contains(stdout.String(), "Inventory file: "+inventoryFile) ||
 		!strings.Contains(stdout.String(), "Ports: per-entry inventory ports") {
 		t.Fatalf("stdout = %q, want inventory-file execution plan metadata", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Attempt count: 2") || !strings.Contains(stdout.String(), "Max attempts: 2048") {
+		t.Fatalf("stdout = %q, want inventory attempt-count execution plan metadata", stdout.String())
 	}
 }
 
@@ -1760,7 +1801,12 @@ func TestRunAuditSubnetWritesOutputs(t *testing.T) {
 	if !strings.Contains(string(markdownData), "# Surveyor Audit Report") {
 		t.Fatalf("markdown output missing audit heading\n%s", string(markdownData))
 	}
-	if !strings.Contains(string(jsonData), "\"input_kind\": \"cidr\"") || !strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") || !strings.Contains(string(jsonData), "\"profile\": \"cautious\"") || !strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
+	if !strings.Contains(string(jsonData), "\"input_kind\": \"cidr\"") ||
+		!strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") ||
+		!strings.Contains(string(jsonData), "\"profile\": \"cautious\"") ||
+		!strings.Contains(string(jsonData), "\"max_attempts\": 2048") ||
+		!strings.Contains(string(jsonData), "\"attempt_count\": 4") ||
+		!strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
 		t.Fatalf("json output missing remote audit metadata\n%s", string(jsonData))
 	}
 }
@@ -2049,6 +2095,22 @@ func TestRunDiscoverSubnetHelp(t *testing.T) {
 	}
 }
 
+func TestRunDiscoverSubnetRejectsAdapterFlag(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{"discover", "subnet", "--cidr", "10.0.0.0/32", "--ports", "443", "--adapter", "caddy"}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 2 {
+		t.Fatalf("run() exitCode = %d, want 2", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "flag provided but not defined: -adapter") {
+		t.Fatalf("stderr = %q, want parse-time adapter rejection", stderr.String())
+	}
+}
+
 func TestRunDiscoverRemoteHelp(t *testing.T) {
 	t.Parallel()
 
@@ -2140,6 +2202,9 @@ func TestRunDiscoverRemoteTargetsFileDryRunWritesPlan(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Input kind: targets_file") || !strings.Contains(stdout.String(), "Targets file: "+targetsFile) {
 		t.Fatalf("stdout = %q, want targets-file execution plan metadata", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Attempt count: 4") || !strings.Contains(stdout.String(), "Max attempts: 2048") {
+		t.Fatalf("stdout = %q, want attempt-count execution plan metadata", stdout.String())
 	}
 }
 
@@ -2514,7 +2579,12 @@ func TestRunDiscoverSubnetWritesOutputs(t *testing.T) {
 	if !strings.Contains(string(markdownData), "# Surveyor Discovery Report") {
 		t.Fatalf("markdown output missing discovery heading\n%s", string(markdownData))
 	}
-	if !strings.Contains(string(jsonData), "\"input_kind\": \"cidr\"") || !strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") || !strings.Contains(string(jsonData), "\"profile\": \"cautious\"") || !strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
+	if !strings.Contains(string(jsonData), "\"input_kind\": \"cidr\"") ||
+		!strings.Contains(string(jsonData), "\"cidr\": \"10.0.0.0/30\"") ||
+		!strings.Contains(string(jsonData), "\"profile\": \"cautious\"") ||
+		!strings.Contains(string(jsonData), "\"max_attempts\": 2048") ||
+		!strings.Contains(string(jsonData), "\"attempt_count\": 4") ||
+		!strings.Contains(string(jsonData), "\"timeout\": \"3s\"") {
 		t.Fatalf("json output missing remote discovery metadata\n%s", string(jsonData))
 	}
 }
@@ -2864,6 +2934,21 @@ func writeTempDiscoveryReport(t *testing.T, path string, report core.DiscoveryRe
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+}
+
+type delayedExplicitScanner struct{}
+
+func (delayedExplicitScanner) ScanTarget(_ context.Context, target config.Target) core.TargetResult {
+	if target.Host == "slow.example.com" {
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	return core.TargetResult{
+		Host:      target.Host,
+		Port:      target.Port,
+		ScannedAt: time.Date(2026, time.April, 17, 1, 0, 0, 0, time.UTC),
+		Reachable: true,
 	}
 }
 
