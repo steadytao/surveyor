@@ -38,6 +38,8 @@ func RenderDiffMarkdown(report diffreport.Report) string {
 	}
 	builder.WriteString("\n")
 
+	renderWorkflowView(&builder, report.WorkflowView)
+
 	builder.WriteString("## Change Summary\n\n")
 	changeKeys := sortedDiffMapKeys(report.Summary.ChangeBreakdown)
 	if len(changeKeys) == 0 {
@@ -59,6 +61,9 @@ func RenderDiffMarkdown(report diffreport.Report) string {
 		}
 		builder.WriteString("\n")
 	}
+
+	renderGroupedSummaries(&builder, report.GroupedSummaries)
+	renderWorkflowFindings(&builder, report.WorkflowFindings)
 
 	builder.WriteString("## Changes\n\n")
 	if len(report.Changes) == 0 {
