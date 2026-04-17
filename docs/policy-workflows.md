@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Policy Refinement and Organisational Workflows
 
 This document defines the current `v0.8.0` workflow contract.

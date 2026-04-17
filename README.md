@@ -1,4 +1,6 @@
-# Surveyor
+<div align="center">
+  <img src="./.github/banner.svg" alt="BANNER" width="720">
+</div>
 
 Surveyor is a TLS-first cryptographic inventory and migration-readiness tool.
 

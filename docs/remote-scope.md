@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Generalised Remote Scope
 
 Generalised remote scope is now part of Surveyor's current repository surface.

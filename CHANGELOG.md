@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Changelog
 
 All notable changes to Surveyor will be documented in this file.
