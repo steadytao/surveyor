@@ -1,13 +1,11 @@
 # Import Adapters
 
-This document defines the planned `v0.9.0` adapter layer.
+This document defines the current `v0.9.0` adapter layer.
 
-It does not describe current shipped behaviour.
-
-Surveyor already has a generic imported-inventory path through
-`--inventory-file`. The next layer should let Surveyor ingest selected
+Surveyor already had a generic imported-inventory path through
+`--inventory-file`. The current adapter layer extends that path with selected
 platform-native inputs while still mapping everything into the same canonical
-imported-inventory model used by the current generic YAML, JSON and CSV forms.
+imported-inventory model used by the generic YAML, JSON and CSV forms.
 
 ## What an adapter is
 
@@ -31,21 +29,31 @@ An adapter is not:
 - proof that an imported target is reachable or externally exposed
 - a claim that platform intent equals verified TLS posture
 
-## First supported sources
+## Current supported adapters
 
-`v0.9.0` should start with two source families:
+The current adapter set is:
 
-- Caddy JSON
-- Kubernetes Ingress v1 manifests
+- `caddy`
+- `kubernetes-ingress-v1`
 
-Those are the right first sources because they are stable, externally defined
-and map cleanly enough into Surveyor's remote inventory model.
+Current source forms:
 
-Follow-on input surfaces may arrive later only if they fit the same contract
-without weakening it. Examples include:
+- `caddy`
+  - Caddy JSON
+  - Caddyfile
+- `kubernetes-ingress-v1`
+  - Kubernetes Ingress v1 manifests in YAML or JSON
 
-- Caddyfile, as translated Caddy input rather than the canonical Caddy source
-- broader Kubernetes-derived hints such as Service and Secret references
+CLI surface:
+
+- `--adapter caddy`
+- `--adapter kubernetes-ingress-v1`
+- `--adapter-bin PATH` when the selected adapter needs an external executable
+
+Current Caddyfile convenience:
+
+- `Caddyfile` and `*.caddyfile` auto-detect the `caddy` adapter when the file
+  name is unambiguous
 
 ## Design rule
 
@@ -72,9 +80,21 @@ At minimum that means:
 - source platform
 - source file
 - source object or record identity where practical
+- source format
 - adapter warnings
-- mapping-relevant metadata
 
 Compatibility rules belong to Surveyor's canonical model, not the external
 product shape. Adapters should conform to the model rather than teaching the
 rest of Surveyor product-specific semantics.
+
+## Current limits
+
+Current limits remain deliberate:
+
+- no live cloud or CMDB connectors
+- no generic Kubernetes parser
+- no second import command family
+- no vendor-shaped output contract
+
+Broader or less stable adapter work belongs later, after the current adapter
+surface has been hardened.

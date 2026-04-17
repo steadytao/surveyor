@@ -1,18 +1,16 @@
 # Adapter Contract
 
-This document defines the planned adapter boundary for `v0.9.0`.
-
-It does not describe current shipped behaviour.
+This document defines the current adapter boundary for `v0.9.0`.
 
 ## Contract goal
 
-Adapters should parse a supported external source, emit canonical imported
-inventory plus provenance and warnings, and then hand that output to the
-existing remote workflow.
+Adapters parse a supported external source, emit canonical imported inventory
+plus provenance and warnings, then hand that output to the existing remote
+workflow.
 
 ## Interface expectations
 
-An adapter should define:
+An adapter defines:
 
 - adapter name
 - supported source forms
@@ -22,9 +20,12 @@ An adapter should define:
 - warning and error rules
 - duplicate and conflict behaviour
 
+Adapter-specific execution inputs, such as an external helper executable path,
+remain outside the canonical imported-inventory model.
+
 ## Required canonical output
 
-Adapter output should provide enough information to produce canonical imported
+Adapter output must provide enough information to produce canonical imported
 targets with:
 
 - host or address
@@ -72,13 +73,12 @@ At minimum, provenance should preserve:
 - source object or record identity where practical
 - source format
 
-Adapters may add further context, but they should not depend on downstream code
-understanding product-specific structures.
+Adapters may add further context, but they should not depend on downstream
+code understanding product-specific structures.
 
 ## Deduplication expectations
 
-Deduplication should still happen against Surveyor's canonical imported-target
-model.
+Deduplication still happens against Surveyor's canonical imported-target model.
 
 That means:
 
@@ -89,12 +89,13 @@ That means:
 
 ## Command integration
 
-Adapters should extend the existing `--inventory-file` path with explicit
-adapter selection.
+Adapters extend the existing `--inventory-file` path.
 
-They should feed:
+Current command integration:
 
 - `surveyor discover remote`
 - `surveyor audit remote`
+- `--adapter NAME` for explicit adapter selection
+- `--adapter-bin PATH` for explicit external executable selection when needed
 
-They should not introduce a second import command family.
+They do not introduce a second import command family.

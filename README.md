@@ -28,6 +28,10 @@ The current repository already includes:
 - conservative protocol hints for discovery results
 - remote scope parsing and validation
 - structured imported inventory parsing from YAML, JSON and CSV
+- platform-specific import adapters on top of `--inventory-file`
+  - Caddy JSON
+  - Caddyfile, via external `caddy adapt`
+  - Kubernetes Ingress v1 manifests
 - target parsing and validation
 - TLS connection and protocol inspection
 - certificate chain parsing
@@ -121,6 +125,8 @@ surveyor audit local -o audit.md -j audit.json
 surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 -o audit-remote.md -j audit-remote.json
 surveyor audit remote --targets-file examples/approved-hosts.txt --ports 443 -o audit-remote.md -j audit-remote.json
 surveyor audit remote --inventory-file examples/inventory.yaml -o audit-inventory.md -j audit-inventory.json
+surveyor audit remote --inventory-file examples/ingress.yaml --adapter kubernetes-ingress-v1 -o audit-kubernetes.md -j audit-kubernetes.json
+surveyor audit remote --inventory-file Caddyfile --adapter-bin /path/to/caddy -o audit-caddy.md -j audit-caddy.json
 ```
 
 Discovery:
@@ -130,6 +136,8 @@ surveyor discover local -o discovery.md -j discovery.json
 surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 -o discovery-remote.md -j discovery-remote.json
 surveyor discover remote --targets-file examples/approved-hosts.txt --ports 443 -o discovery-remote.md -j discovery-remote.json
 surveyor discover remote --inventory-file examples/inventory.yaml -o discovery-inventory.md -j discovery-inventory.json
+surveyor discover remote --inventory-file examples/caddy.json --adapter caddy -o discovery-caddy.md -j discovery-caddy.json
+surveyor discover remote --inventory-file Caddyfile --adapter-bin /path/to/caddy -o discovery-caddy.md -j discovery-caddy.json
 ```
 
 TLS inventory:
@@ -156,6 +164,9 @@ Rules:
 - use exactly one of `--config` or `--targets`
 - `--targets` requires explicit `host:port` entries
 - the canonical remote commands require exactly one of `--cidr`, `--targets-file` or `--inventory-file`
+- `--adapter` selects a platform-specific inventory adapter when needed
+- `--adapter-bin` supplies an explicit adapter executable path when the selected adapter needs one
+- `Caddyfile` and `*.caddyfile` auto-detect the `caddy` adapter when the file name is unambiguous
 - `--ports` is required for `--cidr` and `--targets-file`, and overrides per-entry inventory ports when set
 - `discover subnet` and `audit subnet` remain CIDR-only compatibility aliases from `v0.4.x`
 - `--profile` sets default remote pace, explicit `--max-hosts`, `--max-concurrency` and `--timeout` override it
@@ -247,17 +258,22 @@ Current limits remain deliberate:
 - prioritisation still does not accept diff reports
 - the analysis layer is still not policy-as-code, a dashboard or a storage-backed governance platform
 
-The next planned layer is `v0.9.0 - Platform-Specific Import Adapters`.
+The current `v0.9.0` layer adds platform-specific import adapters on top of the current `--inventory-file` path while keeping the generic imported-inventory model as the canonical internal boundary.
 
-That planned layer should:
+Current adapter surface:
 
-- add explicit platform import adapters on top of the current `--inventory-file` path
-- keep the generic imported-inventory model as the canonical internal boundary
-- start with two official-source adapter inputs:
-  - Caddy JSON
-  - Kubernetes Ingress v1 manifests
+- `--adapter caddy` for Caddy JSON and Caddyfile input
+- auto-detected `caddy` adapter for `Caddyfile` and `*.caddyfile`
+- `--adapter kubernetes-ingress-v1` for Kubernetes Ingress v1 manifests
+- `--adapter-bin` for explicit adapter executable selection where needed
 
-It should not turn the current remote model into a live connector layer, generic Kubernetes parser or second command family.
+Current limits remain deliberate:
+
+- no live cloud or CMDB connectors
+- no generic Kubernetes parser
+- no second import command family
+
+The next planned layer is `v0.10.0 - Contract Hardening and Feedback Release`.
 
 See:
 

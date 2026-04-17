@@ -19,10 +19,13 @@ The canonical remote commands are:
 surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o discovery-remote.md -j discovery-remote.json
 surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o discovery-remote.md -j discovery-remote.json
 surveyor discover remote --inventory-file inventory.yaml --profile cautious -o discovery-inventory.md -j discovery-inventory.json
+surveyor discover remote --inventory-file examples/caddy.json --adapter caddy -o discovery-caddy.md -j discovery-caddy.json
+surveyor discover remote --inventory-file Caddyfile --adapter-bin /path/to/caddy -o discovery-caddy.md -j discovery-caddy.json
 
 surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o audit-remote.md -j audit-remote.json
 surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o audit-remote.md -j audit-remote.json
 surveyor audit remote --inventory-file inventory.yaml --profile cautious -o audit-inventory.md -j audit-inventory.json
+surveyor audit remote --inventory-file examples/ingress.yaml --adapter kubernetes-ingress-v1 -o audit-kubernetes.md -j audit-kubernetes.json
 ```
 
 `surveyor discover subnet` and `surveyor audit subnet` remain as CIDR-only compatibility aliases from `v0.4.x`.
@@ -42,6 +45,8 @@ Remote inventory compounds that architecture instead of widening it sideways int
 
 Current semantics for `surveyor discover remote`:
 - require exactly one of explicit remote CIDR scope, simple file-backed host scope or structured inventory scope
+- support explicit adapter selection for adapter-backed inventory input
+- support `--adapter-bin` when the selected adapter needs an external executable
 - require an explicit remote port set for `--cidr` and `--targets-file`
 - use imported per-entry ports for `--inventory-file` unless `--ports` overrides them
 - stay within the declared scope only
@@ -216,13 +221,7 @@ That keeps the project growing upward before it grows sideways.
 The current remote scope model lives in [docs/remote-scope.md](remote-scope.md).
 The current structured inventory input contract lives in [docs/inventory-inputs.md](inventory-inputs.md).
 
-The next planned layer is [docs/import-adapters.md](import-adapters.md):
+The current adapter layer is documented in [docs/import-adapters.md](import-adapters.md).
 
-- explicit platform adapters on top of `--inventory-file`
-- the same canonical `discover remote` and `audit remote` command family
-- two first supported sources:
-  - Caddy JSON
-  - Kubernetes Ingress v1 manifests
-
-Later work should focus on those stable adapters first, not a second generic
-scope model or a live connector surface.
+Later work should focus on hardening those adapters and the surrounding
+contract, not a second generic scope model or a live connector surface.

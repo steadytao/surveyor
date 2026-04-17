@@ -18,6 +18,8 @@ surveyor discover local
 surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443
 surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443
 surveyor discover remote --inventory-file inventory.yaml
+surveyor discover remote --inventory-file examples/caddy.json --adapter caddy
+surveyor discover remote --inventory-file Caddyfile --adapter-bin /path/to/caddy
 ```
 
 `surveyor discover subnet` remains as a CIDR-only compatibility alias from `v0.4.x`.
@@ -50,6 +52,7 @@ The semantics of `surveyor discover local` are:
 The semantics of `surveyor discover remote` are:
 
 - require explicit remote scope
+- support explicit adapter-backed inventory input through `--inventory-file`
 - require explicit ports for `--cidr` and `--targets-file`, or use imported per-entry ports for `--inventory-file`
 - perform bounded TCP reachability probing within that declared scope
 - report one observed result per attempted host:port

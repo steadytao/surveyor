@@ -15,6 +15,8 @@ surveyor audit local
 surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443
 surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443
 surveyor audit remote --inventory-file inventory.yaml
+surveyor audit remote --inventory-file examples/ingress.yaml --adapter kubernetes-ingress-v1
+surveyor audit remote --inventory-file Caddyfile --adapter-bin /path/to/caddy
 ```
 
 `surveyor audit subnet` remains as a CIDR-only compatibility alias from `v0.4.x`.
@@ -52,6 +54,7 @@ The semantics of `surveyor audit remote` are:
 - run remote discovery within that declared scope
 - preserve discovered endpoint facts and protocol hints
 - preserve imported inventory annotations when remote scope came from `--inventory-file`
+- support explicit adapter-backed inventory input through `--inventory-file`
 - select supported scanners conservatively
 - hand only the supported TLS-like subset into the existing TLS scanner
 - record verified TLS results separately from discovery and selection

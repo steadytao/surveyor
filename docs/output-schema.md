@@ -390,6 +390,7 @@ Fields:
 - `cidr`: declared remote CIDR when the report covers remote CIDR scope
 - `targets_file`: declared remote targets-file path when the report covers file-backed remote scope
 - `inventory_file`: declared structured inventory-file path when the report covers inventory-backed remote scope
+- `adapter`: selected inventory adapter when the report covers adapter-backed remote inventory scope
 - `ports`: declared remote port set when the report covers remote scope
 
 ## Report execution
@@ -524,6 +525,15 @@ Current inventory-annotation shape:
       "source_name": "examples/inventory.csv",
       "source_record": "line 2"
     }
+  ],
+  "adapter_warnings": [
+    {
+      "code": "host-without-declared-tls",
+      "summary": "The Ingress rule host did not declare TLS and was mapped only to port 80.",
+      "evidence": [
+        "adapter=kubernetes-ingress-v1"
+      ]
+    }
   ]
 }
 ```
@@ -537,6 +547,13 @@ Fields:
 - `tags`: optional imported tags
 - `notes`: optional imported free-form notes
 - `provenance`: array of inventory provenance records describing where the entry came from
+- `adapter_warnings`: non-fatal warnings preserved from adapter-backed imports
+
+Current provenance notes:
+
+- `source_format` currently includes `yaml`, `json`, `csv` and `caddyfile`
+- `adapter` is present when the entry came through a platform-specific adapter
+- `source_object` is present when the adapter preserved stable product identity
 
 ## Discovery hint
 
