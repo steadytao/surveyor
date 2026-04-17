@@ -179,6 +179,10 @@ func detectFormat(path string, adapterName core.InventoryAdapter) (core.Inventor
 	case ".csv":
 		return core.InventorySourceFormatCSV, nil
 	default:
+		if adapterName == core.InventoryAdapterCaddy {
+			return core.InventorySourceFormatCaddyfile, nil
+		}
+
 		return "", fmt.Errorf("unsupported inventory file %q: expected .yaml, .yml, .json or .csv", path)
 	}
 }
