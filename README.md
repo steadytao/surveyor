@@ -253,9 +253,9 @@ That planned layer should:
 
 - add explicit platform import adapters on top of the current `--inventory-file` path
 - keep the generic imported-inventory model as the canonical internal boundary
-- start with a small stable adapter set:
-  - `Caddy`
-  - `Kubernetes Ingress v1`
+- start with two official-source adapter inputs:
+  - Caddy JSON
+  - Kubernetes Ingress v1 manifests
 
 It should not turn the current remote model into a live connector layer, generic Kubernetes parser or second command family.
 
@@ -265,7 +265,10 @@ See:
 - [docs/diffing.md](docs/diffing.md)
 - [docs/prioritisation.md](docs/prioritisation.md)
 - [docs/policy-workflows.md](docs/policy-workflows.md)
-- [docs/platform-adapters.md](docs/platform-adapters.md)
+- [docs/import-adapters.md](docs/import-adapters.md)
+- [docs/adapter-contract.md](docs/adapter-contract.md)
+- [docs/adapter-caddy.md](docs/adapter-caddy.md)
+- [docs/adapter-kubernetes.md](docs/adapter-kubernetes.md)
 
 ## Development
 

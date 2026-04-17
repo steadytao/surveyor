@@ -270,8 +270,8 @@ That means:
 
 The first stable adapter set should stay narrow:
 
-- `Caddy`
-- `Kubernetes Ingress v1`
+- Caddy JSON
+- Kubernetes Ingress v1 manifests
 
 Important boundary:
 

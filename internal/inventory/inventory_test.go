@@ -258,6 +258,42 @@ entries:
 	}
 }
 
+func TestEntryAnnotationClonesAdapterWarnings(t *testing.T) {
+	t.Parallel()
+
+	entry := Entry{
+		Host: "api.example.com",
+		Provenance: []core.InventoryProvenance{
+			{
+				SourceKind:   core.InventorySourceKindInventoryFile,
+				SourceFormat: core.InventorySourceFormatYAML,
+				SourceName:   "ingress.yaml",
+				SourceRecord: "documents[0]",
+				Adapter:      core.InventoryAdapterKubernetesIngressV1,
+				SourceObject: "Ingress/default/payments-api",
+			},
+		},
+		AdapterWarnings: []core.InventoryAdapterWarning{
+			{
+				Code:     "controller-specific-behaviour",
+				Summary:  "The ingress controller may affect effective exposure and TLS handling.",
+				Evidence: []string{"adapter=kubernetes-ingress-v1", "source_name=ingress.yaml", "source_object=Ingress/default/payments-api"},
+			},
+		},
+	}
+
+	annotation := entry.Annotation()
+
+	entry.AdapterWarnings[0].Evidence[0] = "mutated"
+
+	if got, want := annotation.AdapterWarnings[0].Evidence[0], "adapter=kubernetes-ingress-v1"; got != want {
+		t.Fatalf("annotation.AdapterWarnings[0].Evidence[0] = %q, want %q", got, want)
+	}
+	if got, want := annotation.Provenance[0].SourceObject, "Ingress/default/payments-api"; got != want {
+		t.Fatalf("annotation.Provenance[0].SourceObject = %q, want %q", got, want)
+	}
+}
+
 func writeFile(t *testing.T, name string, contents string) string {
 	t.Helper()
 

@@ -191,4 +191,5 @@ That contract is documented in [docs/inventory-inputs.md](inventory-inputs.md).
 The next planned layer should extend the same `inventory_file` path with
 explicit adapter selection for stable platform exports rather than inventing a
 second import command family. That planned boundary is documented in
-[docs/platform-adapters.md](platform-adapters.md).
+[docs/import-adapters.md](import-adapters.md) and
+[docs/adapter-contract.md](adapter-contract.md).
