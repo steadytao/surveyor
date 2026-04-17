@@ -171,17 +171,16 @@ JSON is the source of truth. Markdown is derived output.
 
 ### `internal/prioritize`
 
-Owns current-report ranking.
+Owns current-report ranking and workflow-oriented interpretation over current reports.
 
 Current responsibilities:
 
 - rank current TLS and audit reports
 - apply the `migration-readiness` and `change-risk` profiles
-- emit deterministic prioritisation items and summaries
+- refine inventory-backed audit ranking with owner, environment and tag context
+- emit deterministic prioritisation items, workflow findings and optional grouped summaries
 
 This package should stay a lightweight decision-support layer. It should rank current evidence, not pretend to be a full policy engine.
-
-The next planned layer should extend this package carefully rather than bolt on a parallel policy system. The expected `v0.8.0` work is metadata-aware ranking, grouped summaries and workflow findings, not policy-as-code.
 
 ## Data flow
 
@@ -316,7 +315,6 @@ The current architecture still does not include:
 - organisation-wide or cloud inventory discovery
 - discovery-only diffing
 - diff-input prioritisation
-- metadata-aware policy refinement and organisational workflow summaries
 - policy engines
 - stateful storage
 
@@ -358,21 +356,22 @@ The current analysis layer sits on top of the canonical JSON reports:
 - `surveyor diff`
 - `surveyor prioritize`
 - `surveyor prioritise` as a CLI alias
+- inventory-aware workflow grouping and filtering for audit analysis
+- grouped summaries in diff and prioritisation output
+- workflow findings in prioritisation output for weak imported metadata
 
 Current limits remain deliberate:
 
 - diffing is currently supported for `tls_scan` and `audit` only
 - prioritisation is currently supported for current `tls_scan` and `audit` reports only
+- workflow grouping and filtering apply only to inventory-backed audit input or audit comparisons
+- TLS input rejects workflow controls
 - discovery-only diffing is still deferred
 - diff-input prioritisation is still deferred
 
-The next planned layer should sit above the current diff and prioritisation boundary without weakening it:
+That workflow layer remains output- and interpretation-focused. It does not rewrite the underlying technical diff model or collapse observed facts into policy claims.
 
-- grouped summaries by owner, environment and source
-- richer prioritisation reasons that use imported metadata
-- workflow findings for missing or weak inventory metadata
-
-That work should remain output- and interpretation-focused. It should not rewrite the underlying technical diff model or collapse observed facts into policy claims.
+The next planned layer is `v0.9.0 - Platform-Specific Import Adapters`.
 
 See:
 

@@ -220,7 +220,7 @@ See:
 
 ## Current analysis layer
 
-The current repository now includes a baseline, diffing and prioritisation layer over canonical Surveyor JSON reports.
+The current repository includes a baseline, diffing, prioritisation and workflow layer over canonical Surveyor JSON reports.
 
 Current boundary:
 
@@ -231,25 +231,23 @@ Current boundary:
 - prioritisation profiles currently include `migration-readiness` and `change-risk`
 - diffing currently supports only compatible `tls_scan` and `audit` input
 - prioritisation currently supports current `tls_scan` and `audit` input
+- inventory-backed audit comparison and prioritisation support restrained workflow controls:
+  - `--group-by owner|environment|source`
+  - `--include-owner`
+  - `--include-environment`
+  - `--include-tag`
+- audit diff reports now carry grouped summaries by owner, environment and source when inventory metadata is present
+- audit prioritisation now uses inventory metadata conservatively in ranking reasons and emits workflow findings for weak imported metadata
 
-It still does not include:
+Current limits remain deliberate:
 
-- a database
-- a dashboard
-- policy-as-code complexity
-- diff-input prioritisation
-- discovery-only diffing
-- another deep scanner in the same milestone
+- workflow grouping and filtering apply only to inventory-backed audit input or audit comparisons
+- TLS input rejects workflow controls
+- diffing still does not support discovery-only input
+- prioritisation still does not accept diff reports
+- the analysis layer is still not policy-as-code, a dashboard or a storage-backed governance platform
 
-The next planned layer is `v0.8.0 - Policy Refinement and Organisational Workflows`.
-
-That planned layer should:
-
-- refine prioritisation with owner, environment, tag, provenance and scope context
-- add grouped summaries for diff and prioritisation output
-- surface metadata-quality workflow findings
-
-It should not turn the current analysis layer into policy-as-code, a dashboard or a storage-backed governance platform.
+The next planned layer is `v0.9.0 - Platform-Specific Import Adapters`.
 
 See:
 
