@@ -4,6 +4,20 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.9.0
+
+### Added
+- platform-specific import adapters now extend `--inventory-file` through `surveyor discover remote` and `surveyor audit remote`
+- the shipped adapter set now includes:
+  - `caddy` for Caddy JSON and Caddyfile input
+  - `kubernetes-ingress-v1` for Kubernetes Ingress v1 manifests
+- adapter-backed reports now preserve explicit adapter provenance and adapter warnings in the canonical JSON and derived Markdown output surface
+
+### Changed
+- Caddyfile support now uses external `caddy adapt` rather than embedding Caddy's module graph into the main Surveyor binary
+- the remote CLI now supports `--adapter`, `--adapter-bin`, auto-detection of the `caddy` adapter for unambiguous `Caddyfile` and `*.caddyfile` input, and explicit `--adapter caddy` for non-standard Caddyfile names such as `site.conf`
+- README, architecture, adapter, remote, schema, safety and release-checklist docs now describe the shipped `v0.9.0` adapter surface rather than the earlier milestone plan
+
 ## v0.8.0
 
 ### Added

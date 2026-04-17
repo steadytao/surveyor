@@ -13,10 +13,12 @@ Canonical remote commands:
 surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o discovery.md -j discovery.json
 surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o discovery.md -j discovery.json
 surveyor discover remote --inventory-file inventory.yaml --profile cautious -o discovery.md -j discovery.json
+surveyor discover remote --inventory-file Caddyfile --adapter-bin /path/to/caddy -o discovery.md -j discovery.json
 
 surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443 --profile cautious -o audit.md -j audit.json
 surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443 --profile cautious -o audit.md -j audit.json
 surveyor audit remote --inventory-file inventory.yaml --profile cautious -o audit.md -j audit.json
+surveyor audit remote --inventory-file ingress.yaml --adapter kubernetes-ingress-v1 -o audit.md -j audit.json
 ```
 
 Compatibility aliases:
@@ -47,6 +49,7 @@ Current report and planning fields:
 - `cidr` when relevant
 - `targets_file` when relevant
 - `inventory_file` when relevant
+- `adapter` when remote scope came from adapter-backed inventory input
 - `host_count`
 - `ports`
 
@@ -94,6 +97,13 @@ Current rules:
 - if neither exists for an entry, remote-scope parsing fails clearly
 
 The structured inventory model remains narrow on purpose. It is a generic imported-inventory layer, not a platform-adapter framework.
+
+Current adapter-backed extension:
+
+- `--adapter caddy`
+- `--adapter kubernetes-ingress-v1`
+- `--adapter-bin PATH` when the selected adapter needs an external executable
+- auto-detected `caddy` adapter for `Caddyfile` and `*.caddyfile`
 
 ## Safety model
 
@@ -188,8 +198,8 @@ That layer:
 
 That contract is documented in [docs/inventory-inputs.md](inventory-inputs.md).
 
-The next planned layer should extend the same `inventory_file` path with
-explicit adapter selection for stable platform exports rather than inventing a
-second import command family. That planned boundary is documented in
+The current adapter layer extends the same `inventory_file` path with explicit
+adapter selection for stable platform exports rather than inventing a second
+import command family. That current boundary is documented in
 [docs/import-adapters.md](import-adapters.md) and
 [docs/adapter-contract.md](adapter-contract.md).

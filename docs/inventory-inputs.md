@@ -60,11 +60,15 @@ Structured imported inventory supports:
 - YAML
 - JSON
 - constrained CSV
+- adapter-backed source files through `--inventory-file` plus `--adapter`
+  - Caddy JSON
+  - Caddyfile
+  - Kubernetes Ingress v1 manifests
 
 Those are the right generic file forms before `v1.0.0`.
 
-Platform-specific import adapters should come later, on top of the same
-internal model, rather than driving the generic contract now.
+Those adapter-backed inputs sit on top of the same internal model rather than
+redefining the generic contract.
 
 ## Current manifest model
 
@@ -180,9 +184,11 @@ Every imported entry should record where it came from.
 Current provenance fields:
 
 - `source_kind = inventory_file`
-- `source_format = yaml | json | csv`
+- `source_format = yaml | json | csv | caddyfile`
 - `source_name = inventory.yaml`
 - `source_record = entries[3]` or equivalent stable reference
+- `adapter = caddy | kubernetes-ingress-v1` where relevant
+- `source_object` where the adapter can preserve stable product identity
 
 That provenance should survive:
 
@@ -259,29 +265,25 @@ This layer does not include:
 - organisation-wide aggregation
 - platform-native output formats
 
-## Relationship to later adapter work
+## Relationship to current and later adapter work
 
-The generic ingestion substrate now exists before vendor-specific adapters.
+The generic ingestion substrate now exists underneath the first stable
+platform-specific adapters.
 
-That means:
+Current adapter set:
 
-- `v0.7.0` focuses on generic imported inventory support
-- `v0.9.0` is the right place for the first stable platform-specific adapters
+- `caddy`
+- `kubernetes-ingress-v1`
 
-The first stable adapter set should stay narrow:
-
-- Caddy JSON
-- Kubernetes Ingress v1 manifests
-
-Important boundary:
+Important current boundary:
 
 - not generic Kubernetes
-- not `Service` import
+- not `Service` import as a first-class source
 - not Gateway API
 - not live cloud or CMDB connectors
 
-Those adapters should extend the existing `--inventory-file` path with
-explicit adapter selection, not replace the generic imported-inventory model.
+Those adapters extend the existing `--inventory-file` path with explicit
+adapter selection. They do not replace the generic imported-inventory model.
 
 Examples of later, broader adapter work:
 

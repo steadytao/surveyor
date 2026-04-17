@@ -70,6 +70,7 @@ This means Surveyor currently supports:
 - explicitly declared remote subnet scope such as `--cidr 10.0.0.0/24 --ports 443,8443`
 - explicitly declared file-backed host scope such as `--targets-file examples/approved-hosts.txt --ports 443`
 - explicitly declared structured inventory scope such as `--inventory-file examples/inventory.yaml`
+- explicitly declared adapter-backed inventory scope such as `--inventory-file Caddyfile` or `--inventory-file ingress.yaml --adapter kubernetes-ingress-v1`
 
 It does not currently support:
 
@@ -77,7 +78,7 @@ It does not currently support:
 - IP-only config entries with an implied default port
 - undeclared remote scope
 - automatic service discovery outside the current local and remote commands
-- platform-specific import adapters or live cloud inventory import
+- live cloud inventory import
 
 That strictness is deliberate. Safety improves when the tool is explicit about what it will touch.
 

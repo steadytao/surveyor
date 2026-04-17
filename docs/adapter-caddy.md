@@ -1,37 +1,71 @@
 # Adapter: Caddy
 
-This document defines the planned `v0.9.0` Caddy adapter.
-
-It does not describe current shipped behaviour.
+This document defines the current `v0.9.0` Caddy adapter.
 
 ## External references
 
-Implementation should be grounded in Caddy's official documentation:
+Implementation is grounded in Caddy's official documentation:
 
 - Caddy JSON config, as the native config form
 - Caddy API, for operational context
-- Caddyfile docs and concepts, when translated input is supported later
-- config adapter docs, for how non-JSON input maps back into Caddy JSON
+- Caddyfile docs and concepts
+- config adapter docs, for how Caddyfile input maps back into Caddy JSON
 
-Surveyor should understand those semantics, but it should still map them into
-Surveyor's own canonical imported-inventory model.
+Surveyor understands those semantics at the adapter boundary, but still maps
+them into Surveyor's canonical imported-inventory model.
 
-## First supported source
+## Current supported source forms
 
-The first Caddy source should be Caddy JSON.
+The current `caddy` adapter supports:
 
-That is the correct anchor because Caddy documents JSON as its native config
-language, while the Caddyfile is a config adapter and is less expressive than
-native JSON.
+- Caddy JSON
+- Caddyfile
 
-## Later source
+Important boundary:
 
-Caddyfile support can arrive later, but only as translated Caddy input. It
-should not become the canonical reference for the adapter.
+- Caddy JSON remains the canonical Caddy source
+- Caddyfile is supported as translated Caddy input, not as a second internal
+  Surveyor model
 
-## What Surveyor should extract
+## Current command surface
 
-The Caddy adapter should extract conservatively:
+Examples:
+
+```bash
+surveyor discover remote --inventory-file examples/caddy.json --adapter caddy
+surveyor audit remote --inventory-file Caddyfile
+surveyor audit remote --inventory-file site.conf --adapter caddy
+surveyor audit remote --inventory-file Caddyfile --adapter-bin /path/to/caddy
+```
+
+Current Caddyfile convenience:
+
+- `Caddyfile` and `*.caddyfile` auto-detect the `caddy` adapter
+- non-standard names such as `site.conf` require explicit `--adapter caddy`
+
+## External executable boundary
+
+Caddy JSON support is in-process.
+
+Caddyfile support is implemented by invoking:
+
+```text
+caddy adapt --adapter caddyfile
+```
+
+Binary resolution order:
+
+- `--adapter-bin`
+- `SURVEYOR_CADDY_BIN`
+- `PATH`
+- common install locations
+
+That keeps full Caddyfile semantics available without embedding Caddy's module
+graph into the main Surveyor binary.
+
+## What Surveyor extracts
+
+The Caddy adapter extracts conservatively:
 
 - declared hostnames
 - listener addresses and relevant ports
@@ -41,7 +75,7 @@ The Caddy adapter should extract conservatively:
 
 ## What Surveyor should not overclaim
 
-The adapter should not claim:
+The adapter does not claim:
 
 - verified reachability
 - confirmed public exposure
@@ -50,11 +84,12 @@ The adapter should not claim:
 
 Surveyor still needs to run its own discovery and audit flow after import.
 
-## Warning cases
+## Current warning cases
 
-Warnings should be explicit when:
+Warnings are explicit when:
 
-- host or port mapping is ambiguous
-- configuration is internal-only or not clearly auditable remotely
+- non-TCP listeners are ignored
+- listener ports cannot be mapped cleanly
+- wildcard or placeholder hosts are ignored
+- Caddyfile adaptation emits warnings
 - multiple config blocks collapse to one imported endpoint
-- TLS intent cannot be mapped cleanly to a concrete target

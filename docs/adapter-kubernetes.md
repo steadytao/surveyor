@@ -1,12 +1,10 @@
 # Adapter: Kubernetes
 
-This document defines the planned `v0.9.0` Kubernetes adapter boundary.
-
-It does not describe current shipped behaviour.
+This document defines the current Kubernetes adapter boundary for `v0.9.0`.
 
 ## External references
 
-Implementation should be grounded in Kubernetes' official documentation:
+Implementation is grounded in Kubernetes' official documentation:
 
 - Ingress concept docs
 - Ingress v1 API reference
@@ -14,37 +12,47 @@ Implementation should be grounded in Kubernetes' official documentation:
 - Secret docs
 - Ingress controller docs
 
-Those sources define the meaning of the input. Surveyor should map that meaning
-into its canonical imported-inventory model rather than copying Kubernetes'
+Those sources define the meaning of the input. Surveyor maps that meaning into
+its canonical imported-inventory model rather than copying Kubernetes'
 resource model into the rest of the codebase.
 
-## First supported source
+## Current supported source
 
-The first Kubernetes source should be Ingress v1 manifests:
+The current Kubernetes source is Ingress v1 manifests:
 
 - `apiVersion: networking.k8s.io/v1`
 - `kind: Ingress`
 
-That is the right first target because Ingress is the stable HTTP and HTTPS
-entry-point object and maps cleanly enough to externally meaningful remote
-inventory targets.
+Supported input forms:
+
+- YAML, including multi-document YAML
+- JSON, including arrays and `List` objects
+
+Current adapter name:
+
+- `kubernetes-ingress-v1`
+
+Current command example:
+
+```bash
+surveyor audit remote --inventory-file examples/ingress.yaml --adapter kubernetes-ingress-v1
+```
 
 ## Related resources
 
-Services and Secrets matter to interpretation, but they should remain secondary
-context in the first version.
+Services and Secrets matter to interpretation, but they remain secondary
+context in the current version.
 
 Specifically:
 
 - Service references help explain backend ports and exposure shape
 - Secret references help explain TLS intent and provenance
 
-Neither should become the primary imported-target identity in the first
-adapter slice.
+Neither becomes the primary imported-target identity.
 
-## What Surveyor should extract
+## What Surveyor extracts
 
-The adapter should extract conservatively:
+The adapter extracts conservatively:
 
 - `spec.rules[].host`
 - `spec.tls[].hosts[]`
@@ -53,21 +61,27 @@ The adapter should extract conservatively:
 - referenced Service names and ports as provenance or hints
 - referenced TLS Secret names as provenance or hints
 
+Current mapping:
+
+- `spec.rules[].host` maps to port `80`
+- `spec.tls[].hosts[]` maps to port `443`
+
 ## Controller caveat
 
 Ingress semantics are controller-dependent.
 
-Surveyor should preserve that uncertainty rather than flattening it away. The
-adapter should not imply that an Ingress object alone proves effective exposure
+Surveyor preserves that uncertainty rather than flattening it away. The
+adapter does not imply that an Ingress object alone proves effective exposure
 or uniform behaviour across controllers.
 
-## Warning cases
+## Current warning cases
 
-Warnings should be explicit when:
+Warnings are explicit when:
 
 - no clean host or TLS mapping exists
+- `ingressClassName` is omitted
 - the manifest implies HTTP routing but not clearly auditable TLS exposure
-- controller-specific behaviour materially affects interpretation
+- controller-dependent behaviour materially affects interpretation
 - multiple manifests collapse to one imported endpoint
 - Secret or Service references are present but insufficient to make stronger
   claims

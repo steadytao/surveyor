@@ -40,6 +40,10 @@ Before a release, confirm that:
 - `docs/remote-inventory.md` matches the implemented remote slice
 - `docs/remote-scope.md` matches the implemented remote scope model
 - `docs/inventory-inputs.md` matches the implemented structured inventory input layer
+- `docs/import-adapters.md` matches the implemented adapter surface
+- `docs/adapter-contract.md` matches the implemented adapter contract
+- `docs/adapter-caddy.md` matches the implemented Caddy adapter
+- `docs/adapter-kubernetes.md` matches the implemented Kubernetes adapter
 - `docs/architecture.md` matches the code
 - `docs/output-schema.md` matches the current JSON contract
 - `docs/baselines.md` matches the implemented baseline layer
@@ -49,7 +53,7 @@ Before a release, confirm that:
 - `docs/classification.md` matches the implemented rule set
 - `docs/references.md` exists and is still the right reference set
 - `docs/safety.md` still matches the tool's actual behaviour
-- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-remote.json`, `examples/discovery-remote.md`, `examples/discovery-inventory.json`, `examples/discovery-inventory.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-remote.json`, `examples/audit-remote.md`, `examples/audit-inventory.json`, `examples/audit-inventory.md`, `examples/audit-subnet.json`, `examples/audit-subnet.md`, `examples/diff.json`, `examples/diff.md`, `examples/diff-workflow.json`, `examples/diff-workflow.md`, `examples/priorities.json`, `examples/priorities.md`, `examples/priorities-workflow.json`, `examples/priorities-workflow.md`, `examples/approved-hosts.txt` and `examples/inventory.yaml` reflect the current implementation
+- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-remote.json`, `examples/discovery-remote.md`, `examples/discovery-inventory.json`, `examples/discovery-inventory.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/discovery-caddy.json`, `examples/discovery-caddy.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-remote.json`, `examples/audit-remote.md`, `examples/audit-inventory.json`, `examples/audit-inventory.md`, `examples/audit-kubernetes.json`, `examples/audit-kubernetes.md`, `examples/audit-subnet.json`, `examples/audit-subnet.md`, `examples/diff.json`, `examples/diff.md`, `examples/diff-workflow.json`, `examples/diff-workflow.md`, `examples/priorities.json`, `examples/priorities.md`, `examples/priorities-workflow.json`, `examples/priorities-workflow.md`, `examples/approved-hosts.txt`, `examples/inventory.yaml`, `examples/caddy.json` and `examples/ingress.yaml` reflect the current implementation
 
 ## Verification
 

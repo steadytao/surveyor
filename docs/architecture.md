@@ -73,9 +73,10 @@ Current responsibilities:
 
 This package should stay import-focused. It should normalise approved external inventory into one stable internal shape rather than grow vendor-specific adapter logic into the core.
 
-The next planned layer should sit above this package, not inside it. `v0.9.0`
-should add explicit platform adapters and adapter selection while preserving
-`internal/inventory` as the canonical generic normalisation boundary.
+The current adapter layer sits above this package, not inside its generic
+normalisation core. `internal/inventory` remains the canonical generic
+normalisation boundary while current adapter implementations add product-aware
+parsing on top of it.
 
 ### `internal/core`
 
@@ -315,7 +316,6 @@ The current architecture still does not include:
 - trust-store validation
 - hostname validation semantics
 - STARTTLS or multi-protocol probing
-- platform-specific inventory import adapters
 - organisation-wide or cloud inventory discovery
 - discovery-only diffing
 - diff-input prioritisation
@@ -351,10 +351,10 @@ That widens the remote scope model without weakening the existing discovery, hin
 
 Structured imported inventory now sits on top of the same remote model rather than introducing a second remote command family. See [inventory-inputs.md](inventory-inputs.md) for the current contract.
 
-The next planned layer should extend the same `inventory_file` path with
-explicit adapter selection rather than introducing a parallel import-specific
-command family. See [import-adapters.md](import-adapters.md) and
-[adapter-contract.md](adapter-contract.md) for the planned contract.
+The current adapter layer extends the same `inventory_file` path with explicit
+adapter selection rather than introducing a parallel import-specific command
+family. See [import-adapters.md](import-adapters.md) and
+[adapter-contract.md](adapter-contract.md) for the current contract.
 
 ## Current analysis layer
 
@@ -380,16 +380,18 @@ Current limits remain deliberate:
 
 That workflow layer remains output- and interpretation-focused. It does not rewrite the underlying technical diff model or collapse observed facts into policy claims.
 
-The next planned layer is `v0.9.0 - Platform-Specific Import Adapters`.
-
-That work should stay import-focused:
+The current `v0.9.0` adapter layer is import-focused:
 
 - explicit adapter selection
 - stable adapter provenance and warnings
-- Caddy JSON and Kubernetes Ingress v1 manifests as the first supported sources
+- Caddy JSON and Caddyfile support through the `caddy` adapter
+- Kubernetes Ingress v1 manifests through the `kubernetes-ingress-v1` adapter
 
-It should not widen scanner scope, add live connectors or weaken the current
-generic imported-inventory boundary.
+Current limits remain deliberate:
+
+- no live connectors
+- no generic Kubernetes parser
+- no weakened generic imported-inventory boundary
 
 See:
 
