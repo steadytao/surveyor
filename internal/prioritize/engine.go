@@ -16,6 +16,12 @@ type rankedItem struct {
 	score int
 }
 
+type rankingContext struct {
+	targetIdentity string
+	scope          *core.ReportScope
+	inventory      *core.InventoryAnnotation
+}
+
 // ParseProfile validates the requested prioritization profile.
 func ParseProfile(raw string) (Profile, error) {
 	profileText := strings.ToLower(strings.TrimSpace(raw))
@@ -41,7 +47,10 @@ func BuildTLSReport(source core.Report, profile Profile, generatedAt time.Time) 
 
 	rankedItems := make([]rankedItem, 0, len(source.Results))
 	for _, result := range source.Results {
-		rankedItems = append(rankedItems, prioritizeTLSResult(result, profile)...)
+		rankedItems = append(rankedItems, prioritizeTLSResult(result, profile, rankingContext{
+			targetIdentity: baseline.TargetResultIdentityKey(result),
+			scope:          source.Scope,
+		})...)
 	}
 
 	return buildReport(
@@ -51,6 +60,7 @@ func BuildTLSReport(source core.Report, profile Profile, generatedAt time.Time) 
 		source.GeneratedAt,
 		source.Scope,
 		rankedItems,
+		nil,
 		generatedAt,
 	), nil
 }
@@ -63,8 +73,15 @@ func BuildAuditReport(source core.AuditReport, profile Profile, generatedAt time
 	}
 
 	rankedItems := make([]rankedItem, 0, len(source.Results))
+	workflowFindings := make([]core.WorkflowFinding, 0)
 	for _, result := range source.Results {
-		rankedItems = append(rankedItems, prioritizeAuditResult(result, profile)...)
+		context := rankingContext{
+			targetIdentity: baseline.AuditResultIdentityKey(result),
+			scope:          source.Scope,
+			inventory:      result.DiscoveredEndpoint.Inventory,
+		}
+		rankedItems = append(rankedItems, prioritizeAuditResult(result, profile, context)...)
+		workflowFindings = append(workflowFindings, workflowFindingsForAuditResult(result, source.Scope)...)
 	}
 
 	return buildReport(
@@ -74,6 +91,7 @@ func BuildAuditReport(source core.AuditReport, profile Profile, generatedAt time
 		source.GeneratedAt,
 		source.Scope,
 		rankedItems,
+		workflowFindings,
 		generatedAt,
 	), nil
 }
@@ -87,8 +105,9 @@ func validateSourceProfile(profile Profile) error {
 	}
 }
 
-func buildReport(metadata core.ReportMetadata, profile Profile, sourceReportKind core.ReportKind, sourceGeneratedAt time.Time, scope *core.ReportScope, rankedItems []rankedItem, generatedAt time.Time) Report {
+func buildReport(metadata core.ReportMetadata, profile Profile, sourceReportKind core.ReportKind, sourceGeneratedAt time.Time, scope *core.ReportScope, rankedItems []rankedItem, workflowFindings []core.WorkflowFinding, generatedAt time.Time) Report {
 	sortRankedItems(rankedItems)
+	sortWorkflowFindings(workflowFindings)
 
 	items := make([]Item, 0, len(rankedItems))
 	for index, ranked := range rankedItems {
@@ -106,6 +125,7 @@ func buildReport(metadata core.ReportMetadata, profile Profile, sourceReportKind
 		SourceGeneratedAt: sourceGeneratedAt.UTC(),
 		Scope:             cloneReportScope(scope),
 		Summary:           buildSummary(items),
+		WorkflowFindings:  core.CloneWorkflowFindings(workflowFindings),
 		Items:             items,
 	}
 }
@@ -132,52 +152,47 @@ func buildSummary(items []Item) Summary {
 	return summary
 }
 
-func prioritizeTLSResult(result core.TargetResult, profile Profile) []rankedItem {
-	targetIdentity := baseline.TargetResultIdentityKey(result)
+func prioritizeTLSResult(result core.TargetResult, profile Profile, context rankingContext) []rankedItem {
 	items := make([]rankedItem, 0, len(result.Findings)+2)
 
 	for _, finding := range result.Findings {
-		items = append(items, rankedFindingItem(targetIdentity, finding, profile))
+		items = append(items, rankedFindingItem(finding, profile, context))
 	}
 
 	if len(result.Errors) > 0 && !hasFindingCode(result.Findings, "target-unreachable") {
 		items = append(items, rankedSyntheticItem(
-			targetIdentity,
+			context.targetIdentity,
 			core.SeverityMedium,
 			"endpoint-errors",
 			"The endpoint emitted errors during TLS collection.",
-			errorsReason(profile),
+			errorsReason(profile, context.inventory),
 			result.Errors,
 			"Review the errors and confirm the endpoint before using this result for migration planning.",
-			syntheticScore(profile, "endpoint-errors", core.SeverityMedium),
+			syntheticScore(profile, "endpoint-errors", core.SeverityMedium, context.inventory),
 		))
 	}
 
 	if len(result.Warnings) > 0 {
 		items = append(items, rankedSyntheticItem(
-			targetIdentity,
+			context.targetIdentity,
 			core.SeverityLow,
 			"endpoint-warnings",
 			"The endpoint emitted warnings during TLS collection.",
-			warningsReason(profile),
+			warningsReason(profile, context.inventory),
 			result.Warnings,
 			"Review the warnings before treating this result as complete.",
-			syntheticScore(profile, "endpoint-warnings", core.SeverityLow),
+			syntheticScore(profile, "endpoint-warnings", core.SeverityLow, context.inventory),
 		))
 	}
 
 	return items
 }
 
-func prioritizeAuditResult(result core.AuditResult, profile Profile) []rankedItem {
-	targetIdentity := baseline.AuditResultIdentityKey(result)
+func prioritizeAuditResult(result core.AuditResult, profile Profile, context rankingContext) []rankedItem {
 	items := make([]rankedItem, 0, len(result.DiscoveredEndpoint.Hints)+3)
 
 	if result.TLSResult != nil {
-		for _, ranked := range prioritizeTLSResult(*result.TLSResult, profile) {
-			ranked.TargetIdentity = targetIdentity
-			items = append(items, ranked)
-		}
+		items = append(items, prioritizeTLSResult(*result.TLSResult, profile, context)...)
 	}
 
 	if result.Selection.Status == core.AuditSelectionStatusSkipped && result.Selection.Reason != "" {
@@ -191,56 +206,56 @@ func prioritizeAuditResult(result core.AuditResult, profile Profile) []rankedIte
 		}
 
 		items = append(items, rankedSyntheticItem(
-			targetIdentity,
+			context.targetIdentity,
 			severity,
 			"audit-selection-skipped",
 			"The endpoint was not scanned during audit.",
-			result.Selection.Reason,
+			selectionReason(profile, result.Selection.Reason, context.inventory),
 			evidence,
 			auditSelectionRecommendation(result.Selection.Reason),
-			syntheticScore(profile, "audit-selection-skipped", severity),
+			syntheticScore(profile, "audit-selection-skipped", severity, context.inventory),
 		))
 	} else if len(result.DiscoveredEndpoint.Errors) > 0 {
 		items = append(items, rankedSyntheticItem(
-			targetIdentity,
+			context.targetIdentity,
 			core.SeverityMedium,
 			"endpoint-errors",
 			"The endpoint emitted errors during audit discovery.",
-			errorsReason(profile),
+			errorsReason(profile, context.inventory),
 			result.DiscoveredEndpoint.Errors,
 			"Review the discovery errors and confirm the endpoint state before relying on this audit result.",
-			syntheticScore(profile, "endpoint-errors", core.SeverityMedium),
+			syntheticScore(profile, "endpoint-errors", core.SeverityMedium, context.inventory),
 		))
 	}
 
 	if len(result.DiscoveredEndpoint.Warnings) > 0 {
 		items = append(items, rankedSyntheticItem(
-			targetIdentity,
+			context.targetIdentity,
 			core.SeverityLow,
 			"endpoint-warnings",
 			"The endpoint emitted warnings during audit discovery.",
-			warningsReason(profile),
+			warningsReason(profile, context.inventory),
 			result.DiscoveredEndpoint.Warnings,
 			"Review the discovery warnings before treating this audit result as complete.",
-			syntheticScore(profile, "endpoint-warnings", core.SeverityLow),
+			syntheticScore(profile, "endpoint-warnings", core.SeverityLow, context.inventory),
 		))
 	}
 
 	return items
 }
 
-func rankedFindingItem(targetIdentity string, finding core.Finding, profile Profile) rankedItem {
+func rankedFindingItem(finding core.Finding, profile Profile, context rankingContext) rankedItem {
 	return rankedItem{
 		Item: Item{
 			Severity:       finding.Severity,
 			Code:           finding.Code,
 			Summary:        finding.Summary,
-			TargetIdentity: targetIdentity,
-			Reason:         findingReason(profile, finding.Code),
+			TargetIdentity: context.targetIdentity,
+			Reason:         findingReason(profile, finding.Code, context.inventory),
 			Evidence:       cloneStrings(finding.Evidence),
 			Recommendation: finding.Recommendation,
 		},
-		score: findingScore(profile, finding),
+		score: findingScore(profile, finding, context.inventory),
 	}
 }
 
@@ -259,12 +274,12 @@ func rankedSyntheticItem(targetIdentity string, severity core.Severity, code str
 	}
 }
 
-func findingScore(profile Profile, finding core.Finding) int {
-	return severityBaseScore(finding.Severity) + profileFindingBonus(profile, finding.Code)
+func findingScore(profile Profile, finding core.Finding, inventory *core.InventoryAnnotation) int {
+	return severityBaseScore(finding.Severity) + profileFindingBonus(profile, finding.Code) + metadataScoreBonus(profile, inventory)
 }
 
-func syntheticScore(profile Profile, code string, severity core.Severity) int {
-	return severityBaseScore(severity) + profileSyntheticBonus(profile, code)
+func syntheticScore(profile Profile, code string, severity core.Severity, inventory *core.InventoryAnnotation) int {
+	return severityBaseScore(severity) + profileSyntheticBonus(profile, code) + metadataScoreBonus(profile, inventory)
 }
 
 func severityBaseScore(severity core.Severity) int {
@@ -346,49 +361,61 @@ func profileSyntheticBonus(profile Profile, code string) int {
 	}
 }
 
-func findingReason(profile Profile, code string) string {
+func findingReason(profile Profile, code string, inventory *core.InventoryAnnotation) string {
+	base := "Surveyor derived this item from current report evidence."
 	switch profile {
 	case ProfileMigrationReadiness:
 		switch code {
 		case "legacy-tls-version":
-			return "Legacy TLS exposure should be addressed before treating transport posture as migration-ready."
+			base = "Legacy TLS exposure should be addressed before treating transport posture as migration-ready."
 		case "classical-certificate-identity":
-			return "Classical certificate identity is a direct migration dependency."
+			base = "Classical certificate identity is a direct migration dependency."
 		case "incomplete-certificate-observation", "unsupported-certificate-identity":
-			return "Incomplete or unsupported certificate evidence blocks confident migration planning."
+			base = "Incomplete or unsupported certificate evidence blocks confident migration planning."
 		case "target-unreachable":
-			return "Unreachable endpoints need review before they can be treated as assessed."
+			base = "Unreachable endpoints need review before they can be treated as assessed."
 		}
 	case ProfileChangeRisk:
 		switch code {
 		case "target-unreachable":
-			return "Lost reachability is an operational change that needs investigation."
+			base = "Lost reachability is an operational change that needs investigation."
 		case "legacy-tls-version":
-			return "Legacy transport posture remains an active risk to monitor."
+			base = "Legacy transport posture remains an active risk to monitor."
 		case "incomplete-certificate-observation":
-			return "Incomplete evidence makes current transport state less trustworthy."
+			base = "Incomplete evidence makes current transport state less trustworthy."
 		}
 	}
 
-	return "Surveyor derived this item from current report evidence."
+	return base + metadataReasonSuffix(inventory)
 }
 
-func warningsReason(profile Profile) string {
+func warningsReason(profile Profile, inventory *core.InventoryAnnotation) string {
+	base := "Warnings reduce confidence in the current result and should be reviewed."
 	switch profile {
 	case ProfileChangeRisk:
-		return "Collection warnings can indicate unstable or incomplete current state."
-	default:
-		return "Warnings reduce confidence in the current result and should be reviewed."
+		base = "Collection warnings can indicate unstable or incomplete current state."
 	}
+
+	return base + metadataReasonSuffix(inventory)
 }
 
-func errorsReason(profile Profile) string {
+func errorsReason(profile Profile, inventory *core.InventoryAnnotation) string {
+	base := "Errors reduce confidence in the current result and may block migration planning."
 	switch profile {
 	case ProfileChangeRisk:
-		return "Collection errors may indicate degraded operational state."
-	default:
-		return "Errors reduce confidence in the current result and may block migration planning."
+		base = "Collection errors may indicate degraded operational state."
 	}
+
+	return base + metadataReasonSuffix(inventory)
+}
+
+func selectionReason(profile Profile, selectionReason string, inventory *core.InventoryAnnotation) string {
+	base := selectionReason
+	if profile == ProfileChangeRisk && strings.Contains(strings.ToLower(selectionReason), "did not respond") {
+		base = "The endpoint did not respond during remote discovery and needs investigation."
+	}
+
+	return base + metadataReasonSuffix(inventory)
 }
 
 func auditSelectionRecommendation(reason string) string {
@@ -397,6 +424,66 @@ func auditSelectionRecommendation(reason string) string {
 	}
 
 	return "Review why the endpoint was skipped before treating it as covered by the audit."
+}
+
+func workflowFindingsForAuditResult(result core.AuditResult, scope *core.ReportScope) []core.WorkflowFinding {
+	inventory := result.DiscoveredEndpoint.Inventory
+	if inventory == nil {
+		return nil
+	}
+
+	targetIdentity := baseline.AuditResultIdentityKey(result)
+	findings := make([]core.WorkflowFinding, 0, 4)
+
+	if strings.TrimSpace(inventory.Owner) == "" {
+		findings = append(findings, core.WorkflowFinding{
+			Severity:       metadataGapSeverity(inventory),
+			Code:           "missing-owner",
+			Summary:        "The imported endpoint is missing owner metadata.",
+			TargetIdentity: targetIdentity,
+			Reason:         "Owner metadata is needed for operational follow-up and grouped reporting.",
+			Evidence:       inventoryEvidence(result, scope),
+			Recommendation: "Add owner metadata to the imported inventory source.",
+		})
+	}
+
+	if strings.TrimSpace(inventory.Environment) == "" {
+		findings = append(findings, core.WorkflowFinding{
+			Severity:       metadataGapSeverity(inventory),
+			Code:           "missing-environment",
+			Summary:        "The imported endpoint is missing environment metadata.",
+			TargetIdentity: targetIdentity,
+			Reason:         "Environment metadata is needed to prioritise production and non-production work differently.",
+			Evidence:       inventoryEvidence(result, scope),
+			Recommendation: "Add environment metadata to the imported inventory source.",
+		})
+	}
+
+	if len(inventory.Provenance) == 0 {
+		findings = append(findings, core.WorkflowFinding{
+			Severity:       core.SeverityLow,
+			Code:           "weak-provenance",
+			Summary:        "The imported endpoint has no recorded source provenance.",
+			TargetIdentity: targetIdentity,
+			Reason:         "Without provenance, later review and source reconciliation become weaker.",
+			Evidence:       inventoryEvidence(result, scope),
+			Recommendation: "Preserve source file and record metadata when importing inventory.",
+		})
+	}
+
+	if inventoryPortsOverridden(scope, inventory) {
+		findings = append(findings, core.WorkflowFinding{
+			Severity:       core.SeverityLow,
+			Code:           "inventory-ports-overridden",
+			Summary:        "Run-level ports override the imported inventory ports for this endpoint.",
+			TargetIdentity: targetIdentity,
+			Reason:         "The current run did not use the imported port set exactly as declared.",
+			Evidence:       inventoryPortOverrideEvidence(scope, inventory),
+			Recommendation: "Confirm whether the override was intentional before using this result for inventory hygiene decisions.",
+		})
+	}
+
+	return findings
 }
 
 func hasFindingCode(findings []core.Finding, code string) bool {
@@ -414,6 +501,21 @@ func sortRankedItems(items []rankedItem) {
 		if comparison := cmp.Compare(right.score, left.score); comparison != 0 {
 			return comparison
 		}
+		if comparison := cmp.Compare(severityRank(right.Severity), severityRank(left.Severity)); comparison != 0 {
+			return comparison
+		}
+		if comparison := cmp.Compare(left.TargetIdentity, right.TargetIdentity); comparison != 0 {
+			return comparison
+		}
+		if comparison := cmp.Compare(left.Code, right.Code); comparison != 0 {
+			return comparison
+		}
+		return cmp.Compare(left.Summary, right.Summary)
+	})
+}
+
+func sortWorkflowFindings(findings []core.WorkflowFinding) {
+	slices.SortFunc(findings, func(left core.WorkflowFinding, right core.WorkflowFinding) int {
 		if comparison := cmp.Compare(severityRank(right.Severity), severityRank(left.Severity)); comparison != 0 {
 			return comparison
 		}
@@ -460,4 +562,168 @@ func cloneReportScope(scope *core.ReportScope) *core.ReportScope {
 	cloned := *scope
 	cloned.Ports = append([]int(nil), scope.Ports...)
 	return &cloned
+}
+
+func metadataScoreBonus(profile Profile, inventory *core.InventoryAnnotation) int {
+	if inventory == nil {
+		return 0
+	}
+
+	bonus := 0
+	if isProductionEnvironment(inventory.Environment) {
+		switch profile {
+		case ProfileChangeRisk:
+			bonus += 80
+		default:
+			bonus += 60
+		}
+	}
+	if hasInventoryTag(inventory, "external") {
+		switch profile {
+		case ProfileChangeRisk:
+			bonus += 60
+		default:
+			bonus += 40
+		}
+	}
+	if hasInventoryTag(inventory, "critical") {
+		switch profile {
+		case ProfileChangeRisk:
+			bonus += 40
+		default:
+			bonus += 50
+		}
+	}
+
+	return bonus
+}
+
+func metadataReasonSuffix(inventory *core.InventoryAnnotation) string {
+	if inventory == nil {
+		return ""
+	}
+
+	parts := make([]string, 0, 3)
+	if isProductionEnvironment(inventory.Environment) {
+		parts = append(parts, "it is in the production environment")
+	} else if environment := strings.TrimSpace(inventory.Environment); environment != "" {
+		parts = append(parts, fmt.Sprintf("it is in the %s environment", environment))
+	}
+	if owner := strings.TrimSpace(inventory.Owner); owner != "" {
+		parts = append(parts, fmt.Sprintf("it is owned by %s", owner))
+	}
+	if tags := displayTags(inventory.Tags); tags != "" {
+		parts = append(parts, fmt.Sprintf("it is tagged %s", tags))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return " In inventory context, " + strings.Join(parts, ", ") + "."
+}
+
+func metadataGapSeverity(inventory *core.InventoryAnnotation) core.Severity {
+	if inventory == nil {
+		return core.SeverityLow
+	}
+	if isProductionEnvironment(inventory.Environment) || hasInventoryTag(inventory, "external") || hasInventoryTag(inventory, "critical") {
+		return core.SeverityMedium
+	}
+
+	return core.SeverityLow
+}
+
+func inventoryEvidence(result core.AuditResult, scope *core.ReportScope) []string {
+	evidence := []string{
+		"host=" + result.DiscoveredEndpoint.Host,
+		fmt.Sprintf("port=%d", result.DiscoveredEndpoint.Port),
+	}
+	if scope != nil && scope.InventoryFile != "" {
+		evidence = append(evidence, "inventory_file="+scope.InventoryFile)
+	}
+	return evidence
+}
+
+func inventoryPortsOverridden(scope *core.ReportScope, inventory *core.InventoryAnnotation) bool {
+	if scope == nil || inventory == nil || scope.InputKind != core.ReportInputKindInventoryFile || len(scope.Ports) == 0 || len(inventory.Ports) == 0 {
+		return false
+	}
+
+	if len(scope.Ports) != len(inventory.Ports) {
+		return true
+	}
+
+	expected := append([]int(nil), scope.Ports...)
+	actual := append([]int(nil), inventory.Ports...)
+	slices.Sort(expected)
+	slices.Sort(actual)
+	for index := range expected {
+		if expected[index] != actual[index] {
+			return true
+		}
+	}
+
+	return false
+}
+
+func inventoryPortOverrideEvidence(scope *core.ReportScope, inventory *core.InventoryAnnotation) []string {
+	evidence := make([]string, 0, 2)
+	if len(inventory.Ports) > 0 {
+		evidence = append(evidence, "inventory_ports="+joinPorts(inventory.Ports))
+	}
+	if scope != nil && len(scope.Ports) > 0 {
+		evidence = append(evidence, "effective_ports="+joinPorts(scope.Ports))
+	}
+	return evidence
+}
+
+func joinPorts(ports []int) string {
+	if len(ports) == 0 {
+		return ""
+	}
+
+	values := make([]string, 0, len(ports))
+	for _, port := range ports {
+		values = append(values, fmt.Sprintf("%d", port))
+	}
+
+	return strings.Join(values, ",")
+}
+
+func hasInventoryTag(inventory *core.InventoryAnnotation, tag string) bool {
+	for _, current := range inventory.Tags {
+		if strings.EqualFold(strings.TrimSpace(current), tag) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func displayTags(tags []string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+
+	values := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		trimmed := strings.TrimSpace(tag)
+		if trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	if len(values) == 0 {
+		return ""
+	}
+
+	return strings.Join(values, ", ")
+}
+
+func isProductionEnvironment(environment string) bool {
+	switch strings.ToLower(strings.TrimSpace(environment)) {
+	case "prod", "production":
+		return true
+	default:
+		return false
+	}
 }
