@@ -1,13 +1,30 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/steadytao/surveyor/internal/core"
+	"github.com/steadytao/surveyor/internal/inventory"
 )
+
+type stubInventoryAdapter struct {
+	name  core.InventoryAdapter
+	parse func([]byte, core.InventorySourceFormat, string) (inventory.Document, error)
+}
+
+func (adapter stubInventoryAdapter) Name() core.InventoryAdapter {
+	return adapter.name
+}
+
+func (adapter stubInventoryAdapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string) (inventory.Document, error) {
+	return adapter.parse(data, format, sourceName)
+}
 
 func TestParseRemoteScopeDefaults(t *testing.T) {
 	t.Parallel()
@@ -289,6 +306,76 @@ func TestParseRemoteScopeInventoryFileUsesEntryPorts(t *testing.T) {
 	}
 }
 
+func TestParseRemoteScopeInventoryFileUsesRegisteredAdapter(t *testing.T) {
+	t.Parallel()
+
+	adapterName := core.InventoryAdapter("test-adapter")
+	if err := inventory.RegisterAdapter(stubInventoryAdapter{
+		name: adapterName,
+		parse: func(data []byte, format core.InventorySourceFormat, sourceName string) (inventory.Document, error) {
+			if got, want := format, core.InventorySourceFormatJSON; got != want {
+				return inventory.Document{}, fmt.Errorf("format = %q, want %q", got, want)
+			}
+			if got, want := filepath.Base(sourceName), "adapter.json"; got != want {
+				return inventory.Document{}, fmt.Errorf("sourceName = %q, want %q", got, want)
+			}
+
+			return inventory.Document{
+				Format:     format,
+				SourceName: sourceName,
+				Entries: []inventory.Entry{
+					{
+						Host:  "api.example.com",
+						Ports: []int{443},
+						Provenance: []core.InventoryProvenance{
+							{
+								SourceKind:   core.InventorySourceKindInventoryFile,
+								SourceFormat: core.InventorySourceFormatJSON,
+								SourceName:   sourceName,
+								SourceRecord: "records[0]",
+								Adapter:      adapterName,
+								SourceObject: "object-0",
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}); err != nil {
+		t.Fatalf("RegisterAdapter() error = %v", err)
+	}
+	t.Cleanup(func() {
+		inventory.UnregisterAdapter(adapterName)
+	})
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "adapter.json")
+	if err := os.WriteFile(inventoryFile, []byte(`{"ignored":true}`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		InventoryFile: inventoryFile,
+		Adapter:       string(adapterName),
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.Adapter, adapterName; got != want {
+		t.Fatalf("scope.Adapter = %q, want %q", got, want)
+	}
+	if got, want := len(scope.Targets), 1; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+	if scope.Targets[0].Inventory == nil {
+		t.Fatal("scope.Targets[0].Inventory = nil, want non-nil")
+	}
+	if got, want := scope.Targets[0].Inventory.Provenance[0].Adapter, adapterName; got != want {
+		t.Fatalf("scope.Targets[0].Inventory.Provenance[0].Adapter = %q, want %q", got, want)
+	}
+}
+
 func TestParseRemoteScopeProfileDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -373,6 +460,15 @@ func TestParseRemoteScopeInvalidInput(t *testing.T) {
 				Ports:       "443",
 			},
 			wantErrText: "use exactly one of --cidr, --targets-file or --inventory-file",
+		},
+		{
+			name: "adapter without inventory file",
+			input: RemoteScopeInput{
+				CIDR:    "10.0.0.0/24",
+				Ports:   "443",
+				Adapter: "caddy",
+			},
+			wantErrText: "--adapter requires --inventory-file",
 		},
 		{
 			name: "invalid cidr",
@@ -613,6 +709,26 @@ func TestParseRemoteScopeInventoryFileInvalidInput(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "does not declare any ports and --ports was not provided") {
 			t.Fatalf("ParseRemoteScope() error = %q, want missing-port error", err.Error())
+		}
+	})
+
+	t.Run("unsupported adapter", func(t *testing.T) {
+		t.Parallel()
+
+		inventoryFile := filepath.Join(tempDir, "adapter.json")
+		if err := os.WriteFile(inventoryFile, []byte(`{"ignored":true}`), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		_, err := ParseRemoteScope(RemoteScopeInput{
+			InventoryFile: inventoryFile,
+			Adapter:       "missing-adapter",
+		})
+		if err == nil {
+			t.Fatal("ParseRemoteScope() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), `unsupported --adapter "missing-adapter"`) {
+			t.Fatalf("ParseRemoteScope() error = %q, want unsupported-adapter error", err.Error())
 		}
 	})
 }
