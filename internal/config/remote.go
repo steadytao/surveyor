@@ -40,6 +40,7 @@ type RemoteScopeInput struct {
 	TargetsFile    string
 	InventoryFile  string
 	Adapter        string
+	AdapterBinary  string
 	Ports          string
 	Profile        string
 	MaxHosts       int
@@ -108,6 +109,7 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	targetsFileText := strings.TrimSpace(input.TargetsFile)
 	inventoryFileText := strings.TrimSpace(input.InventoryFile)
 	adapterText := strings.TrimSpace(input.Adapter)
+	adapterBinaryText := strings.TrimSpace(input.AdapterBinary)
 
 	scopeInputCount := 0
 	if cidrText != "" {
@@ -127,6 +129,9 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 	if inventoryFileText == "" && adapterText != "" {
 		return RemoteScope{}, fmt.Errorf("--adapter requires --inventory-file")
+	}
+	if inventoryFileText == "" && adapterBinaryText != "" {
+		return RemoteScope{}, fmt.Errorf("--adapter-bin requires --inventory-file")
 	}
 
 	profile, err := parseRemoteProfile(input.Profile)
@@ -161,14 +166,19 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 
 	if inventoryFileText != "" {
-		adapter, err := parseInventoryAdapter(adapterText)
+		adapter, err := resolveInventoryAdapter(inventoryFileText, adapterText)
 		if err != nil {
 			return RemoteScope{}, err
+		}
+		if adapterBinaryText != "" && adapter == "" {
+			return RemoteScope{}, fmt.Errorf("--adapter-bin requires --adapter or an auto-detected adapter-backed inventory file")
 		}
 
 		var document inventory.Document
 		if adapter != "" {
-			document, err = inventory.LoadWithAdapter(inventoryFileText, adapter)
+			document, err = inventory.LoadWithAdapter(inventoryFileText, adapter, inventory.AdapterOptions{
+				ExecutablePath: adapterBinaryText,
+			})
 		} else {
 			document, err = inventory.Load(inventoryFileText)
 		}
@@ -274,6 +284,14 @@ func parseInventoryAdapter(raw string) (core.InventoryAdapter, error) {
 	}
 
 	return adapter, nil
+}
+
+func resolveInventoryAdapter(path string, raw string) (core.InventoryAdapter, error) {
+	if strings.TrimSpace(raw) != "" {
+		return parseInventoryAdapter(raw)
+	}
+
+	return inventory.DetectAdapter(path), nil
 }
 
 func parseRemoteProfile(raw string) (RemoteProfile, error) {

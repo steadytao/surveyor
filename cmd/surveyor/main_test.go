@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -1270,6 +1272,12 @@ func TestRunAuditRemoteHelp(t *testing.T) {
 	if !strings.Contains(stderr.String(), "--adapter") {
 		t.Fatalf("stderr = %q, want adapter flag in remote help", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "surveyor audit remote --inventory-file Caddyfile") {
+		t.Fatalf("stderr = %q, want Caddyfile example in remote help", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "--adapter-bin") {
+		t.Fatalf("stderr = %q, want adapter-bin flag in remote help", stderr.String())
+	}
 }
 
 func TestRunAuditRemoteWritesMarkdownToStdout(t *testing.T) {
@@ -1379,36 +1387,16 @@ func TestRunAuditRemoteInventoryFileDryRunWritesPlan(t *testing.T) {
 	}
 }
 
-func TestRunAuditRemoteInventoryFileAdapterDryRunWritesPlan(t *testing.T) {
-	t.Parallel()
+func TestRunAuditRemoteInventoryFileCaddyfileDryRunAutoDetectsAdapter(t *testing.T) {
+	useFakeCaddy(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
 
 	tempDir := t.TempDir()
-	inventoryFile := filepath.Join(tempDir, "caddy.json")
-	if err := os.WriteFile(inventoryFile, []byte(`{
-  "apps": {
-    "http": {
-      "servers": {
-        "edge": {
-          "listen": [":443"],
-          "routes": [
-            {
-              "match": [
-                {
-                  "host": ["api.example.com"]
-                }
-              ],
-              "handle": [
-                {
-                  "handler": "reverse_proxy"
-                }
-              ]
-            }
-          ]
-        }
-      }
-    }
-  }
-}`), 0o644); err != nil {
+	inventoryFile := filepath.Join(tempDir, "Caddyfile")
+	if err := os.WriteFile(inventoryFile, []byte(`
+https://api.example.com:8443 {
+	respond "ok"
+}
+`), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -1419,7 +1407,6 @@ func TestRunAuditRemoteInventoryFileAdapterDryRunWritesPlan(t *testing.T) {
 		"audit",
 		"remote",
 		"--inventory-file", inventoryFile,
-		"--adapter", "caddy",
 		"--dry-run",
 	}, &stdout, &stderr, fixedNow)
 
@@ -1432,8 +1419,40 @@ func TestRunAuditRemoteInventoryFileAdapterDryRunWritesPlan(t *testing.T) {
 	}
 }
 
-func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
-	t.Parallel()
+func TestRunAuditRemoteInventoryFileCaddyfileUsesAdapterBinaryFlag(t *testing.T) {
+	binaryPath := writeFakeCaddyBinary(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "Caddyfile")
+	if err := os.WriteFile(inventoryFile, []byte(`
+https://api.example.com:8443 {
+	respond "ok"
+}
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+
+	exitCode := run([]string{
+		"audit",
+		"remote",
+		"--inventory-file", inventoryFile,
+		"--adapter-bin", binaryPath,
+		"--dry-run",
+	}, &stdout, &stderr, fixedNow)
+
+	if exitCode != 0 {
+		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Adapter: caddy") {
+		t.Fatalf("stdout = %q, want auto-detected caddy adapter in execution plan", stdout.String())
+	}
+}
+
+func TestRunAuditRemoteInventoryFileCaddyfileWritesOutputs(t *testing.T) {
+	useFakeCaddy(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
 
 	originalRunner := newRemoteAuditRunner
 	t.Cleanup(func() {
@@ -1448,7 +1467,7 @@ func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
 				{
 					DiscoveredEndpoint: core.DiscoveredEndpoint{
 						ScopeKind: core.EndpointScopeKindRemote,
-						Host:      "example.com",
+						Host:      "api.example.com",
 						Port:      443,
 						Transport: "tcp",
 						State:     "responsive",
@@ -1472,32 +1491,12 @@ func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
 	}
 
 	tempDir := t.TempDir()
-	inventoryFile := filepath.Join(tempDir, "caddy.json")
-	if err := os.WriteFile(inventoryFile, []byte(`{
-  "apps": {
-    "http": {
-      "servers": {
-        "edge": {
-          "listen": [":443"],
-          "routes": [
-            {
-              "match": [
-                {
-                  "host": ["example.com"]
-                }
-              ],
-              "handle": [
-                {
-                  "handler": "reverse_proxy"
-                }
-              ]
-            }
-          ]
-        }
-      }
-    }
-  }
-}`), 0o644); err != nil {
+	inventoryFile := filepath.Join(tempDir, "Caddyfile")
+	if err := os.WriteFile(inventoryFile, []byte(`
+https://api.example.com:8443 {
+	respond "ok"
+}
+`), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -1509,7 +1508,6 @@ func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
 		"audit",
 		"remote",
 		"--inventory-file", inventoryFile,
-		"--adapter", "caddy",
 		"--json", jsonPath,
 	}, &stdout, &stderr, fixedNow)
 
@@ -1527,6 +1525,18 @@ func TestRunAuditRemoteInventoryFileWritesOutputs(t *testing.T) {
 	}
 	if len(gotScope.Targets) != 1 {
 		t.Fatalf("len(scope.Targets) = %d, want 1", len(gotScope.Targets))
+	}
+	if got, want := gotScope.Targets[0].Host, "api.example.com"; got != want {
+		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
+	}
+	if got, want := gotScope.Targets[0].Ports, []int{8443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
+	}
+	if gotScope.Targets[0].Inventory == nil {
+		t.Fatal("scope.Targets[0].Inventory = nil, want non-nil")
+	}
+	if got, want := gotScope.Targets[0].Inventory.Provenance[0].SourceFormat, core.InventorySourceFormatCaddyfile; got != want {
+		t.Fatalf("scope.Targets[0].Inventory.Provenance[0].SourceFormat = %q, want %q", got, want)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty when only JSON output is requested", stdout.String())
@@ -2058,6 +2068,12 @@ func TestRunDiscoverRemoteHelp(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "--adapter") {
 		t.Fatalf("stderr = %q, want adapter flag in remote help", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "surveyor discover remote --inventory-file Caddyfile") {
+		t.Fatalf("stderr = %q, want Caddyfile example in remote help", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "--adapter-bin") {
+		t.Fatalf("stderr = %q, want adapter-bin flag in remote help", stderr.String())
 	}
 }
 
@@ -2748,6 +2764,44 @@ func TestRunScanTLSWritesMarkdownToStdout(t *testing.T) {
 
 func fixedNow() time.Time {
 	return time.Date(2026, time.April, 14, 2, 0, 0, 0, time.UTC)
+}
+
+func fakeCaddyAdaptedJSON() string {
+	return `{"apps":{"http":{"servers":{"edge":{"listen":[":8443"],"routes":[{"@id":"site-api","match":[{"host":["api.example.com"]}],"handle":[{"handler":"static_response"}]}]}}}}}`
+}
+
+func useFakeCaddy(t *testing.T, jsonOutput string, stderrOutput string) {
+	t.Helper()
+
+	t.Setenv("SURVEYOR_CADDY_BIN", writeFakeCaddyBinary(t, jsonOutput, stderrOutput))
+}
+
+func writeFakeCaddyBinary(t *testing.T, jsonOutput string, stderrOutput string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	binaryPath := filepath.Join(dir, "caddy")
+	script := "#!/bin/sh\ncat \"$0.stderr\" 1>&2\ncat \"$0.json\"\n"
+	if runtime.GOOS == "windows" {
+		binaryPath += ".cmd"
+		script = "@echo off\r\ntype \"%~f0.stderr\" 1>&2\r\ntype \"%~f0.json\"\r\n"
+	}
+	if err := os.WriteFile(binaryPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile(script) error = %v", err)
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(binaryPath, 0o755); err != nil {
+			t.Fatalf("Chmod(script) error = %v", err)
+		}
+	}
+	if err := os.WriteFile(binaryPath+".json", []byte(jsonOutput), 0o644); err != nil {
+		t.Fatalf("WriteFile(script json) error = %v", err)
+	}
+	if err := os.WriteFile(binaryPath+".stderr", []byte(stderrOutput), 0o644); err != nil {
+		t.Fatalf("WriteFile(script stderr) error = %v", err)
+	}
+
+	return binaryPath
 }
 
 func testTLSServer(t *testing.T) *httptest.Server {

@@ -12,7 +12,13 @@ import (
 // imported-inventory model.
 type Adapter interface {
 	Name() core.InventoryAdapter
-	Parse(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error)
+	Parse(data []byte, format core.InventorySourceFormat, sourceName string, options AdapterOptions) (Document, error)
+}
+
+// AdapterOptions carries adapter-specific execution inputs that are not part
+// of the canonical imported-inventory model, such as helper executable paths.
+type AdapterOptions struct {
+	ExecutablePath string
 }
 
 var (
@@ -67,13 +73,13 @@ func HasAdapter(name core.InventoryAdapter) bool {
 	return ok
 }
 
-func parseWithAdapter(data []byte, format core.InventorySourceFormat, sourceName string, adapterName core.InventoryAdapter) (Document, error) {
+func parseWithAdapter(data []byte, format core.InventorySourceFormat, sourceName string, adapterName core.InventoryAdapter, options AdapterOptions) (Document, error) {
 	adapter, ok := lookupAdapter(adapterName)
 	if !ok {
 		return Document{}, fmt.Errorf("unsupported inventory adapter %q", adapterName)
 	}
 
-	document, err := adapter.Parse(data, format, sourceName)
+	document, err := adapter.Parse(data, format, sourceName, options)
 	if err != nil {
 		return Document{}, err
 	}

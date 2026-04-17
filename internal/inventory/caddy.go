@@ -1,12 +1,18 @@
 package inventory
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/steadytao/surveyor/internal/core"
 )
@@ -52,13 +58,25 @@ type caddyHostMatch struct {
 	Host []string `json:"host"`
 }
 
+const caddyAdaptTimeout = 30 * time.Second
+
 func (caddyAdapter) Name() core.InventoryAdapter {
 	return core.InventoryAdapterCaddy
 }
 
-func (caddyAdapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string) (Document, error) {
-	if format != core.InventorySourceFormatJSON {
-		return Document{}, fmt.Errorf("caddy adapter requires JSON input")
+func (caddyAdapter) Parse(data []byte, format core.InventorySourceFormat, sourceName string, options AdapterOptions) (Document, error) {
+	var adaptationWarnings []core.InventoryAdapterWarning
+	switch format {
+	case core.InventorySourceFormatJSON:
+	case core.InventorySourceFormatCaddyfile:
+		adaptedJSON, warnings, err := adaptCaddyfileToJSON(data, sourceName, options)
+		if err != nil {
+			return Document{}, err
+		}
+		data = adaptedJSON
+		adaptationWarnings = warnings
+	default:
+		return Document{}, fmt.Errorf("caddy adapter requires JSON or Caddyfile input")
 	}
 
 	var config caddyConfig
@@ -78,12 +96,13 @@ func (caddyAdapter) Parse(data []byte, format core.InventorySourceFormat, source
 	entries := make([]Entry, 0)
 	for _, serverName := range serverNames {
 		server := config.Apps.HTTP.Servers[serverName]
-		ports, serverWarnings := parseCaddyListenerPorts(serverName, sourceName, server.Listen)
+		ports, serverWarnings := parseCaddyListenerPorts(serverName, format, sourceName, server.Listen)
 		if len(ports) == 0 {
 			continue
 		}
 
-		entries = append(entries, collectCaddyRouteEntries(serverName, sourceName, ports, serverWarnings, nil, server.Routes, "apps.http.servers."+serverName+".routes")...)
+		baseWarnings := mergeAdapterWarnings(adaptationWarnings, serverWarnings)
+		entries = append(entries, collectCaddyRouteEntries(serverName, format, sourceName, ports, baseWarnings, nil, server.Routes, "apps.http.servers."+serverName+".routes")...)
 	}
 
 	if len(entries) == 0 {
@@ -102,11 +121,11 @@ func (caddyAdapter) Parse(data []byte, format core.InventorySourceFormat, source
 	}, nil
 }
 
-func collectCaddyRouteEntries(serverName string, sourceName string, ports []int, serverWarnings []core.InventoryAdapterWarning, inheritedHosts []string, routes []caddyRoute, recordPrefix string) []Entry {
+func collectCaddyRouteEntries(serverName string, format core.InventorySourceFormat, sourceName string, ports []int, serverWarnings []core.InventoryAdapterWarning, inheritedHosts []string, routes []caddyRoute, recordPrefix string) []Entry {
 	entries := make([]Entry, 0)
 	for routeIndex, route := range routes {
 		recordPath := fmt.Sprintf("%s[%d]", recordPrefix, routeIndex)
-		explicitHosts, hostWarnings := extractCaddyRouteHosts(serverName, sourceName, route, recordPath)
+		explicitHosts, hostWarnings := extractCaddyRouteHosts(serverName, format, sourceName, route, recordPath)
 		effectiveHosts := resolveCaddyHosts(inheritedHosts, explicitHosts)
 
 		if len(explicitHosts) > 0 && len(effectiveHosts) > 0 {
@@ -116,7 +135,7 @@ func collectCaddyRouteEntries(serverName string, sourceName string, ports []int,
 				entries = append(entries, Entry{
 					Host:            host,
 					Ports:           append([]int(nil), ports...),
-					Provenance:      []core.InventoryProvenance{caddyProvenance(sourceName, recordPath, sourceObject)},
+					Provenance:      []core.InventoryProvenance{caddyProvenance(sourceName, recordPath, sourceObject, format)},
 					AdapterWarnings: cloneAdapterWarnings(warnings),
 				})
 			}
@@ -128,21 +147,21 @@ func collectCaddyRouteEntries(serverName string, sourceName string, ports []int,
 		}
 
 		if len(route.Routes) > 0 {
-			entries = append(entries, collectCaddyRouteEntries(serverName, sourceName, ports, serverWarnings, nextHosts, route.Routes, recordPath+".routes")...)
+			entries = append(entries, collectCaddyRouteEntries(serverName, format, sourceName, ports, serverWarnings, nextHosts, route.Routes, recordPath+".routes")...)
 		}
 		for handleIndex, handle := range route.Handle {
 			if len(handle.Routes) == 0 {
 				continue
 			}
 			handlePrefix := fmt.Sprintf("%s.handle[%d].routes", recordPath, handleIndex)
-			entries = append(entries, collectCaddyRouteEntries(serverName, sourceName, ports, serverWarnings, nextHosts, handle.Routes, handlePrefix)...)
+			entries = append(entries, collectCaddyRouteEntries(serverName, format, sourceName, ports, serverWarnings, nextHosts, handle.Routes, handlePrefix)...)
 		}
 	}
 
 	return entries
 }
 
-func parseCaddyListenerPorts(serverName string, sourceName string, listen []string) ([]int, []core.InventoryAdapterWarning) {
+func parseCaddyListenerPorts(serverName string, format core.InventorySourceFormat, sourceName string, listen []string) ([]int, []core.InventoryAdapterWarning) {
 	seen := make(map[int]struct{}, len(listen))
 	ports := make([]int, 0, len(listen))
 	warnings := make([]core.InventoryAdapterWarning, 0)
@@ -160,6 +179,7 @@ func parseCaddyListenerPorts(serverName string, sourceName string, listen []stri
 				Summary: "Caddy listener does not use TCP and cannot be mapped into Surveyor remote scope.",
 				Evidence: []string{
 					"adapter=caddy",
+					"source_format=" + string(format),
 					"source_name=" + sourceName,
 					"source_object=server " + serverName,
 					"listener=" + listener,
@@ -174,6 +194,7 @@ func parseCaddyListenerPorts(serverName string, sourceName string, listen []stri
 				Summary: "Caddy listener does not declare a concrete port and cannot be mapped into Surveyor remote scope.",
 				Evidence: []string{
 					"adapter=caddy",
+					"source_format=" + string(format),
 					"source_name=" + sourceName,
 					"source_object=server " + serverName,
 					"listener=" + listener,
@@ -189,6 +210,7 @@ func parseCaddyListenerPorts(serverName string, sourceName string, listen []stri
 				Summary: "Caddy listener uses a port form that Surveyor cannot map cleanly.",
 				Evidence: []string{
 					"adapter=caddy",
+					"source_format=" + string(format),
 					"source_name=" + sourceName,
 					"source_object=server " + serverName,
 					"listener=" + listener,
@@ -208,6 +230,190 @@ func parseCaddyListenerPorts(serverName string, sourceName string, listen []stri
 
 	sort.Ints(ports)
 	return ports, warnings
+}
+
+func adaptCaddyfileToJSON(data []byte, sourceName string, options AdapterOptions) ([]byte, []core.InventoryAdapterWarning, error) {
+	binary, err := resolveCaddyBinary(options)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	args := []string{"adapt", "--adapter", "caddyfile", "--config"}
+	useFilePath := caddyfilePathExists(sourceName)
+	if useFilePath {
+		args = append(args, sourceName)
+	} else {
+		args = append(args, "-")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), caddyAdaptTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, binary, args...)
+	if !useFilePath {
+		cmd.Stdin = bytes.NewReader(data)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	warnings := translateCaddyAdaptationWarnings(sourceName, stderr.String())
+	if ctx.Err() == context.DeadlineExceeded {
+		return nil, warnings, fmt.Errorf("caddy adapter timed out while adapting Caddyfile after %s", caddyAdaptTimeout)
+	}
+	if err != nil {
+		message := strings.TrimSpace(stderr.String())
+		if message != "" {
+			return nil, warnings, fmt.Errorf("adapt Caddyfile inventory: %s", message)
+		}
+		return nil, warnings, fmt.Errorf("adapt Caddyfile inventory: %w", err)
+	}
+
+	return stdout.Bytes(), warnings, nil
+}
+
+func resolveCaddyBinary(options AdapterOptions) (string, error) {
+	override := strings.TrimSpace(options.ExecutablePath)
+	if override != "" {
+		path, err := exec.LookPath(override)
+		if err != nil {
+			return "", fmt.Errorf("caddy adapter could not resolve --adapter-bin %q: %w", override, err)
+		}
+		return path, nil
+	}
+
+	envOverride := strings.TrimSpace(os.Getenv("SURVEYOR_CADDY_BIN"))
+	if envOverride != "" {
+		path, err := exec.LookPath(envOverride)
+		if err != nil {
+			return "", fmt.Errorf("caddy adapter could not resolve SURVEYOR_CADDY_BIN %q: %w", envOverride, err)
+		}
+		return path, nil
+	}
+
+	path, err := exec.LookPath("caddy")
+	if err == nil {
+		return path, nil
+	}
+
+	if path, ok := detectCommonCaddyBinary(); ok {
+		return path, nil
+	}
+
+	return "", fmt.Errorf("caddy adapter could not find the Caddy executable, checked --adapter-bin, SURVEYOR_CADDY_BIN, PATH and common install locations")
+}
+
+func caddyfilePathExists(sourceName string) bool {
+	sourceName = strings.TrimSpace(sourceName)
+	if sourceName == "" {
+		return false
+	}
+
+	info, err := os.Stat(sourceName)
+	return err == nil && !info.IsDir()
+}
+
+func translateCaddyAdaptationWarnings(sourceName string, stderrText string) []core.InventoryAdapterWarning {
+	lines := splitNonEmptyLines(stderrText)
+	if len(lines) == 0 {
+		return nil
+	}
+
+	translated := make([]core.InventoryAdapterWarning, 0, len(lines))
+	for _, line := range lines {
+		evidence := []string{
+			"adapter=caddy",
+			"source_format=caddyfile",
+		}
+		if strings.TrimSpace(sourceName) != "" {
+			evidence = append(evidence, "source_name="+sourceName)
+		}
+
+		translated = append(translated, core.InventoryAdapterWarning{
+			Code:     "caddyfile-adaptation-warning",
+			Summary:  line,
+			Evidence: evidence,
+		})
+	}
+
+	return translated
+}
+
+func splitNonEmptyLines(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	lines := strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n")
+	trimmed := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		trimmed = append(trimmed, line)
+	}
+
+	if len(trimmed) == 0 {
+		return nil
+	}
+
+	return trimmed
+}
+
+func detectCommonCaddyBinary() (string, bool) {
+	for _, candidate := range commonCaddyBinaryCandidates() {
+		if candidate == "" {
+			continue
+		}
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() {
+			return candidate, true
+		}
+	}
+
+	return "", false
+}
+
+func commonCaddyBinaryCandidates() []string {
+	if runtime.GOOS == "windows" {
+		return existingCaddyCandidates([]string{
+			filepath.Join(os.Getenv("ProgramFiles"), "Caddy", "caddy.exe"),
+			filepath.Join(os.Getenv("ProgramFiles"), "caddy", "caddy.exe"),
+			filepath.Join(os.Getenv("ProgramData"), "chocolatey", "bin", "caddy.exe"),
+			filepath.Join(os.Getenv("ChocolateyInstall"), "bin", "caddy.exe"),
+			filepath.Join(os.Getenv("USERPROFILE"), "scoop", "shims", "caddy.exe"),
+		})
+	}
+
+	return existingCaddyCandidates([]string{
+		"/usr/bin/caddy",
+		"/usr/local/bin/caddy",
+		"/opt/homebrew/bin/caddy",
+		"/home/linuxbrew/.linuxbrew/bin/caddy",
+		"/snap/bin/caddy",
+	})
+}
+
+func existingCaddyCandidates(candidates []string) []string {
+	filtered := make([]string, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		filtered = append(filtered, candidate)
+	}
+
+	return filtered
 }
 
 func splitCaddyNetworkAddress(raw string) (string, string, string) {
@@ -264,7 +470,7 @@ func parseCaddyPortRange(raw string) (int, int, bool) {
 	return start, end, true
 }
 
-func extractCaddyRouteHosts(serverName string, sourceName string, route caddyRoute, recordPath string) ([]string, []core.InventoryAdapterWarning) {
+func extractCaddyRouteHosts(serverName string, format core.InventorySourceFormat, sourceName string, route caddyRoute, recordPath string) ([]string, []core.InventoryAdapterWarning) {
 	seen := map[string]struct{}{}
 	hosts := make([]string, 0)
 	warnings := make([]core.InventoryAdapterWarning, 0)
@@ -282,6 +488,7 @@ func extractCaddyRouteHosts(serverName string, sourceName string, route caddyRou
 					Summary: "Caddy route contains a wildcard or placeholder host that Surveyor cannot map to a concrete remote target.",
 					Evidence: []string{
 						"adapter=caddy",
+						"source_format=" + string(format),
 						"source_name=" + sourceName,
 						"source_object=" + sourceObject,
 						"host=" + hostText,
@@ -326,10 +533,10 @@ func resolveCaddyHosts(inherited []string, explicit []string) []string {
 	return resolved
 }
 
-func caddyProvenance(sourceName string, sourceRecord string, sourceObject string) core.InventoryProvenance {
+func caddyProvenance(sourceName string, sourceRecord string, sourceObject string, format core.InventorySourceFormat) core.InventoryProvenance {
 	return core.InventoryProvenance{
 		SourceKind:   core.InventorySourceKindInventoryFile,
-		SourceFormat: core.InventorySourceFormatJSON,
+		SourceFormat: format,
 		SourceName:   sourceName,
 		SourceRecord: sourceRecord,
 		Adapter:      core.InventoryAdapterCaddy,
@@ -345,12 +552,4 @@ func caddySourceObject(serverName string, route caddyRoute, sourceRecord string)
 	prefix := "apps.http.servers." + serverName + "."
 	label := strings.TrimPrefix(sourceRecord, prefix)
 	return fmt.Sprintf("server %s %s", serverName, label)
-}
-
-func caddySourceDisplayName(sourceName string) string {
-	base := filepath.Base(sourceName)
-	if strings.TrimSpace(base) != "" {
-		return base
-	}
-	return sourceName
 }

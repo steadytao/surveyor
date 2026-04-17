@@ -472,11 +472,13 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	cidr := fs.String("cidr", "", "CIDR scope to discover, for example 10.0.0.0/24")
 	var targetsFile *string
 	var inventoryFile *string
+	var adapterBinary *string
 	if opts.allowTargetsFile {
 		targetsFile = fs.String("targets-file", "", "Path to a newline-delimited host or IP scope file")
 	}
 	if opts.allowInventoryFile {
 		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
+		adapterBinary = fs.String("adapter-bin", "", "Path to an external adapter executable when the selected adapter needs one")
 	}
 	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
 	adapter := fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
@@ -514,6 +516,10 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	if inventoryFile != nil {
 		inventoryFileValue = *inventoryFile
 	}
+	adapterBinaryValue := ""
+	if adapterBinary != nil {
+		adapterBinaryValue = *adapterBinary
+	}
 	if !opts.allowTargetsFile && strings.TrimSpace(*cidr) == "" {
 		fmt.Fprintln(stderr, "--cidr is required")
 		return 2
@@ -524,6 +530,7 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 		TargetsFile:    targetsFileValue,
 		InventoryFile:  inventoryFileValue,
 		Adapter:        *adapter,
+		AdapterBinary:  adapterBinaryValue,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
@@ -678,11 +685,13 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 	cidr := fs.String("cidr", "", "CIDR scope to audit, for example 10.0.0.0/24")
 	var targetsFile *string
 	var inventoryFile *string
+	var adapterBinary *string
 	if opts.allowTargetsFile {
 		targetsFile = fs.String("targets-file", "", "Path to a newline-delimited host or IP scope file")
 	}
 	if opts.allowInventoryFile {
 		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
+		adapterBinary = fs.String("adapter-bin", "", "Path to an external adapter executable when the selected adapter needs one")
 	}
 	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
 	adapter := fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
@@ -720,6 +729,10 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 	if inventoryFile != nil {
 		inventoryFileValue = *inventoryFile
 	}
+	adapterBinaryValue := ""
+	if adapterBinary != nil {
+		adapterBinaryValue = *adapterBinary
+	}
 	if !opts.allowTargetsFile && strings.TrimSpace(*cidr) == "" {
 		fmt.Fprintln(stderr, "--cidr is required")
 		return 2
@@ -730,6 +743,7 @@ func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, no
 		TargetsFile:    targetsFileValue,
 		InventoryFile:  inventoryFileValue,
 		Adapter:        *adapter,
+		AdapterBinary:  adapterBinaryValue,
 		Ports:          *ports,
 		Profile:        *profile,
 		MaxHosts:       *maxHosts,
@@ -1328,24 +1342,27 @@ func printAuditLocalUsage(w io.Writer) {
 
 func printAuditRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--ports 443,8443] [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
+	fmt.Fprintln(w, "  surveyor audit remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--adapter-bin PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o audit.md] [-j audit.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Canonical remote audit command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
 	fmt.Fprintln(w, "  Exactly one of --cidr, --targets-file or --inventory-file is required.")
+	fmt.Fprintln(w, "  Caddyfile input auto-selects the caddy adapter when the file name is unambiguous.")
 	fmt.Fprintln(w, "  This command only hands selected TLS candidates into the existing TLS scanner.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor audit remote --cidr 10.0.0.0/24 --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor audit remote --targets-file approved-hosts.txt --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor audit remote --inventory-file inventory.yaml")
-	fmt.Fprintln(w, "  surveyor audit remote --inventory-file caddy.json --adapter caddy")
+	fmt.Fprintln(w, "  surveyor audit remote --inventory-file Caddyfile")
+	fmt.Fprintln(w, "  surveyor audit remote --inventory-file Caddyfile --adapter-bin /path/to/caddy")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to audit, for example 10.0.0.0/24")
 	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file; blank lines and # comments are ignored")
-	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file (.yaml, .yml, .json or .csv)")
+	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file or adapter-supported source file such as Caddyfile")
 	fmt.Fprintln(w, "  --adapter           Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
+	fmt.Fprintln(w, "  --adapter-bin       Path to an external adapter executable when the selected adapter needs one")
 	fmt.Fprintln(w, "  --ports             Explicit remote ports, required for --cidr and --targets-file; overrides inventory entry ports when set")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
@@ -1400,24 +1417,28 @@ func printDiscoverLocalUsage(w io.Writer) {
 
 func printDiscoverRemoteUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--ports 443,8443] [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
+	fmt.Fprintln(w, "  surveyor discover remote [--cidr CIDR | --targets-file PATH | --inventory-file PATH] [--adapter NAME] [--adapter-bin PATH] [--ports 443,8443] [--profile cautious] [--dry-run] [-o discovery.md] [-j discovery.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Canonical remote discovery command. It executes against CIDR-backed scope, simple file-backed host scope and structured inventory manifests.")
 	fmt.Fprintln(w, "  Exactly one of --cidr, --targets-file or --inventory-file is required.")
+	fmt.Fprintln(w, "  Caddyfile input auto-selects the caddy adapter when the file name is unambiguous.")
 	fmt.Fprintln(w, "  This command records observed reachability facts and conservative hints only; it does not run verified scanners.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor discover remote --cidr 10.0.0.0/24 --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor discover remote --targets-file approved-hosts.txt --ports 443,8443")
 	fmt.Fprintln(w, "  surveyor discover remote --inventory-file inventory.yaml")
+	fmt.Fprintln(w, "  surveyor discover remote --inventory-file Caddyfile")
+	fmt.Fprintln(w, "  surveyor discover remote --inventory-file Caddyfile --adapter-bin /path/to/caddy")
 	fmt.Fprintln(w, "  surveyor discover remote --inventory-file ingress.yaml --adapter kubernetes-ingress-v1")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --cidr              CIDR scope to discover, for example 10.0.0.0/24")
 	fmt.Fprintln(w, "  --targets-file      Path to a newline-delimited host or IP scope file; blank lines and # comments are ignored")
-	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file (.yaml, .yml, .json or .csv)")
+	fmt.Fprintln(w, "  --inventory-file    Path to a structured imported inventory file or adapter-supported source file such as Caddyfile")
 	fmt.Fprintln(w, "  --adapter           Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
+	fmt.Fprintln(w, "  --adapter-bin       Path to an external adapter executable when the selected adapter needs one")
 	fmt.Fprintln(w, "  --ports             Explicit remote ports, required for --cidr and --targets-file; overrides inventory entry ports when set")
 	fmt.Fprintln(w, "  --profile           Remote pace profile: cautious, balanced or aggressive")
 	fmt.Fprintln(w, "  --dry-run           Print an execution plan without performing network I/O")
