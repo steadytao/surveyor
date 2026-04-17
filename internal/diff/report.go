@@ -55,15 +55,18 @@ type Change struct {
 // reports.
 type Report struct {
 	core.ReportMetadata
-	GeneratedAt              time.Time         `json:"generated_at"`
-	BaselineReportKind       core.ReportKind   `json:"baseline_report_kind"`
-	CurrentReportKind        core.ReportKind   `json:"current_report_kind"`
-	BaselineGeneratedAt      time.Time         `json:"baseline_generated_at"`
-	CurrentGeneratedAt       time.Time         `json:"current_generated_at"`
-	BaselineScopeDescription string            `json:"baseline_scope_description,omitempty"`
-	CurrentScopeDescription  string            `json:"current_scope_description,omitempty"`
-	BaselineScope            *core.ReportScope `json:"baseline_scope,omitempty"`
-	CurrentScope             *core.ReportScope `json:"current_scope,omitempty"`
-	Summary                  Summary           `json:"summary"`
-	Changes                  []Change          `json:"changes"`
+	GeneratedAt              time.Time              `json:"generated_at"`
+	BaselineReportKind       core.ReportKind        `json:"baseline_report_kind"`
+	CurrentReportKind        core.ReportKind        `json:"current_report_kind"`
+	BaselineGeneratedAt      time.Time              `json:"baseline_generated_at"`
+	CurrentGeneratedAt       time.Time              `json:"current_generated_at"`
+	BaselineScopeDescription string                 `json:"baseline_scope_description,omitempty"`
+	CurrentScopeDescription  string                 `json:"current_scope_description,omitempty"`
+	BaselineScope            *core.ReportScope      `json:"baseline_scope,omitempty"`
+	CurrentScope             *core.ReportScope      `json:"current_scope,omitempty"`
+	WorkflowView             *core.WorkflowContext  `json:"workflow_view,omitempty"`
+	Summary                  Summary                `json:"summary"`
+	GroupedSummaries         []core.GroupedSummary  `json:"grouped_summaries,omitempty"`
+	WorkflowFindings         []core.WorkflowFinding `json:"workflow_findings,omitempty"`
+	Changes                  []Change               `json:"changes"`
 }

@@ -98,3 +98,92 @@ func cloneInventoryProvenance(provenance []InventoryProvenance) []InventoryProve
 	cloned = append(cloned, provenance...)
 	return cloned
 }
+
+// CloneWorkflowContext returns a deep copy of one workflow context.
+func CloneWorkflowContext(context *WorkflowContext) *WorkflowContext {
+	if context == nil {
+		return nil
+	}
+
+	cloned := *context
+	cloned.Filters = cloneWorkflowFilters(context.Filters)
+	return &cloned
+}
+
+// CloneGroupedSummaries returns a deep copy of grouped-summary data.
+func CloneGroupedSummaries(summaries []GroupedSummary) []GroupedSummary {
+	if len(summaries) == 0 {
+		return nil
+	}
+
+	cloned := make([]GroupedSummary, 0, len(summaries))
+	for _, summary := range summaries {
+		summaryClone := summary
+		summaryClone.Groups = cloneGroupedSummaryGroups(summary.Groups)
+		cloned = append(cloned, summaryClone)
+	}
+
+	return cloned
+}
+
+// CloneWorkflowFindings returns a deep copy of workflow findings.
+func CloneWorkflowFindings(findings []WorkflowFinding) []WorkflowFinding {
+	if len(findings) == 0 {
+		return nil
+	}
+
+	cloned := make([]WorkflowFinding, 0, len(findings))
+	for _, finding := range findings {
+		findingClone := finding
+		findingClone.Evidence = append([]string(nil), finding.Evidence...)
+		cloned = append(cloned, findingClone)
+	}
+
+	return cloned
+}
+
+func cloneWorkflowFilters(filters []WorkflowFilter) []WorkflowFilter {
+	if len(filters) == 0 {
+		return nil
+	}
+
+	cloned := make([]WorkflowFilter, 0, len(filters))
+	for _, filter := range filters {
+		filterClone := filter
+		filterClone.Values = append([]string(nil), filter.Values...)
+		cloned = append(cloned, filterClone)
+	}
+
+	return cloned
+}
+
+func cloneGroupedSummaryGroups(groups []GroupedSummaryGroup) []GroupedSummaryGroup {
+	if len(groups) == 0 {
+		return nil
+	}
+
+	cloned := make([]GroupedSummaryGroup, 0, len(groups))
+	for _, group := range groups {
+		groupClone := group
+		groupClone.SeverityBreakdown = cloneStringIntMap(group.SeverityBreakdown)
+		groupClone.CodeBreakdown = cloneStringIntMap(group.CodeBreakdown)
+		groupClone.DirectionBreakdown = cloneStringIntMap(group.DirectionBreakdown)
+		groupClone.ChangeBreakdown = cloneStringIntMap(group.ChangeBreakdown)
+		cloned = append(cloned, groupClone)
+	}
+
+	return cloned
+}
+
+func cloneStringIntMap(values map[string]int) map[string]int {
+	if len(values) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]int, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+
+	return cloned
+}

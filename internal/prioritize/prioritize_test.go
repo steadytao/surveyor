@@ -1,7 +1,9 @@
 package prioritize
 
 import (
+	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -346,5 +348,81 @@ func TestBuildAuditReportIsDeterministic(t *testing.T) {
 	}
 	if got, want := first.Items[1].TargetIdentity, "local|127.0.0.1|9443|tcp"; got != want {
 		t.Fatalf("first.Items[1].TargetIdentity = %q, want %q", got, want)
+	}
+}
+
+func TestReportJSONIncludesWorkflowSections(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		ReportMetadata:    core.NewReportMetadata(core.ReportKindPrioritization, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:       time.Date(2026, time.April, 24, 3, 0, 0, 0, time.UTC),
+		Profile:           ProfileMigrationReadiness,
+		SourceReportKind:  core.ReportKindAudit,
+		SourceGeneratedAt: time.Date(2026, time.April, 24, 2, 30, 0, 0, time.UTC),
+		WorkflowView: &core.WorkflowContext{
+			GroupBy: core.WorkflowGroupByEnvironment,
+			Filters: []core.WorkflowFilter{
+				{
+					Field:  core.WorkflowFilterFieldOwner,
+					Values: []string{"payments"},
+				},
+			},
+		},
+		Summary: Summary{
+			TotalItems: 1,
+		},
+		GroupedSummaries: []core.GroupedSummary{
+			{
+				GroupBy: core.WorkflowGroupByEnvironment,
+				Groups: []core.GroupedSummaryGroup{
+					{
+						Key:        "prod",
+						TotalItems: 1,
+						SeverityBreakdown: map[string]int{
+							"high": 1,
+						},
+						CodeBreakdown: map[string]int{
+							"classical-certificate-identity": 1,
+						},
+					},
+				},
+			},
+		},
+		WorkflowFindings: []core.WorkflowFinding{
+			{
+				Severity:       core.SeverityMedium,
+				Code:           "missing-environment",
+				Summary:        "The imported endpoint is missing environment metadata.",
+				TargetIdentity: "remote|api.example.com|443|tcp",
+			},
+		},
+		Items: []Item{
+			{
+				Rank:           1,
+				Severity:       core.SeverityHigh,
+				Code:           "classical-certificate-identity",
+				Summary:        "The observed certificate identity remains classical.",
+				TargetIdentity: "remote|api.example.com|443|tcp",
+			},
+		},
+	}
+
+	data, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	jsonText := string(data)
+	wantSubstrings := []string{
+		`"workflow_view":{"group_by":"environment","filters":[{"field":"owner","values":["payments"]}]}`,
+		`"grouped_summaries":[{"group_by":"environment","groups":[{"key":"prod","total_items":1`,
+		`"workflow_findings":[{"severity":"medium","code":"missing-environment","summary":"The imported endpoint is missing environment metadata.","target_identity":"remote|api.example.com|443|tcp"}]`,
+	}
+
+	for _, substring := range wantSubstrings {
+		if !strings.Contains(jsonText, substring) {
+			t.Fatalf("json output missing substring %q\nfull output: %s", substring, jsonText)
+		}
 	}
 }
