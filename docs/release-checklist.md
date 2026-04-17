@@ -29,6 +29,7 @@ Before a release, confirm that Surveyor can:
 - produce Markdown derived from the same canonical report model
 - compare compatible saved TLS and audit reports deterministically
 - rank current TLS and audit reports with the current prioritisation profiles
+- apply workflow grouping and filtering to inventory-backed audit diff and prioritisation views
 
 ## Documentation
 
@@ -44,10 +45,11 @@ Before a release, confirm that:
 - `docs/baselines.md` matches the implemented baseline layer
 - `docs/diffing.md` matches the implemented diff surface
 - `docs/prioritisation.md` matches the implemented prioritisation surface
+- `docs/policy-workflows.md` matches the implemented workflow surface
 - `docs/classification.md` matches the implemented rule set
 - `docs/references.md` exists and is still the right reference set
 - `docs/safety.md` still matches the tool's actual behaviour
-- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-remote.json`, `examples/discovery-remote.md`, `examples/discovery-inventory.json`, `examples/discovery-inventory.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-remote.json`, `examples/audit-remote.md`, `examples/audit-inventory.json`, `examples/audit-inventory.md`, `examples/audit-subnet.json`, `examples/audit-subnet.md`, `examples/diff.json`, `examples/diff.md`, `examples/priorities.json`, `examples/priorities.md`, `examples/approved-hosts.txt` and `examples/inventory.yaml` reflect the current implementation
+- `examples/targets.yaml`, `examples/report.json`, `examples/report.md`, `examples/discovery.json`, `examples/discovery.md`, `examples/discovery-remote.json`, `examples/discovery-remote.md`, `examples/discovery-inventory.json`, `examples/discovery-inventory.md`, `examples/discovery-subnet.json`, `examples/discovery-subnet.md`, `examples/audit.json`, `examples/audit.md`, `examples/audit-remote.json`, `examples/audit-remote.md`, `examples/audit-inventory.json`, `examples/audit-inventory.md`, `examples/audit-subnet.json`, `examples/audit-subnet.md`, `examples/diff.json`, `examples/diff.md`, `examples/diff-workflow.json`, `examples/diff-workflow.md`, `examples/priorities.json`, `examples/priorities.md`, `examples/priorities-workflow.json`, `examples/priorities-workflow.md`, `examples/approved-hosts.txt` and `examples/inventory.yaml` reflect the current implementation
 
 ## Verification
 

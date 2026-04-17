@@ -24,15 +24,23 @@ Canonical command:
 surveyor diff baseline.json current.json -o diff.md -j diff.json
 ```
 
-The first version keeps the interface narrow:
+Workflow view examples:
+
+```bash
+surveyor diff baseline.json current.json --group-by owner -o diff.md -j diff.json
+surveyor diff baseline.json current.json --group-by environment --include-environment prod -o diff.md -j diff.json
+```
+
+The interface stays narrow:
 
 - two input files
 - one canonical JSON output
 - one derived Markdown output
+- restrained workflow controls for inventory-backed audit comparisons only
 
 ## Supported comparisons
 
-The first version supports:
+The current version supports:
 
 - TLS report to TLS report
 - audit report to audit report
@@ -60,6 +68,14 @@ The diff report includes a top-level summary with:
 
 That summary should be derived from stable identity matching, not from presentation-only fields.
 
+For inventory-backed audit comparisons, the current diff layer can also derive grouped summaries over the same technical change set:
+
+- changes by owner
+- changes by environment
+- changes by source
+
+Those grouped summaries do not replace the main technical summary. They layer on top of it.
+
 ## Change categories
 
 Current change categories:
@@ -79,7 +95,7 @@ Current change categories:
 - `warnings_changed`
 - `errors_changed`
 
-The first version prefers a smaller correct change vocabulary over an impressive but unstable one.
+The current version prefers a smaller correct change vocabulary over an impressive but unstable one.
 
 ## Change direction
 
@@ -90,9 +106,9 @@ Each change is tagged as one of:
 - `changed`
 - `informational`
 
-That direction model is what later prioritisation should consume.
+That direction model is what prioritisation consumes.
 
-It should stay conservative:
+It stays conservative:
 
 - use `worsened` or `improved` only when the direction is defensible
 - otherwise fall back to `changed` or `informational`
@@ -109,10 +125,23 @@ Current top-level fields:
 - `current_report_kind`
 - `baseline_generated_at`
 - `current_generated_at`
+- `baseline_scope_description`
+- `current_scope_description`
+- `baseline_scope`
+- `current_scope`
+- `workflow_view`
 - `summary`
+- `grouped_summaries`
+- `workflow_findings`
 - `changes`
 
-Each change entry should contain:
+Current population rules:
+
+- `workflow_view` is present when workflow grouping or filtering was requested
+- `grouped_summaries` are currently emitted for inventory-backed audit comparisons when usable metadata exists
+- `workflow_findings` is part of the canonical diff report shape but is not currently emitted by the diff engine
+
+Each change entry contains:
 
 - stable identity key
 - change code
@@ -136,9 +165,25 @@ They should name why comparison is rejected, for example:
 
 Do not degrade silently into partial or fuzzy comparison.
 
+## Workflow controls
+
+Current workflow controls:
+
+- `--group-by owner|environment|source`
+- repeated `--include-owner`
+- repeated `--include-environment`
+- repeated `--include-tag`
+
+Important boundary:
+
+- workflow controls apply only to inventory-backed audit comparisons
+- TLS comparisons reject workflow controls clearly
+- grouped summaries remain derived from the existing technical changes
+- diffing still does not become a policy engine
+
 ## Non-goals
 
-The first diffing release does not include:
+The current diff layer still does not include:
 
 - arbitrary cross-kind comparison
 - fuzzy entity matching
@@ -148,21 +193,4 @@ The first diffing release does not include:
 
 Diffing should explain change, not pretend to decide everything about it.
 
-## Next planned layer
-
-The next planned analysis milestone is `v0.8.0 - Policy Refinement and Organisational Workflows`.
-
-That work should add grouped diff summaries over the existing technical change model, for example:
-
-- changes by owner
-- changes by environment
-- changes by inventory source
-- highest-risk regressions by group
-
-Important boundary:
-
-- the underlying entity-level diff model should remain technical and deterministic
-- grouped summaries should layer on top of existing changes
-- diffing should still not become a policy engine
-
-See [policy-workflows.md](policy-workflows.md) for the planned contract.
+See [policy-workflows.md](policy-workflows.md) for the current workflow contract.

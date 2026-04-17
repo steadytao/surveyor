@@ -42,9 +42,16 @@ surveyor prioritise current.json --profile migration-readiness -o priorities.md 
 surveyor prioritise current.json --profile change-risk -o priorities.md -j priorities.json
 ```
 
-The first version supports current TLS and audit reports.
+Workflow view examples:
 
-Diff-report input can come later if it stays clean, but it should not be required to ship `v0.6.0`.
+```bash
+surveyor prioritize current.json --group-by owner -o priorities.md -j priorities.json
+surveyor prioritize current.json --group-by environment --include-environment prod -o priorities.md -j priorities.json
+```
+
+The current version supports current TLS and audit reports.
+
+Diff-report input remains deferred. The current contract does not require it.
 
 ## Prioritisation profiles
 
@@ -70,6 +77,12 @@ Bias towards:
 - new warnings and errors
 
 These profiles should shape ranking, not redefine the underlying report facts.
+
+For inventory-backed audit reports, the current engine also uses imported metadata conservatively:
+
+- production environment raises priority
+- `external` and `critical` tags raise priority
+- reasons can cite owner, environment and tags when present
 
 ## Current ranking sources
 
@@ -107,6 +120,8 @@ Current behaviour:
 - rank degraded posture
 - surface skipped or incomplete audit coverage
 - surface manual review items
+- emit workflow findings for weak imported inventory metadata on audit input
+- emit grouped summaries when `--group-by` is requested on inventory-backed audit input
 
 It should not:
 
@@ -128,28 +143,27 @@ The first prioritisation release does not include:
 
 This milestone is about making Surveyor outputs more operationally useful, not about building a governance platform.
 
-## Next planned layer
+## Workflow controls and findings
 
-The next planned analysis milestone is `v0.8.0 - Policy Refinement and Organisational Workflows`.
+Current workflow controls:
 
-That work should make the current profiles more useful by considering:
+- `--group-by owner|environment|source`
+- repeated `--include-owner`
+- repeated `--include-environment`
+- repeated `--include-tag`
 
-- owner
-- environment
-- tags
-- provenance/source
-- scope metadata
+Current workflow finding codes for inventory-backed audit input:
 
-It should also add:
-
-- grouped summaries for teams
-- metadata-quality workflow findings
-- restrained filtering and grouping controls
+- `missing-owner`
+- `missing-environment`
+- `weak-provenance`
+- `inventory-ports-overridden`
 
 Important boundary:
 
-- the prioritisation layer should become more metadata-aware
-- it should not become policy-as-code
-- it should not require a dashboard or database
+- workflow controls apply only to inventory-backed audit input
+- TLS input rejects workflow controls clearly
+- prioritisation remains a lightweight decision-support layer
+- it still does not become policy-as-code or require a dashboard or database
 
-See [policy-workflows.md](policy-workflows.md) for the planned contract.
+See [policy-workflows.md](policy-workflows.md) for the current workflow contract.

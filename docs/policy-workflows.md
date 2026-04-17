@@ -1,17 +1,14 @@
 # Policy Refinement and Organisational Workflows
 
-This document defines the planned `v0.8.0` contract.
-
-It does not describe current shipped behaviour.
+This document defines the current `v0.8.0` workflow contract.
 
 The current repository already carries richer organisational metadata through
-structured inventory, diffing and prioritisation. The next step should be to
-use that metadata more deliberately without turning Surveyor into a governance
-platform.
+structured inventory, diffing and prioritisation, and now uses that metadata
+more deliberately without turning Surveyor into a governance platform.
 
 ## Goal
 
-`v0.8.0` should make Surveyor outputs more useful for teams.
+`v0.8.0` makes Surveyor outputs more useful for teams.
 
 It should help answer:
 
@@ -21,20 +18,20 @@ It should help answer:
 - which inventory inputs are incomplete or weak
 - which items deserve operational follow-up rather than only technical note
 
-## Why this next
+## Why this layer
 
-This is the right next layer after:
+This workflow layer sits above:
 
 - saved-report diffing
 - current-report prioritisation
 - structured imported inventory with owner, environment, tags, notes and provenance
 
 `v0.7.0` solved how richer inventory data gets in.
-`v0.8.0` should solve how teams act on that data.
+`v0.8.0` solves how teams act on that data.
 
-## Planned scope
+## Current behaviour
 
-`v0.8.0` should add:
+`v0.8.0` adds:
 
 - metadata-aware prioritisation profiles
 - grouped summaries for diff and prioritisation output
@@ -49,11 +46,11 @@ Examples of useful behaviour:
 - surface imported assets with missing owner or environment
 - summarise changes by owner, environment or source inventory
 
-## Planned command surface
+## Current command surface
 
 Current commands should stay.
 
-Recommended additions:
+Current workflow controls:
 
 ```bash
 surveyor prioritize current.json --group-by owner
@@ -70,35 +67,32 @@ The CLI should stay narrow:
 
 ## Metadata-aware prioritisation
 
-The current prioritisation profiles should remain:
+The current prioritisation profiles remain:
 
 - `migration-readiness`
 - `change-risk`
 
-But they should become more useful by considering:
+They now become more useful by considering:
 
 - owner
 - environment
 - tags
-- provenance/source
-- scope metadata
+- provenance and source context where relevant
 
-That should improve ranking and reason text, not replace the underlying
+This improves ranking and reason text, not the underlying
 technical evidence.
 
 ## Grouped summaries
 
-The next layer should add grouped summaries without changing the underlying
-canonical technical models.
+Grouped summaries now sit above the underlying canonical technical models.
 
 Examples:
 
-- findings by owner
-- findings by environment
+- prioritised items by owner
+- prioritised items by environment
 - changes by owner
 - changes by environment
 - changes by source inventory file
-- highest-priority items by group
 
 The grouped view should be derived from the same canonical JSON, not from a
 second reporting path.
@@ -115,9 +109,13 @@ Examples:
 - conflicting imported metadata
 - weak or unclear provenance
 - inventory ports overridden by run-level ports
-- manual review required because source context is incomplete
 
 These are workflow findings, not deep scanner findings.
+
+Current population boundary:
+
+- workflow findings are currently emitted by prioritisation for inventory-backed audit input
+- diff reports carry the optional field in the canonical shape, but the current diff engine does not yet emit diff-side workflow findings
 
 ## Important boundaries
 
@@ -140,9 +138,8 @@ already present.
 
 ## Relationship to later work
 
-The cleaner sequence after `v0.7.0` is:
+The cleaner sequence after `v0.8.0` is:
 
-- `v0.8.0` — policy refinement and organisational workflows
 - `v0.9.0` — platform-specific import adapters
 - `v1.0.0` — first stable narrow Surveyor contract
 

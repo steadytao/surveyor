@@ -764,7 +764,10 @@ Current top-level diff report shape:
   "current_scope_description": "remote audit within CIDR 10.0.1.0/30 over ports 443",
   "baseline_scope": {},
   "current_scope": {},
+  "workflow_view": {},
   "summary": {},
+  "grouped_summaries": [],
+  "workflow_findings": [],
   "changes": []
 }
 ```
@@ -779,8 +782,17 @@ Fields:
 - `current_scope_description`: current scope summary, when present
 - `baseline_scope`: structured baseline scope metadata, when present
 - `current_scope`: structured current scope metadata, when present
+- `workflow_view`: applied workflow grouping and filtering view, when requested
 - `summary`: diff summary object
+- `grouped_summaries`: grouped aggregate sections derived from `changes`, when emitted
+- `workflow_findings`: workflow-oriented findings derived from report context when emitted
 - `changes`: array of diff changes
+
+Current emission notes:
+
+- `workflow_view` is present when workflow controls were applied
+- `grouped_summaries` are currently emitted for inventory-backed audit comparisons when usable metadata exists
+- `workflow_findings` is part of the canonical diff report shape but is not currently emitted by the diff engine
 
 Current diff summary shape:
 
@@ -858,7 +870,10 @@ Current top-level prioritization report shape:
   "source_report_kind": "audit",
   "source_generated_at": "2026-04-20T01:30:00Z",
   "scope": {},
+  "workflow_view": {},
   "summary": {},
+  "grouped_summaries": [],
+  "workflow_findings": [],
   "items": []
 }
 ```
@@ -869,8 +884,17 @@ Fields:
 - `source_report_kind`: semantic kind of the current input report
 - `source_generated_at`: generation time of the current input report
 - `scope`: copied structured scope metadata when the source report carried it
+- `workflow_view`: applied workflow grouping and filtering view, when requested
 - `summary`: prioritization summary object
+- `grouped_summaries`: grouped aggregate sections derived from `items`, when emitted
+- `workflow_findings`: workflow-oriented findings derived from report context when emitted
 - `items`: ranked prioritization items
+
+Current emission notes:
+
+- `workflow_view` is present when workflow controls were applied
+- `grouped_summaries` are currently emitted when `--group-by` is requested on inventory-backed audit input
+- `workflow_findings` are currently emitted for inventory-backed audit input when imported metadata is weak or overridden
 
 Current prioritization summary shape:
 
@@ -918,4 +942,134 @@ Fields:
 - `target_identity`: stable identity key for the affected entity
 - `reason`: explicit explanation for why the item is ranked
 - `evidence`: supporting observed facts when relevant
+- `recommendation`: suggested next action when useful
+
+## Workflow view
+
+Current workflow-view shape:
+
+```json
+{
+  "group_by": "owner",
+  "filters": [
+    {
+      "field": "environment",
+      "values": ["prod"]
+    }
+  ]
+}
+```
+
+Fields:
+
+- `group_by`: requested grouping dimension, currently `owner`, `environment` or `source`
+- `filters`: applied workflow filters, currently emitted from the CLI for `owner`, `environment` and `tag`
+
+## Workflow filter
+
+Current workflow-filter shape:
+
+```json
+{
+  "field": "tag",
+  "values": ["external", "critical"]
+}
+```
+
+Fields:
+
+- `field`: filtered metadata field
+- `values`: one or more accepted values for that field
+
+## Grouped summary
+
+Current grouped-summary shape:
+
+```json
+{
+  "group_by": "owner",
+  "groups": [
+    {
+      "key": "payments",
+      "total_items": 2,
+      "severity_breakdown": {
+        "high": 1,
+        "medium": 1
+      },
+      "code_breakdown": {
+        "legacy-tls-version": 1
+      }
+    }
+  ]
+}
+```
+
+Fields:
+
+- `group_by`: grouping dimension used for the section
+- `groups`: grouped-summary-group entries for that dimension
+
+## Grouped summary group
+
+Current grouped-summary-group shape:
+
+```json
+{
+  "key": "payments",
+  "total_items": 2,
+  "severity_breakdown": {
+    "high": 1,
+    "medium": 1
+  },
+  "code_breakdown": {
+    "legacy-tls-version": 1
+  },
+  "direction_breakdown": {
+    "changed": 1
+  },
+  "change_breakdown": {
+    "selection_changed": 1
+  }
+}
+```
+
+Fields:
+
+- `key`: rendered group key, for example an owner, environment or source name
+- `total_items`: total items or changes counted in the group
+- `severity_breakdown`: counts keyed by severity when relevant
+- `code_breakdown`: counts keyed by prioritization code when relevant
+- `direction_breakdown`: counts keyed by diff change direction when relevant
+- `change_breakdown`: counts keyed by diff change code when relevant
+
+Prioritization grouped summaries currently populate `severity_breakdown` and `code_breakdown`.
+Diff grouped summaries currently populate `severity_breakdown`, `direction_breakdown` and `change_breakdown`.
+
+## Workflow finding
+
+Current workflow-finding shape:
+
+```json
+{
+  "severity": "low",
+  "code": "weak-provenance",
+  "summary": "The imported endpoint has no recorded source provenance.",
+  "target_identity": "remote|prod.example.com|443|tcp",
+  "reason": "Without provenance, later review and source reconciliation become weaker.",
+  "evidence": [
+    "host=prod.example.com",
+    "port=443"
+  ],
+  "recommendation": "Preserve source file and record metadata when importing inventory."
+}
+```
+
+Fields:
+
+- `severity`: workflow-finding severity
+- `code`: stable machine-readable workflow finding identifier
+- `summary`: short human-readable statement
+- `target_identity`: affected entity identity when relevant
+- `reason`: explicit explanation for the workflow concern
+- `evidence`: supporting facts for the workflow concern
 - `recommendation`: suggested next action when useful
