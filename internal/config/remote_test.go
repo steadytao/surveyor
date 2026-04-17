@@ -376,6 +376,68 @@ func TestParseRemoteScopeInventoryFileUsesRegisteredAdapter(t *testing.T) {
 	}
 }
 
+func TestParseRemoteScopeInventoryFileUsesCaddyAdapter(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "caddy.json")
+	if err := os.WriteFile(inventoryFile, []byte(`{
+  "apps": {
+    "http": {
+      "servers": {
+        "edge": {
+          "listen": [":443", ":80"],
+          "routes": [
+            {
+              "@id": "site-api",
+              "match": [
+                {
+                  "host": ["api.example.com"]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "reverse_proxy"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	scope, err := ParseRemoteScope(RemoteScopeInput{
+		InventoryFile: inventoryFile,
+		Adapter:       string(core.InventoryAdapterCaddy),
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	if got, want := scope.Adapter, core.InventoryAdapterCaddy; got != want {
+		t.Fatalf("scope.Adapter = %q, want %q", got, want)
+	}
+	if got, want := len(scope.Targets), 1; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+	if got, want := scope.Targets[0].Host, "api.example.com"; got != want {
+		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[0].Ports, []int{80, 443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
+	}
+	if scope.Targets[0].Inventory == nil {
+		t.Fatal("scope.Targets[0].Inventory = nil, want non-nil")
+	}
+	if got, want := scope.Targets[0].Inventory.Provenance[0].SourceObject, "server edge @id site-api"; got != want {
+		t.Fatalf("scope.Targets[0].Inventory.Provenance[0].SourceObject = %q, want %q", got, want)
+	}
+}
+
 func TestParseRemoteScopeProfileDefaults(t *testing.T) {
 	t.Parallel()
 
