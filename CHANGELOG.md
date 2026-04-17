@@ -4,6 +4,17 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.8.0
+
+### Added
+- inventory-backed audit prioritisation now uses organisational metadata such as owner, environment and tags to refine ranking reasons and ordering
+- `surveyor diff` and `surveyor prioritize` now support restrained workflow controls for inventory-backed audit views, including `--group-by`, `--include-owner`, `--include-environment` and `--include-tag`
+- canonical diff and prioritization reports now include workflow view metadata, grouped summaries and workflow-oriented output examples
+
+### Changed
+- README, architecture, schema, diffing, prioritisation, workflow and release-checklist docs now describe the shipped `v0.8.0` workflow surface rather than the earlier milestone plan
+- the public docs now make the current limits explicit, including the fact that workflow controls apply only to inventory-backed audit input or audit comparisons and that diff-side workflow findings are not yet emitted
+
 ## v0.7.0
 
 ### Added
