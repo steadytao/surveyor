@@ -32,6 +32,24 @@ type discoverer interface {
 	Enumerate(context.Context) ([]core.DiscoveredEndpoint, error)
 }
 
+type stringSliceFlag []string
+
+func (values *stringSliceFlag) String() string {
+	return strings.Join(*values, ",")
+}
+
+func (values *stringSliceFlag) Set(raw string) error {
+	for _, part := range strings.Split(raw, ",") {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		*values = append(*values, trimmed)
+	}
+
+	return nil
+}
+
 // Package-level factories keep the CLI entrypoint thin while still letting
 // tests replace the real runners and discoverers without wiring a bespoke
 // dependency graph through main.
@@ -109,6 +127,17 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer, now func() time.
 	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
 	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
 
+	groupBy := fs.String("group-by", "", "Group workflow output by owner, environment or source")
+
+	var includeOwners stringSliceFlag
+	fs.Var(&includeOwners, "include-owner", "Include only inventory-backed endpoints owned by this value; may be repeated")
+
+	var includeEnvironments stringSliceFlag
+	fs.Var(&includeEnvironments, "include-environment", "Include only inventory-backed endpoints in this environment; may be repeated")
+
+	var includeTags stringSliceFlag
+	fs.Var(&includeTags, "include-tag", "Include only inventory-backed endpoints with this tag; may be repeated")
+
 	if err := fs.Parse(normalizedArgs); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -125,13 +154,19 @@ func runDiff(args []string, stdout io.Writer, stderr io.Writer, now func() time.
 
 	baselinePath := fs.Arg(0)
 	currentPath := fs.Arg(1)
+	workflowView, err := workflowViewFromFlags(*groupBy, includeOwners, includeEnvironments, includeTags)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		printDiffUsage(stderr)
+		return 2
+	}
 
 	diffNow := now
 	if diffNow == nil {
 		diffNow = time.Now
 	}
 
-	report, err := buildDiffReportFromFiles(baselinePath, currentPath, diffNow().UTC())
+	report, err := buildDiffReportFromFiles(baselinePath, currentPath, diffNow().UTC(), workflowView)
 	if err != nil {
 		fmt.Fprintf(stderr, "diff: %v\n", err)
 		return 1
@@ -162,6 +197,17 @@ func runPrioritize(args []string, stdout io.Writer, stderr io.Writer, now func()
 	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
 	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
 
+	groupBy := fs.String("group-by", "", "Group workflow output by owner, environment or source")
+
+	var includeOwners stringSliceFlag
+	fs.Var(&includeOwners, "include-owner", "Include only inventory-backed endpoints owned by this value; may be repeated")
+
+	var includeEnvironments stringSliceFlag
+	fs.Var(&includeEnvironments, "include-environment", "Include only inventory-backed endpoints in this environment; may be repeated")
+
+	var includeTags stringSliceFlag
+	fs.Var(&includeTags, "include-tag", "Include only inventory-backed endpoints with this tag; may be repeated")
+
 	if err := fs.Parse(normalizedArgs); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -183,12 +229,19 @@ func runPrioritize(args []string, stdout io.Writer, stderr io.Writer, now func()
 		return 2
 	}
 
+	workflowView, err := workflowViewFromFlags(*groupBy, includeOwners, includeEnvironments, includeTags)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		printPrioritizeUsage(stderr)
+		return 2
+	}
+
 	prioritizeNow := now
 	if prioritizeNow == nil {
 		prioritizeNow = time.Now
 	}
 
-	report, err := buildPrioritizationReportFromFile(fs.Arg(0), profile, prioritizeNow().UTC())
+	report, err := buildPrioritizationReportFromFile(fs.Arg(0), profile, prioritizeNow().UTC(), workflowView)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", commandName, err)
 		return 1
@@ -758,7 +811,77 @@ func writeAuditOutputs(commandName string, results []core.AuditResult, generated
 	return 0
 }
 
-func buildDiffReportFromFiles(baselinePath string, currentPath string, generatedAt time.Time) (diffreport.Report, error) {
+func workflowViewFromFlags(groupByRaw string, includeOwners []string, includeEnvironments []string, includeTags []string) (*core.WorkflowContext, error) {
+	groupByText := strings.TrimSpace(groupByRaw)
+	if groupByText == "" && len(includeOwners) == 0 && len(includeEnvironments) == 0 && len(includeTags) == 0 {
+		return nil, nil
+	}
+
+	var groupBy core.WorkflowGroupBy
+	switch strings.ToLower(groupByText) {
+	case "":
+	case string(core.WorkflowGroupByOwner):
+		groupBy = core.WorkflowGroupByOwner
+	case string(core.WorkflowGroupByEnvironment):
+		groupBy = core.WorkflowGroupByEnvironment
+	case string(core.WorkflowGroupBySource):
+		groupBy = core.WorkflowGroupBySource
+	default:
+		return nil, fmt.Errorf("invalid --group-by %q: must be one of owner, environment or source", groupByRaw)
+	}
+
+	filters := make([]core.WorkflowFilter, 0, 3)
+	if values := normalizedWorkflowFilterValues(includeOwners); len(values) > 0 {
+		filters = append(filters, core.WorkflowFilter{
+			Field:  core.WorkflowFilterFieldOwner,
+			Values: values,
+		})
+	}
+	if values := normalizedWorkflowFilterValues(includeEnvironments); len(values) > 0 {
+		filters = append(filters, core.WorkflowFilter{
+			Field:  core.WorkflowFilterFieldEnvironment,
+			Values: values,
+		})
+	}
+	if values := normalizedWorkflowFilterValues(includeTags); len(values) > 0 {
+		filters = append(filters, core.WorkflowFilter{
+			Field:  core.WorkflowFilterFieldTag,
+			Values: values,
+		})
+	}
+
+	return &core.WorkflowContext{
+		GroupBy: groupBy,
+		Filters: filters,
+	}, nil
+}
+
+func normalizedWorkflowFilterValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+
+		key := strings.ToLower(trimmed)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+
+		seen[key] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+
+	return normalized
+}
+
+func buildDiffReportFromFiles(baselinePath string, currentPath string, generatedAt time.Time, workflowView *core.WorkflowContext) (diffreport.Report, error) {
 	baselineHeader, baselineData, err := readReportInputFile(baselinePath)
 	if err != nil {
 		return diffreport.Report{}, err
@@ -783,7 +906,7 @@ func buildDiffReportFromFiles(baselinePath string, currentPath string, generated
 			return diffreport.Report{}, err
 		}
 
-		return diffreport.BuildTLSReport(baselineReport, currentReport, generatedAt)
+		return diffreport.BuildTLSReport(baselineReport, currentReport, generatedAt, workflowView)
 	case core.ReportKindAudit:
 		baselineReport, err := decodeAuditReport(baselinePath, baselineData)
 		if err != nil {
@@ -794,13 +917,13 @@ func buildDiffReportFromFiles(baselinePath string, currentPath string, generated
 			return diffreport.Report{}, err
 		}
 
-		return diffreport.BuildAuditReport(baselineReport, currentReport, generatedAt)
+		return diffreport.BuildAuditReport(baselineReport, currentReport, generatedAt, workflowView)
 	default:
 		return diffreport.Report{}, fmt.Errorf("report_kind %q is not supported for diffing", baselineHeader.ReportKind)
 	}
 }
 
-func buildPrioritizationReportFromFile(path string, profile prioritizereport.Profile, generatedAt time.Time) (prioritizereport.Report, error) {
+func buildPrioritizationReportFromFile(path string, profile prioritizereport.Profile, generatedAt time.Time, workflowView *core.WorkflowContext) (prioritizereport.Report, error) {
 	header, data, err := readReportInputFile(path)
 	if err != nil {
 		return prioritizereport.Report{}, err
@@ -813,14 +936,14 @@ func buildPrioritizationReportFromFile(path string, profile prioritizereport.Pro
 			return prioritizereport.Report{}, err
 		}
 
-		return prioritizereport.BuildTLSReport(report, profile, generatedAt)
+		return prioritizereport.BuildTLSReport(report, profile, generatedAt, workflowView)
 	case core.ReportKindAudit:
 		report, err := decodeAuditReport(path, data)
 		if err != nil {
 			return prioritizereport.Report{}, err
 		}
 
-		return prioritizereport.BuildAuditReport(report, profile, generatedAt)
+		return prioritizereport.BuildAuditReport(report, profile, generatedAt, workflowView)
 	default:
 		return prioritizereport.Report{}, fmt.Errorf("report_kind %q is not supported for prioritization; prioritize currently supports tls_scan and audit input only", header.ReportKind)
 	}
@@ -1000,13 +1123,13 @@ func normalizeDiffArgs(args []string) ([]string, error) {
 		switch {
 		case arg == "-h" || arg == "--help":
 			flags = append(flags, arg)
-		case arg == "-o" || arg == "--output" || arg == "-j" || arg == "--json":
+		case arg == "-o" || arg == "--output" || arg == "-j" || arg == "--json" || arg == "--group-by" || arg == "--include-owner" || arg == "--include-environment" || arg == "--include-tag":
 			if index+1 >= len(args) {
 				return nil, fmt.Errorf("%s requires a value", arg)
 			}
 			flags = append(flags, arg, args[index+1])
 			index += 1
-		case strings.HasPrefix(arg, "--output=") || strings.HasPrefix(arg, "--json="):
+		case strings.HasPrefix(arg, "--output=") || strings.HasPrefix(arg, "--json=") || strings.HasPrefix(arg, "--group-by=") || strings.HasPrefix(arg, "--include-owner=") || strings.HasPrefix(arg, "--include-environment=") || strings.HasPrefix(arg, "--include-tag="):
 			flags = append(flags, arg)
 		case strings.HasPrefix(arg, "-o=") || strings.HasPrefix(arg, "-j="):
 			flags = append(flags, arg)
@@ -1029,13 +1152,13 @@ func normalizePrioritizeArgs(args []string) ([]string, error) {
 		switch {
 		case arg == "-h" || arg == "--help":
 			flags = append(flags, arg)
-		case arg == "-o" || arg == "--output" || arg == "-j" || arg == "--json" || arg == "--profile":
+		case arg == "-o" || arg == "--output" || arg == "-j" || arg == "--json" || arg == "--profile" || arg == "--group-by" || arg == "--include-owner" || arg == "--include-environment" || arg == "--include-tag":
 			if index+1 >= len(args) {
 				return nil, fmt.Errorf("%s requires a value", arg)
 			}
 			flags = append(flags, arg, args[index+1])
 			index += 1
-		case strings.HasPrefix(arg, "--output=") || strings.HasPrefix(arg, "--json=") || strings.HasPrefix(arg, "--profile="):
+		case strings.HasPrefix(arg, "--output=") || strings.HasPrefix(arg, "--json=") || strings.HasPrefix(arg, "--profile=") || strings.HasPrefix(arg, "--group-by=") || strings.HasPrefix(arg, "--include-owner=") || strings.HasPrefix(arg, "--include-environment=") || strings.HasPrefix(arg, "--include-tag="):
 			flags = append(flags, arg)
 		case strings.HasPrefix(arg, "-o=") || strings.HasPrefix(arg, "-j="):
 			flags = append(flags, arg)
@@ -1089,36 +1212,48 @@ func printUsage(w io.Writer) {
 
 func printDiffUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor diff baseline.json current.json [-o diff.md] [-j diff.json]")
+	fmt.Fprintln(w, "  surveyor diff baseline.json current.json [--group-by owner|environment|source] [--include-owner NAME] [--include-environment NAME] [--include-tag TAG] [-o diff.md] [-j diff.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Compare two compatible canonical Surveyor JSON reports.")
 	fmt.Fprintln(w, "  The first release supports tls_scan-to-tls_scan and audit-to-audit comparisons only.")
+	fmt.Fprintln(w, "  Workflow grouping and filtering apply to inventory-backed audit comparisons only.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor diff baseline.json current.json")
+	fmt.Fprintln(w, "  surveyor diff baseline.json current.json --group-by owner --include-environment prod")
 	fmt.Fprintln(w, "  surveyor diff baseline.json current.json -o diff.md -j diff.json")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  --group-by     Group workflow output by owner, environment or source")
+	fmt.Fprintln(w, "  --include-owner        Include only inventory-backed endpoints owned by this value; may be repeated")
+	fmt.Fprintln(w, "  --include-environment  Include only inventory-backed endpoints in this environment; may be repeated")
+	fmt.Fprintln(w, "  --include-tag          Include only inventory-backed endpoints with this tag; may be repeated")
 	fmt.Fprintln(w, "  -o, --output   Write Markdown report output to this path")
 	fmt.Fprintln(w, "  -j, --json     Write canonical JSON report output to this path")
 }
 
 func printPrioritizeUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  surveyor prioritize current.json [--profile migration-readiness] [-o priorities.md] [-j priorities.json]")
-	fmt.Fprintln(w, "  surveyor prioritise current.json [--profile migration-readiness] [-o priorities.md] [-j priorities.json]")
+	fmt.Fprintln(w, "  surveyor prioritize current.json [--profile migration-readiness] [--group-by owner|environment|source] [--include-owner NAME] [--include-environment NAME] [--include-tag TAG] [-o priorities.md] [-j priorities.json]")
+	fmt.Fprintln(w, "  surveyor prioritise current.json [--profile migration-readiness] [--group-by owner|environment|source] [--include-owner NAME] [--include-environment NAME] [--include-tag TAG] [-o priorities.md] [-j priorities.json]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Description:")
 	fmt.Fprintln(w, "  Rank a current canonical Surveyor JSON report for human attention.")
 	fmt.Fprintln(w, "  The first release supports tls_scan and audit input only.")
+	fmt.Fprintln(w, "  Workflow grouping and filtering apply to inventory-backed audit input only.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  surveyor prioritize current.json")
+	fmt.Fprintln(w, "  surveyor prioritize current.json --group-by owner --include-environment prod")
 	fmt.Fprintln(w, "  surveyor prioritise current.json --profile change-risk -o priorities.md -j priorities.json")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags:")
 	fmt.Fprintln(w, "  --profile      Prioritisation profile: migration-readiness or change-risk")
+	fmt.Fprintln(w, "  --group-by     Group workflow output by owner, environment or source")
+	fmt.Fprintln(w, "  --include-owner        Include only inventory-backed endpoints owned by this value; may be repeated")
+	fmt.Fprintln(w, "  --include-environment  Include only inventory-backed endpoints in this environment; may be repeated")
+	fmt.Fprintln(w, "  --include-tag          Include only inventory-backed endpoints with this tag; may be repeated")
 	fmt.Fprintln(w, "  -o, --output   Write Markdown report output to this path")
 	fmt.Fprintln(w, "  -j, --json     Write canonical JSON report output to this path")
 }

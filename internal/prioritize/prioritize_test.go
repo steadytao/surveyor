@@ -85,7 +85,7 @@ func TestBuildTLSReportMigrationReadiness(t *testing.T) {
 		},
 	}
 
-	report, err := BuildTLSReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC))
+	report, err := BuildTLSReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildTLSReport() error = %v", err)
 	}
@@ -161,7 +161,7 @@ func TestBuildTLSReportChangeRisk(t *testing.T) {
 		},
 	}
 
-	report, err := BuildTLSReport(source, ProfileChangeRisk, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC))
+	report, err := BuildTLSReport(source, ProfileChangeRisk, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildTLSReport() error = %v", err)
 	}
@@ -233,7 +233,7 @@ func TestBuildAuditReportIncludesSkippedSelection(t *testing.T) {
 		},
 	}
 
-	report, err := BuildAuditReport(source, ProfileChangeRisk, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC))
+	report, err := BuildAuditReport(source, ProfileChangeRisk, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)
 	}
@@ -325,11 +325,11 @@ func TestBuildAuditReportIsDeterministic(t *testing.T) {
 		},
 	}
 
-	first, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC))
+	first, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)
 	}
-	second, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC))
+	second, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 23, 1, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() second error = %v", err)
 	}
@@ -448,7 +448,7 @@ func TestBuildAuditReportUsesInventoryMetadataForRanking(t *testing.T) {
 		},
 	}
 
-	report, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 24, 2, 0, 0, 0, time.UTC))
+	report, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 24, 2, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)
 	}
@@ -505,7 +505,7 @@ func TestBuildAuditReportAddsWorkflowFindingsForInventoryMetadataGaps(t *testing
 		},
 	}
 
-	report, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 24, 2, 0, 0, 0, time.UTC))
+	report, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 24, 2, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)
 	}
@@ -529,6 +529,133 @@ func TestBuildAuditReportAddsWorkflowFindingsForInventoryMetadataGaps(t *testing
 		if got, want := finding.TargetIdentity, "remote|api.example.com|443|tcp"; got != want {
 			t.Fatalf("finding.TargetIdentity = %q, want %q", got, want)
 		}
+	}
+}
+
+func TestBuildAuditReportAppliesWorkflowFiltersAndGroupedSummary(t *testing.T) {
+	t.Parallel()
+
+	source := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "prod.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+						Tags:        []string{"external"},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host: "prod.example.com",
+					Port: 443,
+					Findings: []core.Finding{
+						{
+							Code:     "legacy-tls-version",
+							Severity: core.SeverityHigh,
+							Summary:  "Legacy TLS remains enabled.",
+						},
+					},
+				},
+			},
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "dev.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "platform",
+						Environment: "dev",
+						Tags:        []string{"internal"},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+				TLSResult: &core.TargetResult{
+					Host: "dev.example.com",
+					Port: 443,
+					Findings: []core.Finding{
+						{
+							Code:     "classical-certificate-identity",
+							Severity: core.SeverityMedium,
+							Summary:  "The observed certificate identity remains classical.",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	report, err := BuildAuditReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC), &core.WorkflowContext{
+		GroupBy: core.WorkflowGroupByOwner,
+		Filters: []core.WorkflowFilter{
+			{
+				Field:  core.WorkflowFilterFieldEnvironment,
+				Values: []string{"prod"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	if got, want := len(report.Items), 1; got != want {
+		t.Fatalf("len(report.Items) = %d, want %d", got, want)
+	}
+	if got, want := report.Items[0].TargetIdentity, "remote|prod.example.com|443|tcp"; got != want {
+		t.Fatalf("report.Items[0].TargetIdentity = %q, want %q", got, want)
+	}
+	if report.WorkflowView == nil {
+		t.Fatal("report.WorkflowView = nil, want populated workflow view")
+	}
+	if got, want := len(report.GroupedSummaries), 1; got != want {
+		t.Fatalf("len(report.GroupedSummaries) = %d, want %d", got, want)
+	}
+	if got, want := report.GroupedSummaries[0].GroupBy, core.WorkflowGroupByOwner; got != want {
+		t.Fatalf("report.GroupedSummaries[0].GroupBy = %q, want %q", got, want)
+	}
+	if got, want := report.GroupedSummaries[0].Groups[0].Key, "payments"; got != want {
+		t.Fatalf("report.GroupedSummaries[0].Groups[0].Key = %q, want %q", got, want)
+	}
+}
+
+func TestBuildTLSReportRejectsWorkflowView(t *testing.T) {
+	t.Parallel()
+
+	source := core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS scan"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC),
+	}
+
+	_, err := BuildTLSReport(source, ProfileMigrationReadiness, time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC), &core.WorkflowContext{
+		GroupBy: core.WorkflowGroupByOwner,
+	})
+	if err == nil {
+		t.Fatal("BuildTLSReport() error = nil, want workflow-view rejection")
+	}
+	if !strings.Contains(err.Error(), "supported only for audit input") {
+		t.Fatalf("BuildTLSReport() error = %v, want workflow-view rejection", err)
 	}
 }
 

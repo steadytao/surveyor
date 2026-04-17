@@ -1093,7 +1093,7 @@ func sampleDiffReport(t *testing.T) diffreport.Report {
 		Timeout:        "3s",
 	})
 
-	report, err := diffreport.BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
+	report, err := diffreport.BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)
 	}
@@ -1178,6 +1178,7 @@ func samplePrioritizationReport(t *testing.T) prioritizereport.Report {
 		source,
 		prioritizereport.ProfileMigrationReadiness,
 		time.Date(2026, time.April, 22, 3, 0, 0, 0, time.UTC),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)

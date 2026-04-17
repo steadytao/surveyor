@@ -35,7 +35,7 @@ func TestBuildTLSReportIdentical(t *testing.T) {
 		},
 	}
 
-	diffReport, err := BuildTLSReport(report, report, time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC))
+	diffReport, err := BuildTLSReport(report, report, time.Date(2026, time.April, 21, 2, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildTLSReport() error = %v", err)
 	}
@@ -131,7 +131,7 @@ func TestBuildTLSReportDetectsAddedRemovedAndChanged(t *testing.T) {
 		},
 	}
 
-	diffReport, err := BuildTLSReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
+	diffReport, err := BuildTLSReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildTLSReport() error = %v", err)
 	}
@@ -274,7 +274,7 @@ func TestBuildAuditReportDetectsRemoteChangeAndScopeDifference(t *testing.T) {
 		},
 	}
 
-	diffReport, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
+	diffReport, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)
 	}
@@ -368,11 +368,11 @@ func TestBuildAuditReportIsDeterministic(t *testing.T) {
 		},
 	}
 
-	first, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
+	first, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)
 	}
-	second, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC))
+	second, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 22, 2, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() second error = %v", err)
 	}
@@ -568,7 +568,7 @@ func TestBuildAuditReportAddsGroupedSummariesForInventoryMetadata(t *testing.T) 
 		},
 	}
 
-	report, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 24, 3, 0, 0, 0, time.UTC))
+	report, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 24, 3, 0, 0, 0, time.UTC), nil)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)
 	}
@@ -614,5 +614,160 @@ func TestBuildAuditReportAddsGroupedSummariesForInventoryMetadata(t *testing.T) 
 	}
 	if got, want := sourceSummary.Groups[1].Key, "exports/cmdb.csv"; got != want {
 		t.Fatalf("sourceSummary.Groups[1].Key = %q, want %q", got, want)
+	}
+}
+
+func TestBuildAuditReportAppliesWorkflowView(t *testing.T) {
+	t.Parallel()
+
+	baselineReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "prod.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+			},
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "dev.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "platform",
+						Environment: "dev",
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+			},
+		},
+	}
+
+	currentReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "prod.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+					},
+				},
+				Selection: core.AuditSelection{
+					Status: core.AuditSelectionStatusSkipped,
+					Reason: "endpoint did not respond during remote discovery",
+				},
+			},
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "dev.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "platform",
+						Environment: "dev",
+					},
+				},
+				Selection: core.AuditSelection{
+					Status: core.AuditSelectionStatusSkipped,
+					Reason: "endpoint did not respond during remote discovery",
+				},
+			},
+		},
+	}
+
+	report, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 25, 3, 0, 0, 0, time.UTC), &core.WorkflowContext{
+		GroupBy: core.WorkflowGroupByOwner,
+		Filters: []core.WorkflowFilter{
+			{
+				Field:  core.WorkflowFilterFieldEnvironment,
+				Values: []string{"prod"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	if report.WorkflowView == nil {
+		t.Fatal("report.WorkflowView = nil, want populated workflow view")
+	}
+	if got, want := len(report.Changes), 1; got != want {
+		t.Fatalf("len(report.Changes) = %d, want %d", got, want)
+	}
+	if got, want := report.Changes[0].IdentityKey, "remote|prod.example.com|443|tcp"; got != want {
+		t.Fatalf("report.Changes[0].IdentityKey = %q, want %q", got, want)
+	}
+	if got, want := len(report.GroupedSummaries), 1; got != want {
+		t.Fatalf("len(report.GroupedSummaries) = %d, want %d", got, want)
+	}
+	if got, want := report.GroupedSummaries[0].GroupBy, core.WorkflowGroupByOwner; got != want {
+		t.Fatalf("report.GroupedSummaries[0].GroupBy = %q, want %q", got, want)
+	}
+	if got, want := report.GroupedSummaries[0].Groups[0].Key, "payments"; got != want {
+		t.Fatalf("report.GroupedSummaries[0].Groups[0].Key = %q, want %q", got, want)
+	}
+	if got, want := report.Summary.TotalBaselineEntities, 1; got != want {
+		t.Fatalf("report.Summary.TotalBaselineEntities = %d, want %d", got, want)
+	}
+	if got, want := report.Summary.TotalCurrentEntities, 1; got != want {
+		t.Fatalf("report.Summary.TotalCurrentEntities = %d, want %d", got, want)
+	}
+}
+
+func TestBuildTLSReportRejectsWorkflowView(t *testing.T) {
+	t.Parallel()
+
+	source := core.Report{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindTLSScan, core.ReportScopeKindExplicit, "explicit TLS scan"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC),
+	}
+
+	_, err := BuildTLSReport(source, source, time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC), &core.WorkflowContext{
+		GroupBy: core.WorkflowGroupByOwner,
+	})
+	if err == nil {
+		t.Fatal("BuildTLSReport() error = nil, want workflow-view rejection")
+	}
+	if !strings.Contains(err.Error(), "supported only for audit input") {
+		t.Fatalf("BuildTLSReport() error = %v, want workflow-view rejection", err)
 	}
 }

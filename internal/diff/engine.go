@@ -2,6 +2,7 @@ package diff
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -14,7 +15,7 @@ import (
 
 // BuildTLSReport assembles the canonical diff report for two compatible TLS
 // inventory reports.
-func BuildTLSReport(baselineReport core.Report, currentReport core.Report, generatedAt time.Time) (Report, error) {
+func BuildTLSReport(baselineReport core.Report, currentReport core.Report, generatedAt time.Time, workflowView *core.WorkflowContext) (Report, error) {
 	comparison, err := baseline.ValidateCompatibility(
 		tlsReportHeader(baselineReport),
 		tlsReportHeader(currentReport),
@@ -22,15 +23,18 @@ func BuildTLSReport(baselineReport core.Report, currentReport core.Report, gener
 	if err != nil {
 		return Report{}, err
 	}
+	if hasWorkflowView(workflowView) {
+		return Report{}, fmt.Errorf("workflow grouping and filtering are supported only for audit input")
+	}
 
 	changes, changedEntities, unchangedEntities := compareTLSResults(baselineReport.Results, currentReport.Results)
 
-	return buildReport(comparison, generatedAt, changes, len(baselineReport.Results), len(currentReport.Results), changedEntities, unchangedEntities, nil), nil
+	return buildReport(comparison, generatedAt, nil, changes, len(baselineReport.Results), len(currentReport.Results), changedEntities, unchangedEntities, nil), nil
 }
 
 // BuildAuditReport assembles the canonical diff report for two compatible audit
 // reports.
-func BuildAuditReport(baselineReport core.AuditReport, currentReport core.AuditReport, generatedAt time.Time) (Report, error) {
+func BuildAuditReport(baselineReport core.AuditReport, currentReport core.AuditReport, generatedAt time.Time, workflowView *core.WorkflowContext) (Report, error) {
 	comparison, err := baseline.ValidateCompatibility(
 		auditReportHeader(baselineReport),
 		auditReportHeader(currentReport),
@@ -39,13 +43,24 @@ func BuildAuditReport(baselineReport core.AuditReport, currentReport core.AuditR
 		return Report{}, err
 	}
 
-	changes, changedEntities, unchangedEntities := compareAuditResults(baselineReport.Results, currentReport.Results)
-	groupedSummaries := buildAuditGroupedSummaries(changes, baselineReport.Results, currentReport.Results)
+	baselineByID := auditResultsByIdentity(baselineReport.Results)
+	currentByID := auditResultsByIdentity(currentReport.Results)
 
-	return buildReport(comparison, generatedAt, changes, len(baselineReport.Results), len(currentReport.Results), changedEntities, unchangedEntities, groupedSummaries), nil
+	changes, changedEntities, unchangedEntities := compareAuditResults(baselineReport.Results, currentReport.Results)
+	filteredChanges := changes
+	totalBaseline := len(baselineReport.Results)
+	totalCurrent := len(currentReport.Results)
+	if workflowView != nil && len(workflowView.Filters) > 0 {
+		includedKeys := filterAuditIdentityKeys(baselineByID, currentByID, workflowView)
+		filteredChanges = filterChangesByIdentity(changes, includedKeys)
+		totalBaseline, totalCurrent, changedEntities, unchangedEntities = auditViewCounts(baselineByID, currentByID, includedKeys, filteredChanges)
+	}
+	groupedSummaries := buildAuditGroupedSummaries(filteredChanges, baselineByID, currentByID, workflowView)
+
+	return buildReport(comparison, generatedAt, workflowView, filteredChanges, totalBaseline, totalCurrent, changedEntities, unchangedEntities, groupedSummaries), nil
 }
 
-func buildReport(comparison baseline.Comparison, generatedAt time.Time, changes []Change, totalBaseline int, totalCurrent int, changedEntities int, unchangedEntities int, groupedSummaries []core.GroupedSummary) Report {
+func buildReport(comparison baseline.Comparison, generatedAt time.Time, workflowView *core.WorkflowContext, changes []Change, totalBaseline int, totalCurrent int, changedEntities int, unchangedEntities int, groupedSummaries []core.GroupedSummary) Report {
 	report := Report{
 		ReportMetadata: core.NewReportMetadata(
 			core.ReportKindDiff,
@@ -61,6 +76,7 @@ func buildReport(comparison baseline.Comparison, generatedAt time.Time, changes 
 		CurrentScopeDescription:  comparison.Current.ScopeDescription,
 		BaselineScope:            cloneReportScope(comparison.Baseline.Scope),
 		CurrentScope:             cloneReportScope(comparison.Current.Scope),
+		WorkflowView:             core.CloneWorkflowContext(workflowView),
 		Summary: buildSummary(
 			totalBaseline,
 			totalCurrent,
@@ -277,6 +293,93 @@ func compareAuditResults(baselineResults []core.AuditResult, currentResults []co
 
 	sortChanges(changes)
 	return changes, changedEntities, unchangedEntities
+}
+
+func hasWorkflowView(view *core.WorkflowContext) bool {
+	return view != nil && (view.GroupBy != "" || len(view.Filters) > 0)
+}
+
+func auditResultsByIdentity(results []core.AuditResult) map[string]core.AuditResult {
+	index := make(map[string]core.AuditResult, len(results))
+	for _, result := range results {
+		index[baseline.AuditResultIdentityKey(result)] = core.CloneAuditResult(result)
+	}
+
+	return index
+}
+
+func filterAuditIdentityKeys(baselineByID map[string]core.AuditResult, currentByID map[string]core.AuditResult, workflowView *core.WorkflowContext) map[string]struct{} {
+	keys := make(map[string]struct{}, len(baselineByID)+len(currentByID))
+	for identityKey, result := range baselineByID {
+		if _, ok := currentByID[identityKey]; ok {
+			continue
+		}
+		if auditIdentityMatchesWorkflowView(nil, &result, workflowView) {
+			keys[identityKey] = struct{}{}
+		}
+	}
+	for identityKey, result := range currentByID {
+		if baselineResult, ok := baselineByID[identityKey]; ok {
+			if auditIdentityMatchesWorkflowView(&result, &baselineResult, workflowView) {
+				keys[identityKey] = struct{}{}
+			}
+			continue
+		}
+		if auditIdentityMatchesWorkflowView(&result, nil, workflowView) {
+			keys[identityKey] = struct{}{}
+		}
+	}
+
+	return keys
+}
+
+func auditIdentityMatchesWorkflowView(currentResult *core.AuditResult, baselineResult *core.AuditResult, workflowView *core.WorkflowContext) bool {
+	if workflowView == nil || len(workflowView.Filters) == 0 {
+		return true
+	}
+
+	context := selectAuditGroupingContext(currentResult, baselineResult)
+	return core.MatchesWorkflowFilters(context.inventory, workflowView.Filters)
+}
+
+func filterChangesByIdentity(changes []Change, includedKeys map[string]struct{}) []Change {
+	filtered := make([]Change, 0, len(changes))
+	for _, change := range changes {
+		if _, ok := includedKeys[change.IdentityKey]; ok {
+			filtered = append(filtered, change)
+		}
+	}
+
+	return filtered
+}
+
+func auditViewCounts(baselineByID map[string]core.AuditResult, currentByID map[string]core.AuditResult, includedKeys map[string]struct{}, filteredChanges []Change) (int, int, int, int) {
+	changedKeys := map[string]struct{}{}
+	for _, change := range filteredChanges {
+		changedKeys[change.IdentityKey] = struct{}{}
+	}
+
+	totalBaseline := 0
+	totalCurrent := 0
+	changedEntities := 0
+	unchangedEntities := 0
+	for identityKey := range includedKeys {
+		_, baselineOK := baselineByID[identityKey]
+		_, currentOK := currentByID[identityKey]
+		if baselineOK {
+			totalBaseline += 1
+		}
+		if currentOK {
+			totalCurrent += 1
+		}
+		if _, changed := changedKeys[identityKey]; changed {
+			changedEntities += 1
+			continue
+		}
+		unchangedEntities += 1
+	}
+
+	return totalBaseline, totalCurrent, changedEntities, unchangedEntities
 }
 
 func compareTLSReachability(key string, baselineResult core.TargetResult, currentResult core.TargetResult) []Change {
@@ -772,55 +875,36 @@ type groupedSummaryAccumulator struct {
 	changeBreakdown    map[string]int
 }
 
-func buildAuditGroupedSummaries(changes []Change, baselineResults []core.AuditResult, currentResults []core.AuditResult) []core.GroupedSummary {
+func buildAuditGroupedSummaries(changes []Change, baselineByID map[string]core.AuditResult, currentByID map[string]core.AuditResult, workflowView *core.WorkflowContext) []core.GroupedSummary {
 	if len(changes) == 0 {
 		return nil
 	}
 
-	dimensions := detectAuditGroupingDimensions(baselineResults, currentResults)
+	dimensions := detectAuditGroupingDimensions(baselineByID, currentByID)
 	if !dimensions.owner && !dimensions.environment && !dimensions.source {
 		return nil
 	}
 
-	baselineByID := make(map[string]core.AuditResult, len(baselineResults))
-	currentByID := make(map[string]core.AuditResult, len(currentResults))
-	for _, result := range baselineResults {
-		baselineByID[baseline.AuditResultIdentityKey(result)] = core.CloneAuditResult(result)
-	}
-	for _, result := range currentResults {
-		currentByID[baseline.AuditResultIdentityKey(result)] = core.CloneAuditResult(result)
-	}
-
 	var summaries []core.GroupedSummary
-	if dimensions.owner {
-		summary := buildGroupedSummaryForAuditDimension(core.WorkflowGroupByOwner, changes, baselineByID, currentByID, dimensions)
-		if len(summary.Groups) > 0 {
-			summaries = append(summaries, summary)
+	groupBys := requestedAuditGroupBys(workflowView, dimensions)
+	for _, groupBy := range groupBys {
+		summary := buildGroupedSummaryForAuditDimension(groupBy, changes, baselineByID, currentByID, dimensions)
+		if len(summary.Groups) == 0 {
+			continue
 		}
-	}
-	if dimensions.environment {
-		summary := buildGroupedSummaryForAuditDimension(core.WorkflowGroupByEnvironment, changes, baselineByID, currentByID, dimensions)
-		if len(summary.Groups) > 0 {
-			summaries = append(summaries, summary)
-		}
-	}
-	if dimensions.source {
-		summary := buildGroupedSummaryForAuditDimension(core.WorkflowGroupBySource, changes, baselineByID, currentByID, dimensions)
-		if len(summary.Groups) > 0 {
-			summaries = append(summaries, summary)
-		}
+		summaries = append(summaries, summary)
 	}
 
 	return summaries
 }
 
-func detectAuditGroupingDimensions(baselineResults []core.AuditResult, currentResults []core.AuditResult) auditGroupingDimensions {
+func detectAuditGroupingDimensions(baselineByID map[string]core.AuditResult, currentByID map[string]core.AuditResult) auditGroupingDimensions {
 	var dimensions auditGroupingDimensions
 
-	for _, result := range baselineResults {
+	for _, result := range baselineByID {
 		updateAuditGroupingDimensions(&dimensions, result.DiscoveredEndpoint.Inventory)
 	}
-	for _, result := range currentResults {
+	for _, result := range currentByID {
 		updateAuditGroupingDimensions(&dimensions, result.DiscoveredEndpoint.Inventory)
 	}
 
@@ -842,11 +926,47 @@ func updateAuditGroupingDimensions(dimensions *auditGroupingDimensions, inventor
 	}
 }
 
+func requestedAuditGroupBys(workflowView *core.WorkflowContext, dimensions auditGroupingDimensions) []core.WorkflowGroupBy {
+	if workflowView != nil && workflowView.GroupBy != "" {
+		switch workflowView.GroupBy {
+		case core.WorkflowGroupByOwner:
+			if dimensions.owner {
+				return []core.WorkflowGroupBy{core.WorkflowGroupByOwner}
+			}
+		case core.WorkflowGroupByEnvironment:
+			if dimensions.environment {
+				return []core.WorkflowGroupBy{core.WorkflowGroupByEnvironment}
+			}
+		case core.WorkflowGroupBySource:
+			if dimensions.source {
+				return []core.WorkflowGroupBy{core.WorkflowGroupBySource}
+			}
+		default:
+			return nil
+		}
+
+		return nil
+	}
+
+	groupBys := make([]core.WorkflowGroupBy, 0, 3)
+	if dimensions.owner {
+		groupBys = append(groupBys, core.WorkflowGroupByOwner)
+	}
+	if dimensions.environment {
+		groupBys = append(groupBys, core.WorkflowGroupByEnvironment)
+	}
+	if dimensions.source {
+		groupBys = append(groupBys, core.WorkflowGroupBySource)
+	}
+
+	return groupBys
+}
+
 func buildGroupedSummaryForAuditDimension(groupBy core.WorkflowGroupBy, changes []Change, baselineByID map[string]core.AuditResult, currentByID map[string]core.AuditResult, dimensions auditGroupingDimensions) core.GroupedSummary {
 	accumulators := map[string]*groupedSummaryAccumulator{}
 
 	for _, change := range changes {
-		context := selectAuditGroupingContext(change.IdentityKey, baselineByID, currentByID)
+		context := selectAuditGroupingContext(auditResultForIdentity(change.IdentityKey, currentByID), auditResultForIdentity(change.IdentityKey, baselineByID))
 		keys := groupKeysForAuditDimension(groupBy, context, dimensions)
 		for _, key := range keys {
 			accumulator := accumulators[key]
@@ -894,11 +1014,20 @@ func buildGroupedSummaryForAuditDimension(groupBy core.WorkflowGroupBy, changes 
 	}
 }
 
-func selectAuditGroupingContext(identityKey string, baselineByID map[string]core.AuditResult, currentByID map[string]core.AuditResult) auditGroupingContext {
-	if currentResult, ok := currentByID[identityKey]; ok && currentResult.DiscoveredEndpoint.Inventory != nil {
+func auditResultForIdentity(identityKey string, resultsByID map[string]core.AuditResult) *core.AuditResult {
+	result, ok := resultsByID[identityKey]
+	if !ok {
+		return nil
+	}
+
+	return &result
+}
+
+func selectAuditGroupingContext(currentResult *core.AuditResult, baselineResult *core.AuditResult) auditGroupingContext {
+	if currentResult != nil && currentResult.DiscoveredEndpoint.Inventory != nil {
 		return auditGroupingContext{inventory: currentResult.DiscoveredEndpoint.Inventory}
 	}
-	if baselineResult, ok := baselineByID[identityKey]; ok && baselineResult.DiscoveredEndpoint.Inventory != nil {
+	if baselineResult != nil && baselineResult.DiscoveredEndpoint.Inventory != nil {
 		return auditGroupingContext{inventory: baselineResult.DiscoveredEndpoint.Inventory}
 	}
 
@@ -928,42 +1057,10 @@ func groupKeysForAuditDimension(groupBy core.WorkflowGroupBy, context auditGroup
 		if !dimensions.source {
 			return nil
 		}
-		return sourceGroupKeys(inventory)
+		return core.WorkflowGroupKeys(core.WorkflowGroupBySource, inventory)
 	default:
 		return nil
 	}
-}
-
-func sourceGroupKeys(inventory *core.InventoryAnnotation) []string {
-	if inventory == nil || len(inventory.Provenance) == 0 {
-		return []string{"unknown"}
-	}
-
-	seen := map[string]struct{}{}
-	keys := make([]string, 0, len(inventory.Provenance))
-	for _, provenance := range inventory.Provenance {
-		key := sourceGroupKey(provenance)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func sourceGroupKey(provenance core.InventoryProvenance) string {
-	if strings.TrimSpace(provenance.SourceName) != "" {
-		return strings.TrimSpace(provenance.SourceName)
-	}
-	if strings.TrimSpace(string(provenance.SourceFormat)) != "" {
-		return strings.TrimSpace(string(provenance.SourceFormat))
-	}
-	if strings.TrimSpace(string(provenance.SourceKind)) != "" {
-		return strings.TrimSpace(string(provenance.SourceKind))
-	}
-	return "unknown"
 }
 
 func tlsReportHeader(report core.Report) baseline.ReportHeader {
