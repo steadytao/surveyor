@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "prioritization",
+  "scope_kind": "remote",
+  "scope_description": "remote audit from inventory file examples/inventory.yaml",
+  "generated_at": "2026-04-25T03:00:00Z",
+  "profile": "migration-readiness",
+  "source_report_kind": "audit",
+  "source_generated_at": "2026-04-25T01:30:00Z",
+  "scope": {
+    "scope_kind": "remote",
+    "input_kind": "inventory_file",
+    "inventory_file": "examples/inventory.yaml"
+  },
+  "workflow_view": {
+    "group_by": "owner",
+    "filters": [
+      {
+        "field": "tag",
+        "values": [
+          "external"
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "total_items": 1,
+    "severity_breakdown": {
+      "high": 1
+    },
+    "code_breakdown": {
+      "legacy-tls-version": 1
+    }
+  },
+  "grouped_summaries": [
+    {
+      "group_by": "owner",
+      "groups": [
+        {
+          "key": "payments",
+          "total_items": 1,
+          "severity_breakdown": {
+            "high": 1
+          },
+          "code_breakdown": {
+            "legacy-tls-version": 1
+          }
+        }
+      ]
+    }
+  ],
+  "workflow_findings": [
+    {
+      "severity": "low",
+      "code": "weak-provenance",
+      "summary": "The imported endpoint has no recorded source provenance.",
+      "target_identity": "remote|prod.example.com|443|tcp",
+      "reason": "Without provenance, later review and source reconciliation become weaker.",
+      "evidence": [
+        "host=prod.example.com",
+        "port=443",
+        "inventory_file=examples/inventory.yaml"
+      ],
+      "recommendation": "Preserve source file and record metadata when importing inventory."
+    }
+  ],
+  "items": [
+    {
+      "rank": 1,
+      "severity": "high",
+      "code": "legacy-tls-version",
+      "summary": "Legacy TLS remains enabled.",
+      "target_identity": "remote|prod.example.com|443|tcp",
+      "reason": "Legacy TLS exposure should be addressed before treating transport posture as migration-ready. In inventory context, it is in the production environment, it is owned by payments, it is tagged external.",
+      "evidence": [
+        "tls_version=TLS 1.0"
+      ],
+      "recommendation": "Upgrade the endpoint to a modern TLS baseline."
+    }
+  ]
+}

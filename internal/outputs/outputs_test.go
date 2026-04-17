@@ -380,6 +380,22 @@ func TestMarshalDiffJSON(t *testing.T) {
 	}
 }
 
+func TestMarshalWorkflowDiffJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleWorkflowDiffReport(t)
+
+	data, err := MarshalDiffJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalDiffJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "diff-workflow.golden.json")
+	if string(data) != want {
+		t.Fatalf("workflow diff json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
 func TestMarshalPrioritizationJSON(t *testing.T) {
 	t.Parallel()
 
@@ -393,6 +409,22 @@ func TestMarshalPrioritizationJSON(t *testing.T) {
 	want := readGoldenFile(t, "priorities.golden.json")
 	if string(data) != want {
 		t.Fatalf("prioritization json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
+	}
+}
+
+func TestMarshalWorkflowPrioritizationJSON(t *testing.T) {
+	t.Parallel()
+
+	report := sampleWorkflowPrioritizationReport(t)
+
+	data, err := MarshalPrioritizationJSON(report)
+	if err != nil {
+		t.Fatalf("MarshalPrioritizationJSON() error = %v", err)
+	}
+
+	want := readGoldenFile(t, "priorities-workflow.golden.json")
+	if string(data) != want {
+		t.Fatalf("workflow prioritization json output mismatch\nwant:\n%s\ngot:\n%s", want, string(data))
 	}
 }
 
@@ -529,6 +561,18 @@ func TestRenderDiffMarkdown(t *testing.T) {
 	}
 }
 
+func TestRenderWorkflowDiffMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleWorkflowDiffReport(t)
+
+	markdown := RenderDiffMarkdown(report)
+	want := readGoldenFile(t, "diff-workflow.golden.md")
+	if markdown != want {
+		t.Fatalf("workflow diff markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
 func TestRenderPrioritizationMarkdown(t *testing.T) {
 	t.Parallel()
 
@@ -538,6 +582,18 @@ func TestRenderPrioritizationMarkdown(t *testing.T) {
 	want := readGoldenFile(t, "priorities.golden.md")
 	if markdown != want {
 		t.Fatalf("prioritization markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
+	}
+}
+
+func TestRenderWorkflowPrioritizationMarkdown(t *testing.T) {
+	t.Parallel()
+
+	report := sampleWorkflowPrioritizationReport(t)
+
+	markdown := RenderPrioritizationMarkdown(report)
+	want := readGoldenFile(t, "priorities-workflow.golden.md")
+	if markdown != want {
+		t.Fatalf("workflow prioritization markdown output mismatch\nwant:\n%s\ngot:\n%s", want, markdown)
 	}
 }
 
@@ -1179,6 +1235,265 @@ func samplePrioritizationReport(t *testing.T) prioritizereport.Report {
 		prioritizereport.ProfileMigrationReadiness,
 		time.Date(2026, time.April, 22, 3, 0, 0, 0, time.UTC),
 		nil,
+	)
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	return report
+}
+
+func sampleWorkflowDiffReport(t *testing.T) diffreport.Report {
+	t.Helper()
+
+	baselineReport := BuildAuditReportWithMetadata([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "prod.example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Inventory: &core.InventoryAnnotation{
+					Owner:       "payments",
+					Environment: "prod",
+					Provenance: []core.InventoryProvenance{
+						{
+							SourceKind:   core.InventorySourceKindInventoryFile,
+							SourceFormat: core.InventorySourceFormatYAML,
+							SourceName:   "examples/inventory.yaml",
+							SourceRecord: "entries[0]",
+						},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "dev.example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Inventory: &core.InventoryAnnotation{
+					Owner:       "platform",
+					Environment: "dev",
+					Provenance: []core.InventoryProvenance{
+						{
+							SourceKind:   core.InventorySourceKindInventoryFile,
+							SourceFormat: core.InventorySourceFormatCSV,
+							SourceName:   "exports/cmdb.csv",
+							SourceRecord: "line 2",
+						},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+		},
+	}, time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/inventory.yaml",
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+
+	currentReport := BuildAuditReportWithMetadata([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "prod.example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Inventory: &core.InventoryAnnotation{
+					Owner:       "payments",
+					Environment: "prod",
+					Provenance: []core.InventoryProvenance{
+						{
+							SourceKind:   core.InventorySourceKindInventoryFile,
+							SourceFormat: core.InventorySourceFormatYAML,
+							SourceName:   "examples/inventory.yaml",
+							SourceRecord: "entries[0]",
+						},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status: core.AuditSelectionStatusSkipped,
+				Reason: "endpoint did not respond during remote discovery",
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "dev.example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Inventory: &core.InventoryAnnotation{
+					Owner:       "platform",
+					Environment: "dev",
+					Provenance: []core.InventoryProvenance{
+						{
+							SourceKind:   core.InventorySourceKindInventoryFile,
+							SourceFormat: core.InventorySourceFormatCSV,
+							SourceName:   "exports/cmdb.csv",
+							SourceRecord: "line 2",
+						},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status: core.AuditSelectionStatusSkipped,
+				Reason: "endpoint did not respond during remote discovery",
+			},
+		},
+	}, time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/inventory.yaml",
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+
+	report, err := diffreport.BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 25, 3, 0, 0, 0, time.UTC), &core.WorkflowContext{
+		GroupBy: core.WorkflowGroupByOwner,
+		Filters: []core.WorkflowFilter{
+			{
+				Field:  core.WorkflowFilterFieldEnvironment,
+				Values: []string{"prod"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	return report
+}
+
+func sampleWorkflowPrioritizationReport(t *testing.T) prioritizereport.Report {
+	t.Helper()
+
+	source := BuildAuditReportWithMetadata([]core.AuditResult{
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "prod.example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Inventory: &core.InventoryAnnotation{
+					Owner:       "payments",
+					Environment: "prod",
+					Tags:        []string{"external"},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:           "prod.example.com",
+				Port:           443,
+				ScannedAt:      time.Date(2026, time.April, 25, 1, 20, 0, 0, time.UTC),
+				Reachable:      true,
+				Classification: "legacy_tls_exposure",
+				Findings: []core.Finding{
+					{
+						Code:           "legacy-tls-version",
+						Severity:       core.SeverityHigh,
+						Summary:        "Legacy TLS remains enabled.",
+						Evidence:       []string{"tls_version=TLS 1.0"},
+						Recommendation: "Upgrade the endpoint to a modern TLS baseline.",
+					},
+				},
+			},
+		},
+		{
+			DiscoveredEndpoint: core.DiscoveredEndpoint{
+				ScopeKind: core.EndpointScopeKindRemote,
+				Host:      "dev.example.com",
+				Port:      443,
+				Transport: "tcp",
+				State:     "responsive",
+				Inventory: &core.InventoryAnnotation{
+					Owner:       "platform",
+					Environment: "dev",
+					Tags:        []string{"internal"},
+					Provenance: []core.InventoryProvenance{
+						{
+							SourceKind:   core.InventorySourceKindInventoryFile,
+							SourceFormat: core.InventorySourceFormatCSV,
+							SourceName:   "exports/cmdb.csv",
+							SourceRecord: "line 2",
+						},
+					},
+				},
+			},
+			Selection: core.AuditSelection{
+				Status:          core.AuditSelectionStatusSelected,
+				SelectedScanner: "tls",
+				Reason:          "tls hint on tcp/443",
+			},
+			TLSResult: &core.TargetResult{
+				Host:           "dev.example.com",
+				Port:           443,
+				ScannedAt:      time.Date(2026, time.April, 25, 1, 21, 0, 0, time.UTC),
+				Reachable:      true,
+				Classification: "modern_tls_classical_identity",
+				Findings: []core.Finding{
+					{
+						Code:           "classical-certificate-identity",
+						Severity:       core.SeverityMedium,
+						Summary:        "The observed certificate identity remains classical.",
+						Evidence:       []string{"leaf_key_algorithm=rsa"},
+						Recommendation: "Inventory certificate replacement and related PKI dependencies.",
+					},
+				},
+			},
+		},
+	}, time.Date(2026, time.April, 25, 1, 30, 0, 0, time.UTC), &core.ReportScope{
+		ScopeKind:     core.ReportScopeKindRemote,
+		InputKind:     core.ReportInputKindInventoryFile,
+		InventoryFile: "examples/inventory.yaml",
+	}, &core.ReportExecution{
+		Profile:        "cautious",
+		MaxHosts:       256,
+		MaxConcurrency: 8,
+		Timeout:        "3s",
+	})
+
+	report, err := prioritizereport.BuildAuditReport(
+		source,
+		prioritizereport.ProfileMigrationReadiness,
+		time.Date(2026, time.April, 25, 3, 0, 0, 0, time.UTC),
+		&core.WorkflowContext{
+			GroupBy: core.WorkflowGroupByOwner,
+			Filters: []core.WorkflowFilter{
+				{
+					Field:  core.WorkflowFilterFieldTag,
+					Values: []string{"external"},
+				},
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf("BuildAuditReport() error = %v", err)

@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "report_kind": "diff",
+  "scope_kind": "remote",
+  "scope_description": "diff of audit reports",
+  "generated_at": "2026-04-25T03:00:00Z",
+  "baseline_report_kind": "audit",
+  "current_report_kind": "audit",
+  "baseline_generated_at": "2026-04-25T01:00:00Z",
+  "current_generated_at": "2026-04-25T02:00:00Z",
+  "baseline_scope_description": "remote audit from inventory file examples/inventory.yaml",
+  "current_scope_description": "remote audit from inventory file examples/inventory.yaml",
+  "baseline_scope": {
+    "scope_kind": "remote",
+    "input_kind": "inventory_file",
+    "inventory_file": "examples/inventory.yaml"
+  },
+  "current_scope": {
+    "scope_kind": "remote",
+    "input_kind": "inventory_file",
+    "inventory_file": "examples/inventory.yaml"
+  },
+  "workflow_view": {
+    "group_by": "owner",
+    "filters": [
+      {
+        "field": "environment",
+        "values": [
+          "prod"
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "total_baseline_entities": 1,
+    "total_current_entities": 1,
+    "added_entities": 0,
+    "removed_entities": 0,
+    "changed_entities": 1,
+    "unchanged_entities": 0,
+    "scope_changed": false,
+    "change_breakdown": {
+      "selection_changed": 1
+    },
+    "direction_breakdown": {
+      "changed": 1
+    }
+  },
+  "grouped_summaries": [
+    {
+      "group_by": "owner",
+      "groups": [
+        {
+          "key": "payments",
+          "total_items": 1,
+          "severity_breakdown": {
+            "low": 1
+          },
+          "direction_breakdown": {
+            "changed": 1
+          },
+          "change_breakdown": {
+            "selection_changed": 1
+          }
+        }
+      ]
+    }
+  ],
+  "changes": [
+    {
+      "identity_key": "remote|prod.example.com|443|tcp",
+      "code": "selection_changed",
+      "direction": "changed",
+      "severity": "low",
+      "summary": "The audit selection decision changed.",
+      "baseline_value": {
+        "status": "selected",
+        "selected_scanner": "tls",
+        "reason": "tls hint on tcp/443"
+      },
+      "current_value": {
+        "status": "skipped",
+        "reason": "endpoint did not respond during remote discovery"
+      }
+    }
+  ]
+}

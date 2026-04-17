@@ -38,6 +38,8 @@ func RenderPrioritizationMarkdown(report prioritizereport.Report) string {
 		builder.WriteString("\n")
 	}
 
+	renderWorkflowView(&builder, report.WorkflowView)
+
 	builder.WriteString("## Severity summary\n\n")
 	severityKeys := sortedPrioritizationMapKeys(report.Summary.SeverityBreakdown)
 	if len(severityKeys) == 0 {
@@ -59,6 +61,9 @@ func RenderPrioritizationMarkdown(report prioritizereport.Report) string {
 		}
 		builder.WriteString("\n")
 	}
+
+	renderGroupedSummaries(&builder, report.GroupedSummaries)
+	renderWorkflowFindings(&builder, report.WorkflowFindings)
 
 	builder.WriteString("## Priorities\n\n")
 	if len(report.Items) == 0 {
