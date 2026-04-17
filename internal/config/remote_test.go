@@ -54,8 +54,14 @@ func TestParseRemoteScopeDefaults(t *testing.T) {
 	if got, want := scope.MaxHosts, defaultRemoteMaxHosts; got != want {
 		t.Fatalf("scope.MaxHosts = %d, want %d", got, want)
 	}
+	if got, want := scope.MaxAttempts, defaultRemoteMaxAttempts; got != want {
+		t.Fatalf("scope.MaxAttempts = %d, want %d", got, want)
+	}
 	if got, want := scope.HostCount, 256; got != want {
 		t.Fatalf("scope.HostCount = %d, want %d", got, want)
+	}
+	if got, want := scope.AttemptCount, 512; got != want {
+		t.Fatalf("scope.AttemptCount = %d, want %d", got, want)
 	}
 	if got, want := scope.MaxConcurrency, 8; got != want {
 		t.Fatalf("scope.MaxConcurrency = %d, want %d", got, want)
@@ -76,6 +82,7 @@ func TestParseRemoteScopeOverrides(t *testing.T) {
 		Ports:          "9443,443",
 		Profile:        "balanced",
 		MaxHosts:       512,
+		MaxAttempts:    1024,
 		MaxConcurrency: 12,
 		Timeout:        5 * time.Second,
 	})
@@ -92,8 +99,14 @@ func TestParseRemoteScopeOverrides(t *testing.T) {
 	if got, want := scope.MaxHosts, 512; got != want {
 		t.Fatalf("scope.MaxHosts = %d, want %d", got, want)
 	}
+	if got, want := scope.MaxAttempts, 1024; got != want {
+		t.Fatalf("scope.MaxAttempts = %d, want %d", got, want)
+	}
 	if got, want := scope.HostCount, 128; got != want {
 		t.Fatalf("scope.HostCount = %d, want %d", got, want)
+	}
+	if got, want := scope.AttemptCount, 256; got != want {
+		t.Fatalf("scope.AttemptCount = %d, want %d", got, want)
 	}
 	if got, want := scope.MaxConcurrency, 12; got != want {
 		t.Fatalf("scope.MaxConcurrency = %d, want %d", got, want)
@@ -144,6 +157,9 @@ func TestParseRemoteScopeTargetsFile(t *testing.T) {
 	}
 	if got, want := scope.HostCount, 3; got != want {
 		t.Fatalf("scope.HostCount = %d, want %d", got, want)
+	}
+	if got, want := scope.AttemptCount, 6; got != want {
+		t.Fatalf("scope.AttemptCount = %d, want %d", got, want)
 	}
 	if got, want := scope.Ports, []int{443, 8443}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("scope.Ports = %v, want %v", got, want)
@@ -234,6 +250,9 @@ func TestParseRemoteScopeInventoryFile(t *testing.T) {
 	if got, want := scope.HostCount, 2; got != want {
 		t.Fatalf("scope.HostCount = %d, want %d", got, want)
 	}
+	if got, want := scope.AttemptCount, 4; got != want {
+		t.Fatalf("scope.AttemptCount = %d, want %d", got, want)
+	}
 	if got, want := len(scope.Targets), 2; got != want {
 		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
 	}
@@ -304,6 +323,25 @@ func TestParseRemoteScopeInventoryFileUsesEntryPorts(t *testing.T) {
 	}
 	if got, want := scope.Targets[0].Ports, []int{443, 9443}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
+	}
+	if got, want := scope.AttemptCount, 2; got != want {
+		t.Fatalf("scope.AttemptCount = %d, want %d", got, want)
+	}
+}
+
+func TestParseRemoteScopeRejectsExpandedAttemptCountBeyondLimit(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseRemoteScope(RemoteScopeInput{
+		CIDR:        "10.0.0.0/30",
+		Ports:       "443,8443",
+		MaxAttempts: 4,
+	})
+	if err == nil {
+		t.Fatal("ParseRemoteScope() error = nil, want max-attempts rejection")
+	}
+	if !strings.Contains(err.Error(), "--cidr expands to 8 host:port attempts") {
+		t.Fatalf("ParseRemoteScope() error = %v, want expanded attempt-count rejection", err)
 	}
 }
 

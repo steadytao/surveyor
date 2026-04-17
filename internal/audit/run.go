@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/steadytao/surveyor/internal/config"
 	"github.com/steadytao/surveyor/internal/core"
@@ -26,9 +27,10 @@ type SelectFunc func([]core.DiscoveredEndpoint) []core.AuditResult
 // LocalRunner performs the current local audit workflow: discovery, selection
 // and supported scanner handoff.
 type LocalRunner struct {
-	Discoverer Discoverer
-	TLSScanner TargetScanner
-	Select     SelectFunc
+	Discoverer      Discoverer
+	TLSScanner      TargetScanner
+	Select          SelectFunc
+	ScanConcurrency int
 }
 
 // Run executes the local audit flow and returns one audit result per discovered endpoint.
@@ -38,16 +40,17 @@ func (r LocalRunner) Run(ctx context.Context) ([]core.AuditResult, error) {
 		discoverer = discovery.LocalEnumerator{}
 	}
 
-	return runAuditFlow(ctx, discoverer, r.Select, r.TLSScanner)
+	return runAuditFlow(ctx, discoverer, r.Select, r.TLSScanner, normalizedScanConcurrency(r.ScanConcurrency))
 }
 
 // RemoteRunner performs the current remote audit workflow: scoped remote
 // discovery, selection and supported scanner handoff.
 type RemoteRunner struct {
-	Scope      config.RemoteScope
-	Discoverer Discoverer
-	TLSScanner TargetScanner
-	Select     SelectFunc
+	Scope           config.RemoteScope
+	Discoverer      Discoverer
+	TLSScanner      TargetScanner
+	Select          SelectFunc
+	ScanConcurrency int
 }
 
 // Run executes the remote audit flow and returns one audit result per
@@ -58,10 +61,10 @@ func (r RemoteRunner) Run(ctx context.Context) ([]core.AuditResult, error) {
 		discoverer = discovery.RemoteEnumerator{Scope: r.Scope}
 	}
 
-	return runAuditFlow(ctx, discoverer, r.Select, r.TLSScanner)
+	return runAuditFlow(ctx, discoverer, r.Select, r.TLSScanner, normalizedScanConcurrency(r.ScanConcurrency, r.Scope.MaxConcurrency))
 }
 
-func runAuditFlow(ctx context.Context, discoverer Discoverer, selectFunc SelectFunc, scanner TargetScanner) ([]core.AuditResult, error) {
+func runAuditFlow(ctx context.Context, discoverer Discoverer, selectFunc SelectFunc, scanner TargetScanner, scanConcurrency int) ([]core.AuditResult, error) {
 	if selectFunc == nil {
 		selectFunc = SelectEndpoints
 	}
@@ -77,6 +80,7 @@ func runAuditFlow(ctx context.Context, discoverer Discoverer, selectFunc SelectF
 	}
 
 	results := selectFunc(endpoints)
+	jobs := make([]auditScanJob, 0, len(results))
 	for index := range results {
 		result := &results[index]
 		if result.Selection.Status != core.AuditSelectionStatusSelected {
@@ -97,8 +101,10 @@ func runAuditFlow(ctx context.Context, discoverer Discoverer, selectFunc SelectF
 				continue
 			}
 
-			scanResult := tlsScanner.ScanTarget(ctx, target)
-			result.TLSResult = &scanResult
+			jobs = append(jobs, auditScanJob{
+				index:  index,
+				target: target,
+			})
 		default:
 			// Keep unsupported selections explicit in the report instead of
 			// silently dropping them.
@@ -106,5 +112,82 @@ func runAuditFlow(ctx context.Context, discoverer Discoverer, selectFunc SelectF
 		}
 	}
 
+	applyAuditScanResults(ctx, tlsScanner, results, jobs, scanConcurrency)
+
 	return results, nil
+}
+
+type auditScanJob struct {
+	index  int
+	target config.Target
+}
+
+type auditScanResult struct {
+	index  int
+	result core.TargetResult
+}
+
+func normalizedScanConcurrency(values ...int) int {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+
+	return 8
+}
+
+func applyAuditScanResults(ctx context.Context, scanner TargetScanner, results []core.AuditResult, jobs []auditScanJob, maxConcurrency int) {
+	if len(jobs) == 0 {
+		return
+	}
+	if maxConcurrency <= 0 {
+		maxConcurrency = 1
+	}
+	if maxConcurrency > len(jobs) {
+		maxConcurrency = len(jobs)
+	}
+
+	jobCh := make(chan auditScanJob)
+	resultCh := make(chan auditScanResult, maxConcurrency)
+
+	var workerGroup sync.WaitGroup
+	for worker := 0; worker < maxConcurrency; worker++ {
+		workerGroup.Add(1)
+		go func() {
+			defer workerGroup.Done()
+
+			for job := range jobCh {
+				resultCh <- auditScanResult{
+					index:  job.index,
+					result: scanner.ScanTarget(ctx, job.target),
+				}
+			}
+		}()
+	}
+
+	ordered := make(map[int]core.TargetResult, len(jobs))
+	var collectGroup sync.WaitGroup
+	collectGroup.Add(1)
+	go func() {
+		defer collectGroup.Done()
+
+		for result := range resultCh {
+			ordered[result.index] = result.result
+		}
+	}()
+
+	for _, job := range jobs {
+		jobCh <- job
+	}
+	close(jobCh)
+
+	workerGroup.Wait()
+	close(resultCh)
+	collectGroup.Wait()
+
+	for _, job := range jobs {
+		scanResult := ordered[job.index]
+		results[job.index].TLSResult = &scanResult
+	}
 }

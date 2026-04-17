@@ -753,6 +753,190 @@ func TestBuildAuditReportAppliesWorkflowView(t *testing.T) {
 	}
 }
 
+func TestBuildAuditReportWorkflowFilterIncludesMetadataTransitions(t *testing.T) {
+	t.Parallel()
+
+	baselineReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "api.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "payments",
+						Environment: "prod",
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+			},
+		},
+	}
+
+	currentReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file examples/inventory.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "examples/inventory.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "api.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Owner:       "platform",
+						Environment: "prod",
+					},
+				},
+				Selection: core.AuditSelection{
+					Status: core.AuditSelectionStatusSkipped,
+					Reason: "endpoint did not respond during remote discovery",
+				},
+			},
+		},
+	}
+
+	report, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 25, 3, 0, 0, 0, time.UTC), &core.WorkflowContext{
+		GroupBy: core.WorkflowGroupByOwner,
+		Filters: []core.WorkflowFilter{
+			{
+				Field:  core.WorkflowFilterFieldOwner,
+				Values: []string{"payments"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	if got, want := len(report.Changes), 1; got != want {
+		t.Fatalf("len(report.Changes) = %d, want %d", got, want)
+	}
+	if got, want := report.Changes[0].IdentityKey, "remote|api.example.com|443|tcp"; got != want {
+		t.Fatalf("report.Changes[0].IdentityKey = %q, want %q", got, want)
+	}
+	if got, want := len(report.GroupedSummaries), 1; got != want {
+		t.Fatalf("len(report.GroupedSummaries) = %d, want %d", got, want)
+	}
+	if got, want := report.GroupedSummaries[0].Groups[0].Key, "payments"; got != want {
+		t.Fatalf("report.GroupedSummaries[0].Groups[0].Key = %q, want %q", got, want)
+	}
+	if got, want := report.GroupedSummaries[0].Groups[1].Key, "platform"; got != want {
+		t.Fatalf("report.GroupedSummaries[0].Groups[1].Key = %q, want %q", got, want)
+	}
+}
+
+func TestBuildAuditReportSourceGroupingIncludesMetadataTransitions(t *testing.T) {
+	t.Parallel()
+
+	baselineReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file baseline.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 1, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "baseline.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "api.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Provenance: []core.InventoryProvenance{
+							{
+								SourceKind:   core.InventorySourceKindInventoryFile,
+								SourceFormat: core.InventorySourceFormatYAML,
+								SourceName:   "baseline.yaml",
+								SourceRecord: "entries[0]",
+							},
+						},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status:          core.AuditSelectionStatusSelected,
+					SelectedScanner: "tls",
+					Reason:          "tls hint on tcp/443",
+				},
+			},
+		},
+	}
+
+	currentReport := core.AuditReport{
+		ReportMetadata: core.NewReportMetadata(core.ReportKindAudit, core.ReportScopeKindRemote, "remote audit from inventory file current.yaml"),
+		GeneratedAt:    time.Date(2026, time.April, 25, 2, 0, 0, 0, time.UTC),
+		Scope: &core.ReportScope{
+			ScopeKind:     core.ReportScopeKindRemote,
+			InputKind:     core.ReportInputKindInventoryFile,
+			InventoryFile: "current.yaml",
+		},
+		Results: []core.AuditResult{
+			{
+				DiscoveredEndpoint: core.DiscoveredEndpoint{
+					ScopeKind: core.EndpointScopeKindRemote,
+					Host:      "api.example.com",
+					Port:      443,
+					Transport: "tcp",
+					State:     "responsive",
+					Inventory: &core.InventoryAnnotation{
+						Provenance: []core.InventoryProvenance{
+							{
+								SourceKind:   core.InventorySourceKindInventoryFile,
+								SourceFormat: core.InventorySourceFormatYAML,
+								SourceName:   "current.yaml",
+								SourceRecord: "entries[0]",
+							},
+						},
+					},
+				},
+				Selection: core.AuditSelection{
+					Status: core.AuditSelectionStatusSkipped,
+					Reason: "endpoint did not respond during remote discovery",
+				},
+			},
+		},
+	}
+
+	report, err := BuildAuditReport(baselineReport, currentReport, time.Date(2026, time.April, 25, 3, 0, 0, 0, time.UTC), &core.WorkflowContext{
+		GroupBy: core.WorkflowGroupBySource,
+	})
+	if err != nil {
+		t.Fatalf("BuildAuditReport() error = %v", err)
+	}
+
+	if got, want := len(report.GroupedSummaries), 1; got != want {
+		t.Fatalf("len(report.GroupedSummaries) = %d, want %d", got, want)
+	}
+	if got, want := report.GroupedSummaries[0].Groups[0].Key, "baseline.yaml"; got != want {
+		t.Fatalf("report.GroupedSummaries[0].Groups[0].Key = %q, want %q", got, want)
+	}
+	if got, want := report.GroupedSummaries[0].Groups[1].Key, "current.yaml"; got != want {
+		t.Fatalf("report.GroupedSummaries[0].Groups[1].Key = %q, want %q", got, want)
+	}
+}
+
 func TestBuildTLSReportRejectsWorkflowView(t *testing.T) {
 	t.Parallel()
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -262,6 +263,59 @@ func TestRemoteRunnerRunScansSelectedTLSEndpoints(t *testing.T) {
 	}
 }
 
+func TestRemoteRunnerRunPreservesResultOrderWithConcurrentScanning(t *testing.T) {
+	t.Parallel()
+
+	discovered := []core.DiscoveredEndpoint{
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "slow.example.com",
+			Port:      443,
+			Transport: "tcp",
+			State:     "responsive",
+			Hints: []core.DiscoveryHint{
+				{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=443"}},
+			},
+		},
+		{
+			ScopeKind: core.EndpointScopeKindRemote,
+			Host:      "fast.example.com",
+			Port:      8443,
+			Transport: "tcp",
+			State:     "responsive",
+			Hints: []core.DiscoveryHint{
+				{Protocol: "tls", Confidence: "low", Evidence: []string{"transport=tcp", "port=8443"}},
+			},
+		},
+	}
+
+	runner := RemoteRunner{
+		Scope: config.RemoteScope{
+			MaxConcurrency: 2,
+		},
+		Discoverer:      stubDiscoverer{results: discovered},
+		TLSScanner:      delayedTargetScanner{},
+		ScanConcurrency: 2,
+	}
+
+	results, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got, want := len(results), 2; got != want {
+		t.Fatalf("len(results) = %d, want %d", got, want)
+	}
+	if results[0].TLSResult == nil || results[1].TLSResult == nil {
+		t.Fatalf("results = %#v, want TLS scan results for both endpoints", results)
+	}
+	if got, want := results[0].TLSResult.Host, "slow.example.com"; got != want {
+		t.Fatalf("results[0].TLSResult.Host = %q, want %q", got, want)
+	}
+	if got, want := results[1].TLSResult.Host, "fast.example.com"; got != want {
+		t.Fatalf("results[1].TLSResult.Host = %q, want %q", got, want)
+	}
+}
+
 func TestRemoteRunnerRunPreservesInventoryAnnotation(t *testing.T) {
 	t.Parallel()
 
@@ -358,14 +412,32 @@ func (d stubDiscoverer) Enumerate(context.Context) ([]core.DiscoveredEndpoint, e
 }
 
 type stubTargetScanner struct {
+	mu      sync.Mutex
 	calls   int
 	targets []config.Target
 	result  core.TargetResult
 }
 
+type delayedTargetScanner struct{}
+
+func (delayedTargetScanner) ScanTarget(_ context.Context, target config.Target) core.TargetResult {
+	if target.Host == "slow.example.com" {
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	return core.TargetResult{
+		Host:      target.Host,
+		Port:      target.Port,
+		ScannedAt: time.Date(2026, time.April, 16, 5, 0, 0, 0, time.UTC),
+		Reachable: true,
+	}
+}
+
 func (s *stubTargetScanner) ScanTarget(_ context.Context, target config.Target) core.TargetResult {
+	s.mu.Lock()
 	s.calls += 1
 	s.targets = append(s.targets, target)
+	s.mu.Unlock()
 
 	result := s.result
 	if result.Host == "" {

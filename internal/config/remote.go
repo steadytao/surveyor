@@ -44,6 +44,7 @@ type RemoteScopeInput struct {
 	Ports          string
 	Profile        string
 	MaxHosts       int
+	MaxAttempts    int
 	MaxConcurrency int
 	Timeout        time.Duration
 	DryRun         bool
@@ -73,6 +74,8 @@ type RemoteScope struct {
 	Profile        RemoteProfile
 	MaxHosts       int
 	HostCount      int
+	MaxAttempts    int
+	AttemptCount   int
 	MaxConcurrency int
 	Timeout        time.Duration
 	DryRun         bool
@@ -99,6 +102,7 @@ var remoteProfileDefaultsByProfile = map[RemoteProfile]remoteProfileDefaults{
 }
 
 const defaultRemoteMaxHosts = 256
+const defaultRemoteMaxAttempts = 2048
 
 // ParseRemoteScope validates and normalises raw remote input into the current
 // remote-scope contract. Today that means explicit CIDR scope, a simple
@@ -145,6 +149,13 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 	if maxHosts < 0 {
 		return RemoteScope{}, fmt.Errorf("--max-hosts must not be negative")
+	}
+	maxAttempts := input.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = defaultRemoteMaxAttempts
+	}
+	if maxAttempts < 0 {
+		return RemoteScope{}, fmt.Errorf("--max-attempts must not be negative")
 	}
 
 	defaults := remoteProfileDefaultsByProfile[profile]
@@ -198,6 +209,13 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 		if err != nil {
 			return RemoteScope{}, fmt.Errorf("--inventory-file %q: %w", inventoryFileText, err)
 		}
+		attemptCount, err := inventoryAttemptCount(targets)
+		if err != nil {
+			return RemoteScope{}, fmt.Errorf("--inventory-file %q: %w", inventoryFileText, err)
+		}
+		if attemptCount > maxAttempts {
+			return RemoteScope{}, fmt.Errorf("--inventory-file expands to %d host:port attempts, which exceeds --max-attempts=%d", attemptCount, maxAttempts)
+		}
 
 		return RemoteScope{
 			InputKind:      RemoteScopeInputKindInventoryFile,
@@ -208,6 +226,8 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 			Profile:        profile,
 			MaxHosts:       maxHosts,
 			HostCount:      len(targets),
+			MaxAttempts:    maxAttempts,
+			AttemptCount:   attemptCount,
 			MaxConcurrency: maxConcurrency,
 			Timeout:        timeout,
 			DryRun:         input.DryRun,
@@ -230,6 +250,13 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 		if len(hosts) > maxHosts {
 			return RemoteScope{}, fmt.Errorf("--targets-file contains %d hosts, which exceeds --max-hosts=%d", len(hosts), maxHosts)
 		}
+		attemptCount, err := remoteAttemptCount(len(hosts), len(ports))
+		if err != nil {
+			return RemoteScope{}, err
+		}
+		if attemptCount > maxAttempts {
+			return RemoteScope{}, fmt.Errorf("--targets-file expands to %d host:port attempts, which exceeds --max-attempts=%d", attemptCount, maxAttempts)
+		}
 
 		return RemoteScope{
 			InputKind:      RemoteScopeInputKindTargetsFile,
@@ -239,6 +266,8 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 			Profile:        profile,
 			MaxHosts:       maxHosts,
 			HostCount:      len(hosts),
+			MaxAttempts:    maxAttempts,
+			AttemptCount:   attemptCount,
 			MaxConcurrency: maxConcurrency,
 			Timeout:        timeout,
 			DryRun:         input.DryRun,
@@ -258,6 +287,13 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	if hostCount > maxHosts {
 		return RemoteScope{}, fmt.Errorf("--cidr expands to %d hosts, which exceeds --max-hosts=%d", hostCount, maxHosts)
 	}
+	attemptCount, err := remoteAttemptCount(hostCount, len(ports))
+	if err != nil {
+		return RemoteScope{}, err
+	}
+	if attemptCount > maxAttempts {
+		return RemoteScope{}, fmt.Errorf("--cidr expands to %d host:port attempts, which exceeds --max-attempts=%d", attemptCount, maxAttempts)
+	}
 
 	return RemoteScope{
 		InputKind:      RemoteScopeInputKindCIDR,
@@ -266,6 +302,8 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 		Profile:        profile,
 		MaxHosts:       maxHosts,
 		HostCount:      hostCount,
+		MaxAttempts:    maxAttempts,
+		AttemptCount:   attemptCount,
 		MaxConcurrency: maxConcurrency,
 		Timeout:        timeout,
 		DryRun:         input.DryRun,
@@ -374,6 +412,52 @@ func compileInventoryTargets(entries []inventory.Entry, overridePorts []int) ([]
 	}
 
 	return targets, nil
+}
+
+func remoteAttemptCount(hostCount int, portCount int) (int, error) {
+	return safeMultiplyCount(hostCount, portCount, "expanded remote scope")
+}
+
+func inventoryAttemptCount(targets []RemoteScopeTarget) (int, error) {
+	total := 0
+	for _, target := range targets {
+		next, err := safeAddCount(total, len(target.Ports), "inventory-backed remote scope")
+		if err != nil {
+			return 0, err
+		}
+		total = next
+	}
+
+	return total, nil
+}
+
+func safeMultiplyCount(left int, right int, label string) (int, error) {
+	if left < 0 || right < 0 {
+		return 0, fmt.Errorf("%s count must not be negative", label)
+	}
+	if left == 0 || right == 0 {
+		return 0, nil
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if left > maxInt/right {
+		return 0, fmt.Errorf("%s count overflowed", label)
+	}
+
+	return left * right, nil
+}
+
+func safeAddCount(current int, increment int, label string) (int, error) {
+	if current < 0 || increment < 0 {
+		return 0, fmt.Errorf("%s count must not be negative", label)
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if increment > maxInt-current {
+		return 0, fmt.Errorf("%s count overflowed", label)
+	}
+
+	return current + increment, nil
 }
 
 func parseRemoteTargetsFile(path string) ([]string, error) {
