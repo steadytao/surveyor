@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Structured Inventory Inputs
 
 This document defines the current structured inventory input layer.

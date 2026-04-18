@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Contributing to Surveyor
 
 Thanks for taking an interest in Surveyor.

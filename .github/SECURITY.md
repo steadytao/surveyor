@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Security Policy
 
 If you believe you have found a security issue in Surveyor itself, please do not open a public issue or pull request.

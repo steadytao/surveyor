@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Surveyor Documentation
 
 This directory is a map of the Surveyor docs set.

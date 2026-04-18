@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Audit
 
 Audit is the current orchestration layer built on top of discovery and the existing TLS scanner.

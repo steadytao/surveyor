@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Remote Inventory
 
 Remote inventory is now part of Surveyor's current repository surface.

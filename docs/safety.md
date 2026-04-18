@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Safety
 
 Surveyor is a defensive inventory and reporting tool.

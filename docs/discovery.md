@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Discovery
 
 Discovery is the current foundation layer that sits alongside the explicit-target TLS inventory slice and beneath both audit commands.

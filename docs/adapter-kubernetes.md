@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../.github/banner.svg" alt="BANNER" width="720">
+</div>
+
 # Adapter: Kubernetes
 
 This document defines the current Kubernetes adapter boundary for `v0.9.0`.
