@@ -13,7 +13,7 @@ The format is intentionally simple. Surveyor is still in early development so th
 ### Added
 - clean-checkout verification now covers formatting, module tidiness, module verification, build, vet, tests, deterministic built-binary smoke checks and diff cleanliness in the release gate
 - deterministic example and golden verification now covers the checked-in subnet outputs, canonical example JSON headers and `*.caddyfile` adapter auto-detection
-- the public docs surface now has a consistent banner across the README, changelog, maintainer docs, docs pages and checked-in release notes
+- the public docs surface now has a consistent banner across the README, changelog, maintainer docs and docs pages
 
 ### Changed
 - diff workflow visibility now preserves owner, environment and source transitions instead of hiding them when inventory metadata changes between baseline and current reports
