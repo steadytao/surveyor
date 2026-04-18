@@ -28,6 +28,7 @@ trying to produce a defensible inventory and a clear next-action surface.
 - [Documentation](#documentation)
 - [Development](#development)
 - [Contributing](#contributing)
+- [Discussions](#discussions)
 - [Security](#security)
 - [Licence](#licence)
 - [Changelog](#changelog)
@@ -277,9 +278,22 @@ Representative local checks:
 
 Well-scoped contributions are welcome.
 
-Start with [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md). For larger
+Please start with [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md). For larger
 changes, open an issue first so scope and direction can be discussed before
 implementation starts.
+
+For questions, broader feedback, and open-ended design discussion, instead use
+[GitHub Discussions](https://github.com/steadytao/surveyor/discussions).
+
+## Discussions
+
+Use [GitHub Discussions](https://github.com/steadytao/surveyor/discussions) for:
+- questions about usage
+- broader feedback on the repo, docs, or command surface
+- design ideas and feature suggestions
+- discussion around use cases and workflow fit
+
+Use Issues for concrete bugs, release blockers and things that need tracked implementation work.
 
 ## Security
 
