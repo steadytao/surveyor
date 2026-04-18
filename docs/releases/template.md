@@ -1,7 +1,3 @@
-<div align="center">
-  <img src="../../.github/banner.svg" alt="BANNER" width="720">
-</div>
-
 One or two sentences summarising the release in plain English. Keep this editorial and specific. Do not just restate the version number.
 
 ## Highlights
