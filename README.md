@@ -77,8 +77,12 @@ It also does not scan undeclared address ranges or silently widen scope.
 
 ## Install
 
-You can build Surveyor from source:
+You may install our builds at:
+<https://github.com/steadytao/surveyor/releases>
 
+OR
+
+You can build Surveyor from source:
 ```bash
 git clone https://github.com/steadytao/surveyor.git
 cd surveyor
