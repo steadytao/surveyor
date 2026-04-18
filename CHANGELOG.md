@@ -8,6 +8,19 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.10.0
+
+### Added
+- clean-checkout verification now covers formatting, module tidiness, module verification, build, vet, tests, deterministic built-binary smoke checks and diff cleanliness in the release gate
+- deterministic example and golden verification now covers the checked-in subnet outputs, canonical example JSON headers and `*.caddyfile` adapter auto-detection
+- the public docs surface now has a consistent banner across the README, changelog, maintainer docs, docs pages and checked-in release notes
+
+### Changed
+- diff workflow visibility now preserves owner, environment and source transitions instead of hiding them when inventory metadata changes between baseline and current reports
+- remote dry-run and execution metadata now account for real host:port attempt counts rather than only host counts, and bounded TLS scan concurrency is now used in explicit scan and audit execution paths
+- `discover subnet` and `audit subnet` now reject unsupported inventory-only adapter flags cleanly, and the command help and default wording now match the implemented remote contract
+- the top-level README is now the primary manual, `docs/README.md` is now a thin docs map, and the workflow shell policy is now standardised on bash across GitHub Actions
+
 ## v0.9.0
 
 ### Added
