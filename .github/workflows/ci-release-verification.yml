@@ -50,6 +50,7 @@ jobs:
         with:
           egress-policy: block
           allowed-endpoints: |
+            168.63.129.16:53
             api.github.com:443
             codeload.github.com:443
             github.com:443
@@ -110,6 +111,7 @@ jobs:
         with:
           egress-policy: block
           allowed-endpoints: |
+            168.63.129.16:53
             api.github.com:443
             codeload.github.com:443
             github.com:443
