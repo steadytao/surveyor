@@ -1,0 +1,99 @@
+name: CI / Script Quality
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".github/scripts/**"
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/scripts/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-script-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  script-quality:
+    name: Script Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        with:
+          egress-policy: block
+          allowed-endpoints: |
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            github-releases.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: "3.13"
+          check-latest: false
+
+      - name: Check Python Syntax
+        run: |
+          set -euo pipefail
+          mapfile -t py_files < <(find .github/scripts -type f -name '*.py' | sort)
+          if [ "${#py_files[@]}" -eq 0 ]; then
+            echo "No Python helper scripts found."
+            exit 0
+          fi
+          python3 -m py_compile "${py_files[@]}"
+
+      - name: Run Python Script Tests
+        run: |
+          set -euo pipefail
+          mapfile -t test_files < <(find .github/scripts -type f -name 'test_*.py' | sort)
+          if [ "${#test_files[@]}" -eq 0 ]; then
+            echo "No Python script tests found."
+            exit 0
+          fi
+
+          for test_file in "${test_files[@]}"; do
+            test_dir="$(dirname "${test_file}")"
+            python_path="${test_dir}"
+            if [ "$(basename "${test_dir}")" = "tests" ]; then
+              python_path="$(dirname "${test_dir}")"
+            fi
+
+            PYTHONPATH="${python_path}" python3 "${test_file}"
+          done
+
+      - name: Run ShellCheck
+        run: |
+          set -euo pipefail
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "shellcheck is not available on this runner." >&2
+            exit 1
+          fi
+          mapfile -t sh_files < <(find .github/scripts -type f -name '*.sh' | sort)
+          if [ "${#sh_files[@]}" -eq 0 ]; then
+            echo "No shell helper scripts found."
+            exit 0
+          fi
+          shellcheck "${sh_files[@]}"

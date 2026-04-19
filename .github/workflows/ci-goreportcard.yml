@@ -1,0 +1,117 @@
+name: CI / Go Report Card
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-go-report-card-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      should_run: ${{ steps.visibility.outputs.should_run }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        with:
+          egress-policy: block
+          allowed-endpoints: |
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+
+      - name: Classify Repository Visibility
+        id: visibility
+        env:
+          PRIVATE_REPO: ${{ github.event.repository.private }}
+        run: |
+          set -euo pipefail
+
+          if [ "${PRIVATE_REPO:-false}" = "true" ]; then
+            echo "should_run=false" >> "${GITHUB_OUTPUT}"
+            {
+              echo "# Go Report Card"
+              echo "- Repository: \`github.com/${GITHUB_REPOSITORY}\`"
+              echo "- Result: skipped"
+              echo
+              echo "## Why this was skipped"
+              echo "- Go Report Card only analyses public repositories."
+              echo "- This repository is private so \`POST /checks\` returns HTTP 400."
+            } >> "${GITHUB_STEP_SUMMARY}"
+
+            echo "Go Report Card is unavailable for private repositories; skipping external analysis."
+            exit 0
+          fi
+
+          echo "should_run=true" >> "${GITHUB_OUTPUT}"
+
+  goreportcard:
+    name: Go Report Card
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - preflight
+    if: ${{ needs.preflight.outputs.should_run == 'true' }}
+    env:
+      REPO: github.com/${{ github.repository }}
+      MAX_ISSUES: "0"
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        with:
+          egress-policy: block
+          # Allow only the endpoints needed for:
+          # - actions/checkout talking to GitHub
+          # - actions/setup-python resolving and downloading Python toolcache artifacts
+          # - the Go Report Card refresh and report fetches
+          allowed-endpoints: |
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            github-releases.githubusercontent.com:443
+            goreportcard.com:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: "3.13"
+          check-latest: false
+
+      - name: Refresh Report
+        run: bash ./.github/scripts/goreportcard/refresh_and_wait_for_fresh_report.sh
+
+      - name: Enforce Max Issues
+        env:
+          PYTHONPATH: .github/scripts/goreportcard
+        run: python3 ./.github/scripts/goreportcard/enforce_zero_issues.py
+
+      - name: Run Self Tests
+        env:
+          PYTHONPATH: .github/scripts/goreportcard
+        run: python3 -m unittest discover -s .github/scripts/goreportcard/tests -p 'test_*.py'

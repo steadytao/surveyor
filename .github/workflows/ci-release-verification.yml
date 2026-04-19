@@ -1,0 +1,147 @@
+name: CI / Release Verification
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".goreleaser.yml"
+      - ".goreleaser.yaml"
+      - "goreleaser.yml"
+      - "goreleaser.yaml"
+      - "go.mod"
+      - "go.sum"
+  push:
+    branches:
+      - master
+    paths:
+      - ".goreleaser.yml"
+      - ".goreleaser.yaml"
+      - "goreleaser.yml"
+      - "goreleaser.yaml"
+      - "go.mod"
+      - "go.sum"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-release-verification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GORELEASER_VERSION: v2.15.3
+
+jobs:
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      has_release_inputs: ${{ steps.detect.outputs.has_release_inputs }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        with:
+          egress-policy: block
+          allowed-endpoints: |
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Detect Release Inputs
+        id: detect
+        run: |
+          set -euo pipefail
+
+          if [ ! -f go.mod ]; then
+            {
+              echo "# CI / Release Verification"
+              echo "- Result: skipped"
+              echo
+              echo "## Why this was skipped"
+              echo "- No \`go.mod\` file was found at the repository root."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            echo "has_release_inputs=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          for config in .goreleaser.yml .goreleaser.yaml goreleaser.yml goreleaser.yaml; do
+            if [ -f "${config}" ]; then
+              echo "has_release_inputs=true" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+          done
+
+          {
+            echo "# CI / Release Verification"
+            echo "- Result: skipped"
+            echo
+            echo "## Why this was skipped"
+            echo "- No Goreleaser configuration file was found."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          echo "has_release_inputs=false" >> "${GITHUB_OUTPUT}"
+
+  release-verification:
+    name: Release Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs:
+      - preflight
+    if: ${{ needs.preflight.outputs.has_release_inputs == 'true' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        with:
+          egress-policy: block
+          allowed-endpoints: |
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            github-releases.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            proxy.golang.org:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            storage.googleapis.com:443
+            sum.golang.org:443
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+          cache: true
+
+      - name: Install Goreleaser
+        run: |
+          set -euo pipefail
+          go install "github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}"
+
+      - name: Validate Goreleaser Config
+        run: |
+          set -euo pipefail
+          "$(go env GOPATH)/bin/goreleaser" check
+
+      - name: Build Snapshot Release
+        run: |
+          set -euo pipefail
+          "$(go env GOPATH)/bin/goreleaser" build --snapshot --clean
