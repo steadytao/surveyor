@@ -18,33 +18,16 @@ import (
 func TestRemoteEnumeratorEnumerateRecordsResponsiveAndFailedAttempts(t *testing.T) {
 	t.Parallel()
 
-	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
-		CIDR:           "10.0.0.0/30",
-		Ports:          "8443,443",
-		MaxConcurrency: 3,
-		Timeout:        2 * time.Second,
+	enumerator := remoteEnumeratorForCIDR(t, "10.0.0.0/30", "8443,443", 3, 2*time.Second, func(host string, port int) error {
+		switch host + ":" + itoa(port) {
+		case "10.0.0.1:443", "10.0.0.2:8443":
+			return nil
+		case "10.0.0.0:443":
+			return timeoutProbeError{}
+		default:
+			return errors.New("connection refused")
+		}
 	})
-	if err != nil {
-		t.Fatalf("ParseRemoteScope() error = %v", err)
-	}
-
-	enumerator := RemoteEnumerator{
-		Scope: scope,
-		probeEndpoint: func(_ context.Context, host string, port int, timeout time.Duration) error {
-			if timeout != 2*time.Second {
-				t.Fatalf("timeout = %s, want 2s", timeout)
-			}
-
-			switch host + ":" + itoa(port) {
-			case "10.0.0.1:443", "10.0.0.2:8443":
-				return nil
-			case "10.0.0.0:443":
-				return timeoutProbeError{}
-			default:
-				return errors.New("connection refused")
-			}
-		},
-	}
 
 	got, err := enumerator.Enumerate(context.Background())
 	if err != nil {
@@ -73,35 +56,8 @@ func TestRemoteEnumeratorEnumerateRecordsResponsiveAndFailedAttempts(t *testing.
 	}
 
 	for index, want := range wantOrder {
-		gotEndpoint := got[index]
-		if gotEndpoint.ScopeKind != core.EndpointScopeKindRemote {
-			t.Fatalf("got[%d].ScopeKind = %q, want remote", index, gotEndpoint.ScopeKind)
-		}
-		if gotEndpoint.Host != want.host || gotEndpoint.Port != want.port {
-			t.Fatalf("got[%d] address = %s:%d, want %s:%d", index, gotEndpoint.Host, gotEndpoint.Port, want.host, want.port)
-		}
-		if gotEndpoint.Transport != "tcp" {
-			t.Fatalf("got[%d].Transport = %q, want tcp", index, gotEndpoint.Transport)
-		}
-		if gotEndpoint.State != want.state {
-			t.Fatalf("got[%d].State = %q, want %q", index, gotEndpoint.State, want.state)
-		}
-		if want.err == "" {
-			if len(gotEndpoint.Errors) != 0 {
-				t.Fatalf("got[%d].Errors = %#v, want none", index, gotEndpoint.Errors)
-			}
-			if len(gotEndpoint.Hints) != 1 || gotEndpoint.Hints[0].Protocol != want.hint || gotEndpoint.Hints[0].Confidence != "low" {
-				t.Fatalf("got[%d].Hints = %#v, want low-confidence %q hint", index, gotEndpoint.Hints, want.hint)
-			}
-			continue
-		}
-
-		if len(gotEndpoint.Errors) != 1 || gotEndpoint.Errors[0] != want.err {
-			t.Fatalf("got[%d].Errors = %#v, want [%q]", index, gotEndpoint.Errors, want.err)
-		}
-		if len(gotEndpoint.Hints) != 0 {
-			t.Fatalf("got[%d].Hints = %#v, want no hints for failed probe", index, gotEndpoint.Hints)
-		}
+		assertRemoteEndpoint(t, got[index], want.host, want.port, want.state)
+		assertRemoteProbeOutcome(t, got[index], want.err, want.hint)
 	}
 }
 
@@ -282,15 +238,8 @@ func TestRemoteEnumeratorEnumerateInventoryFilePreservesPortsOrderAndAnnotations
 	}
 
 	for index, want := range wantOrder {
-		if got[index].Host != want.host || got[index].Port != want.port || got[index].State != want.state {
-			t.Fatalf("got[%d] = %#v, want host=%q port=%d state=%q", index, got[index], want.host, want.port, want.state)
-		}
-		if got[index].Inventory == nil {
-			t.Fatalf("got[%d].Inventory = nil, want non-nil", index)
-		}
-		if got[index].Inventory.Owner != want.owner {
-			t.Fatalf("got[%d].Inventory.Owner = %q, want %q", index, got[index].Inventory.Owner, want.owner)
-		}
+		assertRemoteEndpoint(t, got[index], want.host, want.port, want.state)
+		assertInventoryOwner(t, got[index], want.owner)
 	}
 
 	if got, want := got[0].Inventory.Ports, []int{443, 8443}; !equalInts(got, want) {
@@ -303,6 +252,86 @@ func TestRemoteEnumeratorEnumerateInventoryFilePreservesPortsOrderAndAnnotations
 	got[0].Inventory.Tags[0] = "mutated"
 	if got[1].Inventory.Tags[0] != "critical" {
 		t.Fatalf("got[1].Inventory.Tags[0] = %q, want independent annotation clone", got[1].Inventory.Tags[0])
+	}
+}
+
+func remoteEnumeratorForCIDR(
+	t *testing.T,
+	cidr string,
+	ports string,
+	maxConcurrency int,
+	timeout time.Duration,
+	probe func(host string, port int) error,
+) RemoteEnumerator {
+	t.Helper()
+
+	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
+		CIDR:           cidr,
+		Ports:          ports,
+		MaxConcurrency: maxConcurrency,
+		Timeout:        timeout,
+	})
+	if err != nil {
+		t.Fatalf("ParseRemoteScope() error = %v", err)
+	}
+
+	return RemoteEnumerator{
+		Scope: scope,
+		probeEndpoint: func(_ context.Context, host string, port int, gotTimeout time.Duration) error {
+			if gotTimeout != timeout {
+				t.Fatalf("timeout = %s, want %s", gotTimeout, timeout)
+			}
+			return probe(host, port)
+		},
+	}
+}
+
+func assertRemoteEndpoint(t *testing.T, endpoint core.DiscoveredEndpoint, host string, port int, state string) {
+	t.Helper()
+
+	if endpoint.ScopeKind != core.EndpointScopeKindRemote {
+		t.Fatalf("endpoint.ScopeKind = %q, want remote", endpoint.ScopeKind)
+	}
+	if endpoint.Host != host || endpoint.Port != port {
+		t.Fatalf("endpoint address = %s:%d, want %s:%d", endpoint.Host, endpoint.Port, host, port)
+	}
+	if endpoint.Transport != "tcp" {
+		t.Fatalf("endpoint.Transport = %q, want tcp", endpoint.Transport)
+	}
+	if endpoint.State != state {
+		t.Fatalf("endpoint.State = %q, want %q", endpoint.State, state)
+	}
+}
+
+func assertRemoteProbeOutcome(t *testing.T, endpoint core.DiscoveredEndpoint, errText string, hint string) {
+	t.Helper()
+
+	if errText == "" {
+		if len(endpoint.Errors) != 0 {
+			t.Fatalf("endpoint.Errors = %#v, want none", endpoint.Errors)
+		}
+		if len(endpoint.Hints) != 1 || endpoint.Hints[0].Protocol != hint || endpoint.Hints[0].Confidence != "low" {
+			t.Fatalf("endpoint.Hints = %#v, want low-confidence %q hint", endpoint.Hints, hint)
+		}
+		return
+	}
+
+	if len(endpoint.Errors) != 1 || endpoint.Errors[0] != errText {
+		t.Fatalf("endpoint.Errors = %#v, want [%q]", endpoint.Errors, errText)
+	}
+	if len(endpoint.Hints) != 0 {
+		t.Fatalf("endpoint.Hints = %#v, want no hints for failed probe", endpoint.Hints)
+	}
+}
+
+func assertInventoryOwner(t *testing.T, endpoint core.DiscoveredEndpoint, owner string) {
+	t.Helper()
+
+	if endpoint.Inventory == nil {
+		t.Fatal("endpoint.Inventory = nil, want non-nil")
+	}
+	if endpoint.Inventory.Owner != owner {
+		t.Fatalf("endpoint.Inventory.Owner = %q, want %q", endpoint.Inventory.Owner, owner)
 	}
 }
 

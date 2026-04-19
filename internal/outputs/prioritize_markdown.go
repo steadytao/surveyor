@@ -21,46 +21,17 @@ func RenderPrioritizationMarkdown(report prioritizereport.Report) string {
 	builder.WriteString(fmt.Sprintf("- Source generated: %s\n", report.SourceGeneratedAt.UTC().Format(time.RFC3339)))
 	builder.WriteString(fmt.Sprintf("- Total items: %d\n\n", report.Summary.TotalItems))
 
-	if report.Scope != nil {
-		builder.WriteString("## Scope\n\n")
-		builder.WriteString(fmt.Sprintf("- Scope kind: %s\n", report.Scope.ScopeKind))
-		if report.Scope.InputKind != "" {
-			builder.WriteString(fmt.Sprintf("- Input kind: %s\n", report.Scope.InputKind))
-		}
-		if report.Scope.CIDR != "" {
-			builder.WriteString(fmt.Sprintf("- CIDR: %s\n", report.Scope.CIDR))
-		}
-		if report.Scope.TargetsFile != "" {
-			builder.WriteString(fmt.Sprintf("- Targets file: %s\n", report.Scope.TargetsFile))
-		}
-		renderInventoryFileScope(&builder, report.Scope)
-		renderScopePorts(&builder, report.Scope)
-		builder.WriteString("\n")
-	}
-
+	renderReportScopeSection(&builder, report.Scope)
 	renderWorkflowView(&builder, report.WorkflowView)
 
-	builder.WriteString("## Severity summary\n\n")
 	severityKeys := sortedPrioritizationMapKeys(report.Summary.SeverityBreakdown)
-	if len(severityKeys) == 0 {
-		builder.WriteString("- No prioritised severities recorded\n\n")
-	} else {
-		for _, key := range severityKeys {
-			builder.WriteString(fmt.Sprintf("- %s: %d\n", key, report.Summary.SeverityBreakdown[key]))
-		}
-		builder.WriteString("\n")
-	}
-
-	builder.WriteString("## Code summary\n\n")
 	codeKeys := sortedPrioritizationMapKeys(report.Summary.CodeBreakdown)
-	if len(codeKeys) == 0 {
-		builder.WriteString("- No prioritised codes recorded\n\n")
-	} else {
-		for _, key := range codeKeys {
-			builder.WriteString(fmt.Sprintf("- %s: %d\n", key, report.Summary.CodeBreakdown[key]))
-		}
-		builder.WriteString("\n")
-	}
+	renderBreakdownSection(&builder, "## Severity summary", "- No prioritised severities recorded", severityKeys, func(key string) int {
+		return report.Summary.SeverityBreakdown[key]
+	})
+	renderBreakdownSection(&builder, "## Code summary", "- No prioritised codes recorded", codeKeys, func(key string) int {
+		return report.Summary.CodeBreakdown[key]
+	})
 
 	renderGroupedSummaries(&builder, report.GroupedSummaries)
 	renderWorkflowFindings(&builder, report.WorkflowFindings)

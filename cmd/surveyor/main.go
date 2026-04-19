@@ -531,6 +531,23 @@ type remoteCommandOptions struct {
 	allowInventoryFile bool
 }
 
+type remoteCommandFlags struct {
+	cidr           *string
+	targetsFile    *string
+	inventoryFile  *string
+	adapter        *string
+	adapterBinary  *string
+	ports          *string
+	profile        *string
+	dryRun         *bool
+	maxHosts       *int
+	maxAttempts    *int
+	maxConcurrency *int
+	timeout        *time.Duration
+	markdownPath   *string
+	jsonPath       *string
+}
+
 func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time, opts remoteCommandOptions) int {
 	fs := flag.NewFlagSet(opts.commandName, flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -538,32 +555,7 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 		opts.printUsage(stderr)
 	}
 
-	cidr := fs.String("cidr", "", "CIDR scope to discover, for example 10.0.0.0/24")
-	var targetsFile *string
-	var inventoryFile *string
-	var adapter *string
-	var adapterBinary *string
-	if opts.allowTargetsFile {
-		targetsFile = fs.String("targets-file", "", "Path to a newline-delimited host or IP scope file")
-	}
-	if opts.allowInventoryFile {
-		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
-		adapter = fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
-		adapterBinary = fs.String("adapter-bin", "", "Path to an external adapter executable when the selected adapter needs one")
-	}
-	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
-	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
-	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
-	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the fixed command default")
-	maxAttempts := fs.Int("max-attempts", 0, "Hard cap on expanded host:port attempts, defaulting to the fixed command default")
-	maxConcurrency := fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts")
-	timeout := fs.Duration("timeout", 0, "Per probe or connection attempt timeout")
-
-	markdownPath := fs.String("output", "", "Write Markdown report output to this path")
-	fs.StringVar(markdownPath, "o", "", "Write Markdown report output to this path")
-
-	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
-	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
+	flags := registerRemoteCommandFlags(fs, opts, "discover")
 
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -579,74 +571,22 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 		return 2
 	}
 
-	targetsFileValue := ""
-	if targetsFile != nil {
-		targetsFileValue = *targetsFile
-	}
-	inventoryFileValue := ""
-	if inventoryFile != nil {
-		inventoryFileValue = *inventoryFile
-	}
-	adapterValue := ""
-	if adapter != nil {
-		adapterValue = *adapter
-	}
-	adapterBinaryValue := ""
-	if adapterBinary != nil {
-		adapterBinaryValue = *adapterBinary
-	}
-	if !opts.allowTargetsFile && strings.TrimSpace(*cidr) == "" {
-		fmt.Fprintln(stderr, "--cidr is required")
+	if err := validateRemoteCommandFlags(flags, opts); err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 
-	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
-		CIDR:           *cidr,
-		TargetsFile:    targetsFileValue,
-		InventoryFile:  inventoryFileValue,
-		Adapter:        adapterValue,
-		AdapterBinary:  adapterBinaryValue,
-		Ports:          *ports,
-		Profile:        *profile,
-		MaxHosts:       *maxHosts,
-		MaxAttempts:    *maxAttempts,
-		MaxConcurrency: *maxConcurrency,
-		Timeout:        *timeout,
-		DryRun:         *dryRun,
-	})
+	scope, err := parseRemoteScopeFromFlags(flags)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
 
-	if scope.DryRun {
-		if *jsonPath != "" {
-			fmt.Fprintf(stderr, "%s --dry-run does not support --json\n", opts.commandName)
-			return 2
-		}
-
-		plan := renderRemoteExecutionPlanMarkdown(opts.commandName, scope, "none, discovery only")
-		if *markdownPath != "" {
-			if err := writeOutputFile(*markdownPath, []byte(plan)); err != nil {
-				fmt.Fprintf(stderr, "write dry-run Markdown output %q: %v\n", *markdownPath, err)
-				return 1
-			}
-		}
-		if *markdownPath == "" {
-			if _, err := io.WriteString(stdout, plan); err != nil {
-				fmt.Fprintf(stderr, "write stdout: %v\n", err)
-				return 1
-			}
-		}
-
-		return 0
+	if handled, exitCode := writeRemoteDryRunOutput(scope, opts.commandName, "none, discovery only", stdout, stderr, *flags.markdownPath, *flags.jsonPath); handled {
+		return exitCode
 	}
 
-	discoverNow := now
-	if discoverNow == nil {
-		discoverNow = time.Now
-	}
-
+	discoverNow := resolvedNow(now)
 	results, err := newRemoteDiscoverer(scope).Enumerate(context.Background())
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", opts.commandName, err)
@@ -654,7 +594,158 @@ func runRemoteDiscoveryCommand(args []string, stdout io.Writer, stderr io.Writer
 	}
 
 	reportScope, execution := remoteReportMetadata(scope)
-	return writeDiscoveryOutputs(opts.commandName, results, discoverNow().UTC(), reportScope, execution, stdout, stderr, *markdownPath, *jsonPath)
+	return writeDiscoveryOutputs(opts.commandName, results, discoverNow.UTC(), reportScope, execution, stdout, stderr, *flags.markdownPath, *flags.jsonPath)
+}
+
+func registerRemoteCommandFlags(fs *flag.FlagSet, opts remoteCommandOptions, verb string) remoteCommandFlags {
+	flags := remoteCommandFlags{
+		cidr:           fs.String("cidr", "", fmt.Sprintf("CIDR scope to %s, for example 10.0.0.0/24", verb)),
+		ports:          fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set"),
+		profile:        fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive"),
+		dryRun:         fs.Bool("dry-run", false, "Print the execution plan without performing network I/O"),
+		maxHosts:       fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the fixed command default"),
+		maxAttempts:    fs.Int("max-attempts", 0, "Hard cap on expanded host:port attempts, defaulting to the fixed command default"),
+		maxConcurrency: fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts"),
+		timeout:        fs.Duration("timeout", 0, "Per probe or connection attempt timeout"),
+		markdownPath:   fs.String("output", "", "Write Markdown report output to this path"),
+		jsonPath:       fs.String("json", "", "Write canonical JSON report output to this path"),
+	}
+	fs.StringVar(flags.markdownPath, "o", "", "Write Markdown report output to this path")
+	fs.StringVar(flags.jsonPath, "j", "", "Write canonical JSON report output to this path")
+
+	if opts.allowTargetsFile {
+		flags.targetsFile = fs.String("targets-file", "", "Path to a newline-delimited host or IP scope file")
+	}
+	if opts.allowInventoryFile {
+		flags.inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
+		flags.adapter = fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
+		flags.adapterBinary = fs.String("adapter-bin", "", "Path to an external adapter executable when the selected adapter needs one")
+	}
+
+	return flags
+}
+
+func validateRemoteCommandFlags(flags remoteCommandFlags, opts remoteCommandOptions) error {
+	if opts.allowTargetsFile || strings.TrimSpace(*flags.cidr) != "" {
+		return nil
+	}
+
+	return fmt.Errorf("--cidr is required")
+}
+
+func parseRemoteScopeFromFlags(flags remoteCommandFlags) (config.RemoteScope, error) {
+	return config.ParseRemoteScope(config.RemoteScopeInput{
+		CIDR:           *flags.cidr,
+		TargetsFile:    optionalFlagValue(flags.targetsFile),
+		InventoryFile:  optionalFlagValue(flags.inventoryFile),
+		Adapter:        optionalFlagValue(flags.adapter),
+		AdapterBinary:  optionalFlagValue(flags.adapterBinary),
+		Ports:          *flags.ports,
+		Profile:        *flags.profile,
+		MaxHosts:       *flags.maxHosts,
+		MaxAttempts:    *flags.maxAttempts,
+		MaxConcurrency: *flags.maxConcurrency,
+		Timeout:        *flags.timeout,
+		DryRun:         *flags.dryRun,
+	})
+}
+
+func optionalFlagValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func writeRemoteDryRunOutput(
+	scope config.RemoteScope,
+	commandName string,
+	supportedScanners string,
+	stdout io.Writer,
+	stderr io.Writer,
+	markdownPath string,
+	jsonPath string,
+) (bool, int) {
+	if !scope.DryRun {
+		return false, 0
+	}
+	if jsonPath != "" {
+		fmt.Fprintf(stderr, "%s --dry-run does not support --json\n", commandName)
+		return true, 2
+	}
+
+	plan := renderRemoteExecutionPlanMarkdown(commandName, scope, supportedScanners)
+	if markdownPath != "" {
+		if err := writeOutputFile(markdownPath, []byte(plan)); err != nil {
+			fmt.Fprintf(stderr, "write dry-run Markdown output %q: %v\n", markdownPath, err)
+			return true, 1
+		}
+	}
+	if markdownPath == "" {
+		if _, err := io.WriteString(stdout, plan); err != nil {
+			fmt.Fprintf(stderr, "write stdout: %v\n", err)
+			return true, 1
+		}
+	}
+
+	return true, 0
+}
+
+func resolvedNow(now func() time.Time) time.Time {
+	if now != nil {
+		return now()
+	}
+
+	return time.Now()
+}
+
+func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time, opts remoteCommandOptions) int {
+	fs := flag.NewFlagSet(opts.commandName, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		opts.printUsage(stderr)
+	}
+
+	flags := registerRemoteCommandFlags(fs, opts, "audit")
+
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+
+		return 2
+	}
+
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "%s does not accept positional arguments: %s\n\n", opts.commandName, strings.Join(fs.Args(), " "))
+		opts.printUsage(stderr)
+		return 2
+	}
+
+	if err := validateRemoteCommandFlags(flags, opts); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+
+	scope, err := parseRemoteScopeFromFlags(flags)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+
+	if handled, exitCode := writeRemoteDryRunOutput(scope, opts.commandName, "tls", stdout, stderr, *flags.markdownPath, *flags.jsonPath); handled {
+		return exitCode
+	}
+
+	auditNow := resolvedNow(now)
+	results, err := newRemoteAuditRunner(scope, func() time.Time { return auditNow }).Run(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: %v\n", opts.commandName, err)
+		return 1
+	}
+
+	reportScope, execution := remoteReportMetadata(scope)
+	return writeAuditOutputs(opts.commandName, results, auditNow.UTC(), reportScope, execution, stdout, stderr, *flags.markdownPath, *flags.jsonPath)
 }
 
 func writeDiscoveryOutputs(commandName string, results []core.DiscoveredEndpoint, generatedAt time.Time, reportScope *core.ReportScope, execution *core.ReportExecution, stdout io.Writer, stderr io.Writer, markdownPath string, jsonPath string) int {
@@ -749,132 +840,6 @@ func runAuditSubnet(args []string, stdout io.Writer, stderr io.Writer, now func(
 		allowTargetsFile:   false,
 		allowInventoryFile: false,
 	})
-}
-
-func runRemoteAuditCommand(args []string, stdout io.Writer, stderr io.Writer, now func() time.Time, opts remoteCommandOptions) int {
-	fs := flag.NewFlagSet(opts.commandName, flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.Usage = func() {
-		opts.printUsage(stderr)
-	}
-
-	cidr := fs.String("cidr", "", "CIDR scope to audit, for example 10.0.0.0/24")
-	var targetsFile *string
-	var inventoryFile *string
-	var adapter *string
-	var adapterBinary *string
-	if opts.allowTargetsFile {
-		targetsFile = fs.String("targets-file", "", "Path to a newline-delimited host or IP scope file")
-	}
-	if opts.allowInventoryFile {
-		inventoryFile = fs.String("inventory-file", "", "Path to a structured imported inventory file")
-		adapter = fs.String("adapter", "", "Explicit platform adapter for --inventory-file, for example caddy or kubernetes-ingress-v1")
-		adapterBinary = fs.String("adapter-bin", "", "Path to an external adapter executable when the selected adapter needs one")
-	}
-	ports := fs.String("ports", "", "Comma-separated remote ports, required for --cidr and --targets-file and overriding inventory entry ports when set")
-	profile := fs.String("profile", "", "Remote pace profile: cautious, balanced or aggressive")
-	dryRun := fs.Bool("dry-run", false, "Print the execution plan without performing network I/O")
-	maxHosts := fs.Int("max-hosts", 0, "Hard cap on expanded host count, defaulting to the fixed command default")
-	maxAttempts := fs.Int("max-attempts", 0, "Hard cap on expanded host:port attempts, defaulting to the fixed command default")
-	maxConcurrency := fs.Int("max-concurrency", 0, "Maximum concurrent remote probe attempts")
-	timeout := fs.Duration("timeout", 0, "Per probe or connection attempt timeout")
-
-	markdownPath := fs.String("output", "", "Write Markdown report output to this path")
-	fs.StringVar(markdownPath, "o", "", "Write Markdown report output to this path")
-
-	jsonPath := fs.String("json", "", "Write canonical JSON report output to this path")
-	fs.StringVar(jsonPath, "j", "", "Write canonical JSON report output to this path")
-
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-
-		return 2
-	}
-
-	if fs.NArg() != 0 {
-		fmt.Fprintf(stderr, "%s does not accept positional arguments: %s\n\n", opts.commandName, strings.Join(fs.Args(), " "))
-		opts.printUsage(stderr)
-		return 2
-	}
-
-	targetsFileValue := ""
-	if targetsFile != nil {
-		targetsFileValue = *targetsFile
-	}
-	inventoryFileValue := ""
-	if inventoryFile != nil {
-		inventoryFileValue = *inventoryFile
-	}
-	adapterValue := ""
-	if adapter != nil {
-		adapterValue = *adapter
-	}
-	adapterBinaryValue := ""
-	if adapterBinary != nil {
-		adapterBinaryValue = *adapterBinary
-	}
-	if !opts.allowTargetsFile && strings.TrimSpace(*cidr) == "" {
-		fmt.Fprintln(stderr, "--cidr is required")
-		return 2
-	}
-
-	scope, err := config.ParseRemoteScope(config.RemoteScopeInput{
-		CIDR:           *cidr,
-		TargetsFile:    targetsFileValue,
-		InventoryFile:  inventoryFileValue,
-		Adapter:        adapterValue,
-		AdapterBinary:  adapterBinaryValue,
-		Ports:          *ports,
-		Profile:        *profile,
-		MaxHosts:       *maxHosts,
-		MaxAttempts:    *maxAttempts,
-		MaxConcurrency: *maxConcurrency,
-		Timeout:        *timeout,
-		DryRun:         *dryRun,
-	})
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 2
-	}
-
-	if scope.DryRun {
-		if *jsonPath != "" {
-			fmt.Fprintf(stderr, "%s --dry-run does not support --json\n", opts.commandName)
-			return 2
-		}
-
-		plan := renderRemoteExecutionPlanMarkdown(opts.commandName, scope, "tls")
-		if *markdownPath != "" {
-			if err := writeOutputFile(*markdownPath, []byte(plan)); err != nil {
-				fmt.Fprintf(stderr, "write dry-run Markdown output %q: %v\n", *markdownPath, err)
-				return 1
-			}
-		}
-		if *markdownPath == "" {
-			if _, err := io.WriteString(stdout, plan); err != nil {
-				fmt.Fprintf(stderr, "write stdout: %v\n", err)
-				return 1
-			}
-		}
-
-		return 0
-	}
-
-	auditNow := now
-	if auditNow == nil {
-		auditNow = time.Now
-	}
-
-	results, err := newRemoteAuditRunner(scope, auditNow).Run(context.Background())
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", opts.commandName, err)
-		return 1
-	}
-
-	reportScope, execution := remoteReportMetadata(scope)
-	return writeAuditOutputs(opts.commandName, results, auditNow().UTC(), reportScope, execution, stdout, stderr, *markdownPath, *jsonPath)
 }
 
 func writeAuditOutputs(commandName string, results []core.AuditResult, generatedAt time.Time, reportScope *core.ReportScope, execution *core.ReportExecution, stdout io.Writer, stderr io.Writer, markdownPath string, jsonPath string) int {
@@ -1216,6 +1181,37 @@ func writeOutputFile(path string, data []byte) error {
 }
 
 func normalizeDiffArgs(args []string) ([]string, error) {
+	return normalizeCommandArgs(args, map[string]struct{}{
+		"-h":                    {},
+		"--help":                {},
+		"-o":                    {},
+		"--output":              {},
+		"-j":                    {},
+		"--json":                {},
+		"--group-by":            {},
+		"--include-owner":       {},
+		"--include-environment": {},
+		"--include-tag":         {},
+	}, []string{"--output=", "--json=", "--group-by=", "--include-owner=", "--include-environment=", "--include-tag=", "-o=", "-j="})
+}
+
+func normalizePrioritizeArgs(args []string) ([]string, error) {
+	return normalizeCommandArgs(args, map[string]struct{}{
+		"-h":                    {},
+		"--help":                {},
+		"-o":                    {},
+		"--output":              {},
+		"-j":                    {},
+		"--json":                {},
+		"--profile":             {},
+		"--group-by":            {},
+		"--include-owner":       {},
+		"--include-environment": {},
+		"--include-tag":         {},
+	}, []string{"--output=", "--json=", "--profile=", "--group-by=", "--include-owner=", "--include-environment=", "--include-tag=", "-o=", "-j="})
+}
+
+func normalizeCommandArgs(args []string, valuedFlags map[string]struct{}, valuedPrefixes []string) ([]string, error) {
 	flags := make([]string, 0, len(args))
 	positionals := make([]string, 0, len(args))
 
@@ -1224,15 +1220,13 @@ func normalizeDiffArgs(args []string) ([]string, error) {
 		switch {
 		case arg == "-h" || arg == "--help":
 			flags = append(flags, arg)
-		case arg == "-o" || arg == "--output" || arg == "-j" || arg == "--json" || arg == "--group-by" || arg == "--include-owner" || arg == "--include-environment" || arg == "--include-tag":
+		case flagRequiresValue(arg, valuedFlags):
 			if index+1 >= len(args) {
 				return nil, fmt.Errorf("%s requires a value", arg)
 			}
 			flags = append(flags, arg, args[index+1])
 			index += 1
-		case strings.HasPrefix(arg, "--output=") || strings.HasPrefix(arg, "--json=") || strings.HasPrefix(arg, "--group-by=") || strings.HasPrefix(arg, "--include-owner=") || strings.HasPrefix(arg, "--include-environment=") || strings.HasPrefix(arg, "--include-tag="):
-			flags = append(flags, arg)
-		case strings.HasPrefix(arg, "-o=") || strings.HasPrefix(arg, "-j="):
+		case flagMatchesPrefix(arg, valuedPrefixes):
 			flags = append(flags, arg)
 		case strings.HasPrefix(arg, "-"):
 			return nil, fmt.Errorf("unknown flag %q", arg)
@@ -1244,33 +1238,19 @@ func normalizeDiffArgs(args []string) ([]string, error) {
 	return append(flags, positionals...), nil
 }
 
-func normalizePrioritizeArgs(args []string) ([]string, error) {
-	flags := make([]string, 0, len(args))
-	positionals := make([]string, 0, len(args))
+func flagRequiresValue(arg string, valuedFlags map[string]struct{}) bool {
+	_, ok := valuedFlags[arg]
+	return ok
+}
 
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		switch {
-		case arg == "-h" || arg == "--help":
-			flags = append(flags, arg)
-		case arg == "-o" || arg == "--output" || arg == "-j" || arg == "--json" || arg == "--profile" || arg == "--group-by" || arg == "--include-owner" || arg == "--include-environment" || arg == "--include-tag":
-			if index+1 >= len(args) {
-				return nil, fmt.Errorf("%s requires a value", arg)
-			}
-			flags = append(flags, arg, args[index+1])
-			index += 1
-		case strings.HasPrefix(arg, "--output=") || strings.HasPrefix(arg, "--json=") || strings.HasPrefix(arg, "--profile=") || strings.HasPrefix(arg, "--group-by=") || strings.HasPrefix(arg, "--include-owner=") || strings.HasPrefix(arg, "--include-environment=") || strings.HasPrefix(arg, "--include-tag="):
-			flags = append(flags, arg)
-		case strings.HasPrefix(arg, "-o=") || strings.HasPrefix(arg, "-j="):
-			flags = append(flags, arg)
-		case strings.HasPrefix(arg, "-"):
-			return nil, fmt.Errorf("unknown flag %q", arg)
-		default:
-			positionals = append(positionals, arg)
+func flagMatchesPrefix(arg string, valuedPrefixes []string) bool {
+	for _, prefix := range valuedPrefixes {
+		if strings.HasPrefix(arg, prefix) {
+			return true
 		}
 	}
 
-	return append(flags, positionals...), nil
+	return false
 }
 
 func printUsage(w io.Writer) {

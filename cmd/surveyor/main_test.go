@@ -1495,13 +1495,8 @@ https://api.example.com:8443 {
 func TestRunAuditRemoteInventoryFileCaddyfileWritesOutputs(t *testing.T) {
 	useFakeCaddy(t, fakeCaddyAdaptedJSON(), "Caddyfile input is not formatted")
 
-	originalRunner := newRemoteAuditRunner
-	t.Cleanup(func() {
-		newRemoteAuditRunner = originalRunner
-	})
-
 	var gotScope config.RemoteScope
-	newRemoteAuditRunner = func(scope config.RemoteScope, _ func() time.Time) auditRunner {
+	restoreRunner := useStubRemoteAuditRunner(t, func(scope config.RemoteScope, _ func() time.Time) auditRunner {
 		gotScope = scope
 		return stubLocalAuditRunner{
 			results: []core.AuditResult{
@@ -1529,7 +1524,8 @@ func TestRunAuditRemoteInventoryFileCaddyfileWritesOutputs(t *testing.T) {
 				},
 			},
 		}
-	}
+	})
+	defer restoreRunner()
 
 	tempDir := t.TempDir()
 	inventoryFile := filepath.Join(tempDir, "Caddyfile")
@@ -1555,33 +1551,58 @@ https://api.example.com:8443 {
 	if exitCode != 0 {
 		t.Fatalf("run() exitCode = %d, want 0; stderr = %q", exitCode, stderr.String())
 	}
-	if gotScope.InputKind != config.RemoteScopeInputKindInventoryFile {
-		t.Fatalf("scope.InputKind = %q, want inventory_file", gotScope.InputKind)
-	}
-	if gotScope.InventoryFile != inventoryFile {
-		t.Fatalf("scope.InventoryFile = %q, want %q", gotScope.InventoryFile, inventoryFile)
-	}
-	if gotScope.Adapter != core.InventoryAdapterCaddy {
-		t.Fatalf("scope.Adapter = %q, want %q", gotScope.Adapter, core.InventoryAdapterCaddy)
-	}
-	if len(gotScope.Targets) != 1 {
-		t.Fatalf("len(scope.Targets) = %d, want 1", len(gotScope.Targets))
-	}
-	if got, want := gotScope.Targets[0].Host, "api.example.com"; got != want {
-		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
-	}
-	if got, want := gotScope.Targets[0].Ports, []int{8443}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
-	}
-	if gotScope.Targets[0].Inventory == nil {
-		t.Fatal("scope.Targets[0].Inventory = nil, want non-nil")
-	}
-	if got, want := gotScope.Targets[0].Inventory.Provenance[0].SourceFormat, core.InventorySourceFormatCaddyfile; got != want {
-		t.Fatalf("scope.Targets[0].Inventory.Provenance[0].SourceFormat = %q, want %q", got, want)
-	}
+	assertCaddyInventoryAuditScope(t, gotScope, inventoryFile)
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty when only JSON output is requested", stdout.String())
 	}
+
+	assertInventoryAuditJSONOutput(t, jsonPath)
+}
+
+func useStubRemoteAuditRunner(
+	t *testing.T,
+	runner func(scope config.RemoteScope, now func() time.Time) auditRunner,
+) func() {
+	t.Helper()
+
+	originalRunner := newRemoteAuditRunner
+	newRemoteAuditRunner = runner
+	return func() {
+		newRemoteAuditRunner = originalRunner
+	}
+}
+
+func assertCaddyInventoryAuditScope(t *testing.T, scope config.RemoteScope, inventoryFile string) {
+	t.Helper()
+
+	if scope.InputKind != config.RemoteScopeInputKindInventoryFile {
+		t.Fatalf("scope.InputKind = %q, want inventory_file", scope.InputKind)
+	}
+	if scope.InventoryFile != inventoryFile {
+		t.Fatalf("scope.InventoryFile = %q, want %q", scope.InventoryFile, inventoryFile)
+	}
+	if scope.Adapter != core.InventoryAdapterCaddy {
+		t.Fatalf("scope.Adapter = %q, want %q", scope.Adapter, core.InventoryAdapterCaddy)
+	}
+	if len(scope.Targets) != 1 {
+		t.Fatalf("len(scope.Targets) = %d, want 1", len(scope.Targets))
+	}
+	if got, want := scope.Targets[0].Host, "api.example.com"; got != want {
+		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
+	}
+	if got, want := scope.Targets[0].Ports, []int{8443}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
+	}
+	if scope.Targets[0].Inventory == nil {
+		t.Fatal("scope.Targets[0].Inventory = nil, want non-nil")
+	}
+	if got, want := scope.Targets[0].Inventory.Provenance[0].SourceFormat, core.InventorySourceFormatCaddyfile; got != want {
+		t.Fatalf("scope.Targets[0].Inventory.Provenance[0].SourceFormat = %q, want %q", got, want)
+	}
+}
+
+func assertInventoryAuditJSONOutput(t *testing.T, jsonPath string) {
+	t.Helper()
 
 	jsonData, err := os.ReadFile(jsonPath)
 	if err != nil {

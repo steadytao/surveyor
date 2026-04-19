@@ -21,16 +21,10 @@ func RenderMarkdown(report core.Report) string {
 	builder.WriteString(fmt.Sprintf("- Reachable targets: %d\n", report.Summary.ReachableTargets))
 	builder.WriteString(fmt.Sprintf("- Unreachable targets: %d\n\n", report.Summary.UnreachableTargets))
 
-	builder.WriteString("## Classification summary\n\n")
 	classificationKeys := sortedClassificationKeys(report.Summary)
-	if len(classificationKeys) == 0 {
-		builder.WriteString("- No classifications recorded\n\n")
-	} else {
-		for _, key := range classificationKeys {
-			builder.WriteString(fmt.Sprintf("- %s: %d\n", key, report.Summary.ClassificationBreakdown[key]))
-		}
-		builder.WriteString("\n")
-	}
+	renderBreakdownSection(&builder, "## Classification summary", "- No classifications recorded", classificationKeys, func(key string) int {
+		return report.Summary.ClassificationBreakdown[key]
+	})
 
 	builder.WriteString("## Targets\n\n")
 	if len(report.Results) == 0 {
@@ -69,34 +63,11 @@ func RenderMarkdown(report core.Report) string {
 			builder.WriteString(fmt.Sprintf("- Leaf signature algorithm: %s\n", result.LeafSignatureAlgorithm))
 		}
 
-		if len(result.Findings) > 0 {
-			// Markdown is intentionally derived from the canonical result model.
-			// If a fact matters here, it should already exist in JSON.
-			builder.WriteString("\n#### Findings\n\n")
-			for _, finding := range result.Findings {
-				builder.WriteString(fmt.Sprintf("- %s (%s): %s\n", finding.Code, finding.Severity, finding.Summary))
-				for _, evidence := range finding.Evidence {
-					builder.WriteString(fmt.Sprintf("  - evidence: %s\n", evidence))
-				}
-				if finding.Recommendation != "" {
-					builder.WriteString(fmt.Sprintf("  - recommendation: %s\n", finding.Recommendation))
-				}
-			}
-		}
-
-		if len(result.Warnings) > 0 {
-			builder.WriteString("\n#### Warnings\n\n")
-			for _, warning := range result.Warnings {
-				builder.WriteString(fmt.Sprintf("- %s\n", warning))
-			}
-		}
-
-		if len(result.Errors) > 0 {
-			builder.WriteString("\n#### Errors\n\n")
-			for _, errText := range result.Errors {
-				builder.WriteString(fmt.Sprintf("- %s\n", errText))
-			}
-		}
+		// Markdown is intentionally derived from the canonical result model.
+		// If a fact matters here, it should already exist in JSON.
+		renderTargetFindingsSection(&builder, result.Findings)
+		renderStringListSection(&builder, "Warnings", result.Warnings)
+		renderStringListSection(&builder, "Errors", result.Errors)
 	}
 
 	return builder.String()
