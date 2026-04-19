@@ -80,41 +80,20 @@ func TestLocalEnumeratorEnumerateFiltersAndSortsEndpoints(t *testing.T) {
 		t.Fatalf("len(Enumerate()) = %d, want 3; got %#v", len(got), got)
 	}
 
-	tcpTLS := got[0]
-	if tcpTLS.ScopeKind != core.EndpointScopeKindLocal || tcpTLS.Host != "0.0.0.0" || tcpTLS.Port != 443 || tcpTLS.Transport != "tcp" || tcpTLS.State != "listening" {
-		t.Fatalf("got[0] = %#v, want tcp listener on 0.0.0.0:443", tcpTLS)
-	}
-	if tcpTLS.PID != 2002 {
-		t.Fatalf("got[0].PID = %d, want 2002", tcpTLS.PID)
-	}
-	if len(tcpTLS.Warnings) != 1 || tcpTLS.Warnings[0] != "process metadata unavailable" {
-		t.Fatalf("got[0].Warnings = %#v, want process metadata warning", tcpTLS.Warnings)
-	}
-	if len(tcpTLS.Hints) != 1 || tcpTLS.Hints[0].Protocol != "tls" || tcpTLS.Hints[0].Confidence != "low" {
-		t.Fatalf("got[0].Hints = %#v, want low-confidence tls hint", tcpTLS.Hints)
+	assertLocalEndpoint(t, got[0], "0.0.0.0", 443, "tcp", "listening")
+	assertLocalWarning(t, got[0], "process metadata unavailable")
+	assertSingleHint(t, got[0], "tls", "low")
+	if got[0].PID != 2002 {
+		t.Fatalf("got[0].PID = %d, want 2002", got[0].PID)
 	}
 
-	tcpLocalService := got[1]
-	if tcpLocalService.ScopeKind != core.EndpointScopeKindLocal || tcpLocalService.Host != "127.0.0.1" || tcpLocalService.Port != 8443 || tcpLocalService.Transport != "tcp" || tcpLocalService.State != "listening" {
-		t.Fatalf("got[1] = %#v, want tcp listener on 127.0.0.1:8443", tcpLocalService)
-	}
-	if tcpLocalService.PID != 1001 || tcpLocalService.ProcessName != "local-service" || tcpLocalService.Executable != "C:\\SurveyorTest\\local-service.exe" {
-		t.Fatalf("got[1] enrichment = %#v, want pid/name/executable", tcpLocalService)
-	}
-	if len(tcpLocalService.Hints) != 1 || tcpLocalService.Hints[0].Protocol != "tls" {
-		t.Fatalf("got[1].Hints = %#v, want tls hint", tcpLocalService.Hints)
-	}
+	assertLocalEndpoint(t, got[1], "127.0.0.1", 8443, "tcp", "listening")
+	assertLocalProcess(t, got[1], 1001, "local-service", "C:\\SurveyorTest\\local-service.exe")
+	assertSingleHint(t, got[1], "tls", "low")
 
-	udpMDNS := got[2]
-	if udpMDNS.ScopeKind != core.EndpointScopeKindLocal || udpMDNS.Host != "127.0.0.1" || udpMDNS.Port != 5353 || udpMDNS.Transport != "udp" || udpMDNS.State != "bound" {
-		t.Fatalf("got[2] = %#v, want udp bound endpoint on 127.0.0.1:5353", udpMDNS)
-	}
-	if udpMDNS.PID != 3003 || udpMDNS.ProcessName != "mdnsd" {
-		t.Fatalf("got[2] enrichment = %#v, want udp pid/name", udpMDNS)
-	}
-	if len(udpMDNS.Hints) != 0 {
-		t.Fatalf("got[2].Hints = %#v, want no hints", udpMDNS.Hints)
-	}
+	assertLocalEndpoint(t, got[2], "127.0.0.1", 5353, "udp", "bound")
+	assertLocalProcess(t, got[2], 3003, "mdnsd", "")
+	assertNoHints(t, got[2])
 }
 
 func TestLocalEnumeratorEnumerateFindsLiveTCPAndUDPListeners(t *testing.T) {
@@ -178,6 +157,46 @@ func hasEndpoint(endpoints []core.DiscoveredEndpoint, transport string, state st
 	}
 
 	return false
+}
+
+func assertLocalEndpoint(t *testing.T, endpoint core.DiscoveredEndpoint, host string, port int, transport string, state string) {
+	t.Helper()
+
+	if endpoint.ScopeKind != core.EndpointScopeKindLocal || endpoint.Host != host || endpoint.Port != port || endpoint.Transport != transport || endpoint.State != state {
+		t.Fatalf("endpoint = %#v, want local %s endpoint on %s:%d in state %q", endpoint, transport, host, port, state)
+	}
+}
+
+func assertLocalProcess(t *testing.T, endpoint core.DiscoveredEndpoint, pid int, name string, executable string) {
+	t.Helper()
+
+	if endpoint.PID != pid || endpoint.ProcessName != name || endpoint.Executable != executable {
+		t.Fatalf("endpoint enrichment = %#v, want pid=%d name=%q executable=%q", endpoint, pid, name, executable)
+	}
+}
+
+func assertLocalWarning(t *testing.T, endpoint core.DiscoveredEndpoint, warning string) {
+	t.Helper()
+
+	if len(endpoint.Warnings) != 1 || endpoint.Warnings[0] != warning {
+		t.Fatalf("endpoint.Warnings = %#v, want [%q]", endpoint.Warnings, warning)
+	}
+}
+
+func assertSingleHint(t *testing.T, endpoint core.DiscoveredEndpoint, protocol string, confidence string) {
+	t.Helper()
+
+	if len(endpoint.Hints) != 1 || endpoint.Hints[0].Protocol != protocol || endpoint.Hints[0].Confidence != confidence {
+		t.Fatalf("endpoint.Hints = %#v, want one %s hint with confidence %q", endpoint.Hints, protocol, confidence)
+	}
+}
+
+func assertNoHints(t *testing.T, endpoint core.DiscoveredEndpoint) {
+	t.Helper()
+
+	if len(endpoint.Hints) != 0 {
+		t.Fatalf("endpoint.Hints = %#v, want no hints", endpoint.Hints)
+	}
 }
 
 type stubProcess struct {

@@ -206,9 +206,7 @@ func TestParseRemoteScopeTargetsFileNormalizesBracketedIPv6(t *testing.T) {
 func TestParseRemoteScopeInventoryFile(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
-	if err := os.WriteFile(inventoryFile, []byte(strings.Join([]string{
+	inventoryFile := writeRemoteInventoryFixture(t, []string{
 		"version: 1",
 		"entries:",
 		"  - host: EXAMPLE.COM",
@@ -221,9 +219,7 @@ func TestParseRemoteScopeInventoryFile(t *testing.T) {
 		"  - address: 10.0.0.10",
 		"    ports: [9443]",
 		"    owner: Core",
-	}, "\n")), 0o644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
+	})
 
 	scope, err := ParseRemoteScope(RemoteScopeInput{
 		InventoryFile:  inventoryFile,
@@ -253,30 +249,8 @@ func TestParseRemoteScopeInventoryFile(t *testing.T) {
 	if got, want := scope.AttemptCount, 4; got != want {
 		t.Fatalf("scope.AttemptCount = %d, want %d", got, want)
 	}
-	if got, want := len(scope.Targets), 2; got != want {
-		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
-	}
-	if got, want := scope.Targets[0].Host, "example.com"; got != want {
-		t.Fatalf("scope.Targets[0].Host = %q, want %q", got, want)
-	}
-	if got, want := scope.Targets[0].Ports, []int{443, 10443}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("scope.Targets[0].Ports = %v, want %v", got, want)
-	}
-	if scope.Targets[0].Inventory == nil {
-		t.Fatal("scope.Targets[0].Inventory = nil, want non-nil")
-	}
-	if got, want := scope.Targets[0].Inventory.Ports, []int{443, 8443}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("scope.Targets[0].Inventory.Ports = %v, want %v", got, want)
-	}
-	if got, want := scope.Targets[0].Inventory.Owner, "Platform"; got != want {
-		t.Fatalf("scope.Targets[0].Inventory.Owner = %q, want %q", got, want)
-	}
-	if got, want := scope.Targets[1].Host, "10.0.0.10"; got != want {
-		t.Fatalf("scope.Targets[1].Host = %q, want %q", got, want)
-	}
-	if got, want := scope.Targets[1].Ports, []int{443, 10443}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("scope.Targets[1].Ports = %v, want %v", got, want)
-	}
+	assertRemoteScopeTarget(t, scope, 0, "example.com", []int{443, 10443}, []int{443, 8443}, "Platform")
+	assertRemoteScopeTarget(t, scope, 1, "10.0.0.10", []int{443, 10443}, []int{9443}, "Core")
 	if got, want := scope.Profile, RemoteProfileBalanced; got != want {
 		t.Fatalf("scope.Profile = %q, want %q", got, want)
 	}
@@ -288,6 +262,49 @@ func TestParseRemoteScopeInventoryFile(t *testing.T) {
 	}
 	if !scope.DryRun {
 		t.Fatal("scope.DryRun = false, want true")
+	}
+}
+
+func writeRemoteInventoryFixture(t *testing.T, lines []string) string {
+	t.Helper()
+
+	tempDir := t.TempDir()
+	inventoryFile := filepath.Join(tempDir, "inventory.yaml")
+	if err := os.WriteFile(inventoryFile, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	return inventoryFile
+}
+
+func assertRemoteScopeTarget(
+	t *testing.T,
+	scope RemoteScope,
+	index int,
+	host string,
+	ports []int,
+	inventoryPorts []int,
+	owner string,
+) {
+	t.Helper()
+
+	if got, want := len(scope.Targets), 2; got != want {
+		t.Fatalf("len(scope.Targets) = %d, want %d", got, want)
+	}
+	if got, want := scope.Targets[index].Host, host; got != want {
+		t.Fatalf("scope.Targets[%d].Host = %q, want %q", index, got, want)
+	}
+	if got, want := scope.Targets[index].Ports, ports; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[%d].Ports = %v, want %v", index, got, want)
+	}
+	if scope.Targets[index].Inventory == nil {
+		t.Fatalf("scope.Targets[%d].Inventory = nil, want non-nil", index)
+	}
+	if got, want := scope.Targets[index].Inventory.Ports, inventoryPorts; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scope.Targets[%d].Inventory.Ports = %v, want %v", index, got, want)
+	}
+	if got, want := scope.Targets[index].Inventory.Owner, owner; got != want {
+		t.Fatalf("scope.Targets[%d].Inventory.Owner = %q, want %q", index, got, want)
 	}
 }
 

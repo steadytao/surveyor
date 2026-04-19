@@ -110,33 +110,9 @@ const defaultRemoteMaxAttempts = 2048
 // file-backed host list or a structured inventory manifest; later remote input
 // kinds should extend this contract rather than replace it.
 func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
-	cidrText := strings.TrimSpace(input.CIDR)
-	targetsFileText := strings.TrimSpace(input.TargetsFile)
-	inventoryFileText := strings.TrimSpace(input.InventoryFile)
-	adapterText := strings.TrimSpace(input.Adapter)
-	adapterBinaryText := strings.TrimSpace(input.AdapterBinary)
-
-	scopeInputCount := 0
-	if cidrText != "" {
-		scopeInputCount++
-	}
-	if targetsFileText != "" {
-		scopeInputCount++
-	}
-	if inventoryFileText != "" {
-		scopeInputCount++
-	}
-	if scopeInputCount > 1 {
-		return RemoteScope{}, fmt.Errorf("use exactly one of --cidr, --targets-file or --inventory-file")
-	}
-	if scopeInputCount == 0 {
-		return RemoteScope{}, fmt.Errorf("one of --cidr, --targets-file or --inventory-file is required")
-	}
-	if inventoryFileText == "" && adapterText != "" {
-		return RemoteScope{}, fmt.Errorf("--adapter requires --inventory-file")
-	}
-	if inventoryFileText == "" && adapterBinaryText != "" {
-		return RemoteScope{}, fmt.Errorf("--adapter-bin requires --inventory-file")
+	cidrText, targetsFileText, inventoryFileText, adapterText, adapterBinaryText, err := normalizeRemoteScopeInput(input)
+	if err != nil {
+		return RemoteScope{}, err
 	}
 
 	profile, err := parseRemoteProfile(input.Profile)
@@ -144,95 +120,24 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 		return RemoteScope{}, err
 	}
 
-	maxHosts := input.MaxHosts
-	if maxHosts == 0 {
-		maxHosts = defaultRemoteMaxHosts
-	}
-	if maxHosts < 0 {
-		return RemoteScope{}, fmt.Errorf("--max-hosts must not be negative")
-	}
-	maxAttempts := input.MaxAttempts
-	if maxAttempts == 0 {
-		maxAttempts = defaultRemoteMaxAttempts
-	}
-	if maxAttempts < 0 {
-		return RemoteScope{}, fmt.Errorf("--max-attempts must not be negative")
-	}
-
-	defaults := remoteProfileDefaultsByProfile[profile]
-
-	maxConcurrency := input.MaxConcurrency
-	if maxConcurrency == 0 {
-		maxConcurrency = defaults.maxConcurrency
-	}
-	if maxConcurrency < 0 {
-		return RemoteScope{}, fmt.Errorf("--max-concurrency must not be negative")
-	}
-
-	timeout := input.Timeout
-	if timeout == 0 {
-		timeout = defaults.timeout
-	}
-	if timeout < 0 {
-		return RemoteScope{}, fmt.Errorf("--timeout must not be negative")
+	maxHosts, maxAttempts, maxConcurrency, timeout, err := resolveRemoteExecutionLimits(input, profile)
+	if err != nil {
+		return RemoteScope{}, err
 	}
 
 	if inventoryFileText != "" {
-		adapter, err := resolveInventoryAdapter(inventoryFileText, adapterText)
-		if err != nil {
-			return RemoteScope{}, err
-		}
-		if adapterBinaryText != "" && adapter == "" {
-			return RemoteScope{}, fmt.Errorf("--adapter-bin requires --adapter or an auto-detected adapter-backed inventory file")
-		}
-
-		var document inventory.Document
-		if adapter != "" {
-			document, err = inventory.LoadWithAdapter(inventoryFileText, adapter, inventory.AdapterOptions{
-				ExecutablePath: adapterBinaryText,
-			})
-		} else {
-			document, err = inventory.Load(inventoryFileText)
-		}
-		if err != nil {
-			return RemoteScope{}, fmt.Errorf("load --inventory-file %q: %w", inventoryFileText, err)
-		}
-		if len(document.Entries) > maxHosts {
-			return RemoteScope{}, fmt.Errorf("--inventory-file contains %d hosts, which exceeds --max-hosts=%d", len(document.Entries), maxHosts)
-		}
-
-		overridePorts, err := parseOptionalPorts(input.Ports)
-		if err != nil {
-			return RemoteScope{}, err
-		}
-
-		targets, err := compileInventoryTargets(document.Entries, overridePorts)
-		if err != nil {
-			return RemoteScope{}, fmt.Errorf("--inventory-file %q: %w", inventoryFileText, err)
-		}
-		attemptCount, err := inventoryAttemptCount(targets)
-		if err != nil {
-			return RemoteScope{}, fmt.Errorf("--inventory-file %q: %w", inventoryFileText, err)
-		}
-		if attemptCount > maxAttempts {
-			return RemoteScope{}, fmt.Errorf("--inventory-file expands to %d host:port attempts, which exceeds --max-attempts=%d", attemptCount, maxAttempts)
-		}
-
-		return RemoteScope{
-			InputKind:      RemoteScopeInputKindInventoryFile,
-			InventoryFile:  inventoryFileText,
-			Adapter:        adapter,
-			Ports:          overridePorts,
-			Targets:        targets,
-			Profile:        profile,
-			MaxHosts:       maxHosts,
-			HostCount:      len(targets),
-			MaxAttempts:    maxAttempts,
-			AttemptCount:   attemptCount,
-			MaxConcurrency: maxConcurrency,
-			Timeout:        timeout,
-			DryRun:         input.DryRun,
-		}, nil
+		return parseInventoryRemoteScope(
+			inventoryFileText,
+			adapterText,
+			adapterBinaryText,
+			input.Ports,
+			profile,
+			maxHosts,
+			maxAttempts,
+			maxConcurrency,
+			timeout,
+			input.DryRun,
+		)
 	}
 
 	ports, err := requirePorts(input.Ports)
@@ -241,40 +146,252 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 
 	if targetsFileText != "" {
-		hosts, err := parseRemoteTargetsFile(targetsFileText)
-		if err != nil {
-			return RemoteScope{}, err
-		}
-		if len(hosts) == 0 {
-			return RemoteScope{}, fmt.Errorf("--targets-file %q does not contain any hosts", targetsFileText)
-		}
-		if len(hosts) > maxHosts {
-			return RemoteScope{}, fmt.Errorf("--targets-file contains %d hosts, which exceeds --max-hosts=%d", len(hosts), maxHosts)
-		}
-		attemptCount, err := remoteAttemptCount(len(hosts), len(ports))
-		if err != nil {
-			return RemoteScope{}, err
-		}
-		if attemptCount > maxAttempts {
-			return RemoteScope{}, fmt.Errorf("--targets-file expands to %d host:port attempts, which exceeds --max-attempts=%d", attemptCount, maxAttempts)
-		}
-
-		return RemoteScope{
-			InputKind:      RemoteScopeInputKindTargetsFile,
-			TargetsFile:    targetsFileText,
-			Hosts:          hosts,
-			Ports:          ports,
-			Profile:        profile,
-			MaxHosts:       maxHosts,
-			HostCount:      len(hosts),
-			MaxAttempts:    maxAttempts,
-			AttemptCount:   attemptCount,
-			MaxConcurrency: maxConcurrency,
-			Timeout:        timeout,
-			DryRun:         input.DryRun,
-		}, nil
+		return parseTargetsFileRemoteScope(
+			targetsFileText,
+			ports,
+			profile,
+			maxHosts,
+			maxAttempts,
+			maxConcurrency,
+			timeout,
+			input.DryRun,
+		)
 	}
 
+	return parseCIDRRemoteScope(
+		cidrText,
+		ports,
+		profile,
+		maxHosts,
+		maxAttempts,
+		maxConcurrency,
+		timeout,
+		input.DryRun,
+	)
+}
+
+func normalizeRemoteScopeInput(input RemoteScopeInput) (string, string, string, string, string, error) {
+	cidrText := strings.TrimSpace(input.CIDR)
+	targetsFileText := strings.TrimSpace(input.TargetsFile)
+	inventoryFileText := strings.TrimSpace(input.InventoryFile)
+	adapterText := strings.TrimSpace(input.Adapter)
+	adapterBinaryText := strings.TrimSpace(input.AdapterBinary)
+
+	if err := validateRemoteScopeInputSelection(cidrText, targetsFileText, inventoryFileText); err != nil {
+		return "", "", "", "", "", err
+	}
+	if inventoryFileText == "" && adapterText != "" {
+		return "", "", "", "", "", fmt.Errorf("--adapter requires --inventory-file")
+	}
+	if inventoryFileText == "" && adapterBinaryText != "" {
+		return "", "", "", "", "", fmt.Errorf("--adapter-bin requires --inventory-file")
+	}
+
+	return cidrText, targetsFileText, inventoryFileText, adapterText, adapterBinaryText, nil
+}
+
+func validateRemoteScopeInputSelection(cidrText string, targetsFileText string, inventoryFileText string) error {
+	scopeInputs := []string{cidrText, targetsFileText, inventoryFileText}
+	count := 0
+	for _, input := range scopeInputs {
+		if input != "" {
+			count++
+		}
+	}
+
+	switch count {
+	case 0:
+		return fmt.Errorf("one of --cidr, --targets-file or --inventory-file is required")
+	case 1:
+		return nil
+	default:
+		return fmt.Errorf("use exactly one of --cidr, --targets-file or --inventory-file")
+	}
+}
+
+func resolveRemoteExecutionLimits(input RemoteScopeInput, profile RemoteProfile) (int, int, int, time.Duration, error) {
+	maxHosts, err := remoteCountOrDefault("--max-hosts", input.MaxHosts, defaultRemoteMaxHosts)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	maxAttempts, err := remoteCountOrDefault("--max-attempts", input.MaxAttempts, defaultRemoteMaxAttempts)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	defaults := remoteProfileDefaultsByProfile[profile]
+	maxConcurrency, err := remoteCountOrDefault("--max-concurrency", input.MaxConcurrency, defaults.maxConcurrency)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	timeout, err := remoteDurationOrDefault("--timeout", input.Timeout, defaults.timeout)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	return maxHosts, maxAttempts, maxConcurrency, timeout, nil
+}
+
+func remoteCountOrDefault(flagName string, value int, fallback int) (int, error) {
+	switch {
+	case value < 0:
+		return 0, fmt.Errorf("%s must not be negative", flagName)
+	case value == 0:
+		return fallback, nil
+	default:
+		return value, nil
+	}
+}
+
+func remoteDurationOrDefault(flagName string, value time.Duration, fallback time.Duration) (time.Duration, error) {
+	switch {
+	case value < 0:
+		return 0, fmt.Errorf("%s must not be negative", flagName)
+	case value == 0:
+		return fallback, nil
+	default:
+		return value, nil
+	}
+}
+
+func parseInventoryRemoteScope(
+	inventoryFileText string,
+	adapterText string,
+	adapterBinaryText string,
+	portsText string,
+	profile RemoteProfile,
+	maxHosts int,
+	maxAttempts int,
+	maxConcurrency int,
+	timeout time.Duration,
+	dryRun bool,
+) (RemoteScope, error) {
+	adapter, err := resolveInventoryAdapter(inventoryFileText, adapterText)
+	if err != nil {
+		return RemoteScope{}, err
+	}
+	if adapterBinaryText != "" && adapter == "" {
+		return RemoteScope{}, fmt.Errorf("--adapter-bin requires --adapter or an auto-detected adapter-backed inventory file")
+	}
+
+	document, err := loadInventoryDocument(inventoryFileText, adapter, adapterBinaryText)
+	if err != nil {
+		return RemoteScope{}, err
+	}
+	if len(document.Entries) > maxHosts {
+		return RemoteScope{}, fmt.Errorf("--inventory-file contains %d hosts, which exceeds --max-hosts=%d", len(document.Entries), maxHosts)
+	}
+
+	overridePorts, err := parseOptionalPorts(portsText)
+	if err != nil {
+		return RemoteScope{}, err
+	}
+
+	targets, err := compileInventoryTargets(document.Entries, overridePorts)
+	if err != nil {
+		return RemoteScope{}, fmt.Errorf("--inventory-file %q: %w", inventoryFileText, err)
+	}
+	attemptCount, err := inventoryAttemptCount(targets)
+	if err != nil {
+		return RemoteScope{}, fmt.Errorf("--inventory-file %q: %w", inventoryFileText, err)
+	}
+	if attemptCount > maxAttempts {
+		return RemoteScope{}, fmt.Errorf("--inventory-file expands to %d host:port attempts, which exceeds --max-attempts=%d", attemptCount, maxAttempts)
+	}
+
+	return RemoteScope{
+		InputKind:      RemoteScopeInputKindInventoryFile,
+		InventoryFile:  inventoryFileText,
+		Adapter:        adapter,
+		Ports:          overridePorts,
+		Targets:        targets,
+		Profile:        profile,
+		MaxHosts:       maxHosts,
+		HostCount:      len(targets),
+		MaxAttempts:    maxAttempts,
+		AttemptCount:   attemptCount,
+		MaxConcurrency: maxConcurrency,
+		Timeout:        timeout,
+		DryRun:         dryRun,
+	}, nil
+}
+
+func loadInventoryDocument(
+	inventoryFileText string,
+	adapter core.InventoryAdapter,
+	adapterBinaryText string,
+) (inventory.Document, error) {
+	if adapter != "" {
+		document, err := inventory.LoadWithAdapter(inventoryFileText, adapter, inventory.AdapterOptions{
+			ExecutablePath: adapterBinaryText,
+		})
+		if err != nil {
+			return inventory.Document{}, fmt.Errorf("load --inventory-file %q: %w", inventoryFileText, err)
+		}
+		return document, nil
+	}
+
+	document, err := inventory.Load(inventoryFileText)
+	if err != nil {
+		return inventory.Document{}, fmt.Errorf("load --inventory-file %q: %w", inventoryFileText, err)
+	}
+	return document, nil
+}
+
+func parseTargetsFileRemoteScope(
+	targetsFileText string,
+	ports []int,
+	profile RemoteProfile,
+	maxHosts int,
+	maxAttempts int,
+	maxConcurrency int,
+	timeout time.Duration,
+	dryRun bool,
+) (RemoteScope, error) {
+	hosts, err := parseRemoteTargetsFile(targetsFileText)
+	if err != nil {
+		return RemoteScope{}, err
+	}
+	if len(hosts) == 0 {
+		return RemoteScope{}, fmt.Errorf("--targets-file %q does not contain any hosts", targetsFileText)
+	}
+	if len(hosts) > maxHosts {
+		return RemoteScope{}, fmt.Errorf("--targets-file contains %d hosts, which exceeds --max-hosts=%d", len(hosts), maxHosts)
+	}
+	attemptCount, err := remoteAttemptCount(len(hosts), len(ports))
+	if err != nil {
+		return RemoteScope{}, err
+	}
+	if attemptCount > maxAttempts {
+		return RemoteScope{}, fmt.Errorf("--targets-file expands to %d host:port attempts, which exceeds --max-attempts=%d", attemptCount, maxAttempts)
+	}
+
+	return RemoteScope{
+		InputKind:      RemoteScopeInputKindTargetsFile,
+		TargetsFile:    targetsFileText,
+		Hosts:          hosts,
+		Ports:          ports,
+		Profile:        profile,
+		MaxHosts:       maxHosts,
+		HostCount:      len(hosts),
+		MaxAttempts:    maxAttempts,
+		AttemptCount:   attemptCount,
+		MaxConcurrency: maxConcurrency,
+		Timeout:        timeout,
+		DryRun:         dryRun,
+	}, nil
+}
+
+func parseCIDRRemoteScope(
+	cidrText string,
+	ports []int,
+	profile RemoteProfile,
+	maxHosts int,
+	maxAttempts int,
+	maxConcurrency int,
+	timeout time.Duration,
+	dryRun bool,
+) (RemoteScope, error) {
 	prefix, err := netip.ParsePrefix(cidrText)
 	if err != nil {
 		return RemoteScope{}, fmt.Errorf("invalid --cidr: %w", err)
@@ -307,7 +424,7 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 		AttemptCount:   attemptCount,
 		MaxConcurrency: maxConcurrency,
 		Timeout:        timeout,
-		DryRun:         input.DryRun,
+		DryRun:         dryRun,
 	}, nil
 }
 

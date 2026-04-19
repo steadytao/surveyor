@@ -107,54 +107,87 @@ func validateReportScope(scopeKind core.ReportScopeKind, scope *core.ReportScope
 
 	switch scope.ScopeKind {
 	case core.ReportScopeKindExplicit:
-		if scope.InputKind != core.ReportInputKindConfig && scope.InputKind != core.ReportInputKindTargets {
-			return fmt.Errorf("explicit report scope must use input_kind config or targets")
-		}
-		if scope.CIDR != "" || scope.TargetsFile != "" || scope.InventoryFile != "" || scope.Adapter != "" || len(scope.Ports) != 0 {
-			return fmt.Errorf("explicit report scope must not include remote scope fields")
-		}
+		return validateExplicitReportScope(scope)
 	case core.ReportScopeKindLocal:
-		if scope.InputKind != "" {
-			return fmt.Errorf("local report scope must not include input_kind")
-		}
-		if scope.CIDR != "" || scope.TargetsFile != "" || scope.InventoryFile != "" || scope.Adapter != "" || len(scope.Ports) != 0 {
-			return fmt.Errorf("local report scope must not include remote scope fields")
-		}
+		return validateLocalReportScope(scope)
 	case core.ReportScopeKindRemote:
-		switch scope.InputKind {
-		case core.ReportInputKindCIDR:
-			if scope.CIDR == "" {
-				return fmt.Errorf("remote CIDR scope must include cidr")
-			}
-			if scope.TargetsFile != "" || scope.InventoryFile != "" || scope.Adapter != "" {
-				return fmt.Errorf("remote CIDR scope must not include targets_file, inventory_file or adapter")
-			}
-			if len(scope.Ports) == 0 {
-				return fmt.Errorf("remote CIDR scope must include ports")
-			}
-		case core.ReportInputKindTargetsFile:
-			if scope.TargetsFile == "" {
-				return fmt.Errorf("remote targets-file scope must include targets_file")
-			}
-			if scope.CIDR != "" || scope.InventoryFile != "" || scope.Adapter != "" {
-				return fmt.Errorf("remote targets-file scope must not include cidr, inventory_file or adapter")
-			}
-			if len(scope.Ports) == 0 {
-				return fmt.Errorf("remote targets-file scope must include ports")
-			}
-		case core.ReportInputKindInventoryFile:
-			if scope.InventoryFile == "" {
-				return fmt.Errorf("remote inventory-file scope must include inventory_file")
-			}
-			if scope.CIDR != "" || scope.TargetsFile != "" {
-				return fmt.Errorf("remote inventory-file scope must not include cidr or targets_file")
-			}
-		default:
-			return fmt.Errorf("remote report scope must use input_kind cidr, targets_file or inventory_file")
-		}
+		return validateRemoteReportScope(scope)
 	}
 
 	return nil
+}
+
+func validateExplicitReportScope(scope *core.ReportScope) error {
+	if scope.InputKind != core.ReportInputKindConfig && scope.InputKind != core.ReportInputKindTargets {
+		return fmt.Errorf("explicit report scope must use input_kind config or targets")
+	}
+	if hasRemoteScopeFields(scope) {
+		return fmt.Errorf("explicit report scope must not include remote scope fields")
+	}
+	return nil
+}
+
+func validateLocalReportScope(scope *core.ReportScope) error {
+	if scope.InputKind != "" {
+		return fmt.Errorf("local report scope must not include input_kind")
+	}
+	if hasRemoteScopeFields(scope) {
+		return fmt.Errorf("local report scope must not include remote scope fields")
+	}
+	return nil
+}
+
+func validateRemoteReportScope(scope *core.ReportScope) error {
+	switch scope.InputKind {
+	case core.ReportInputKindCIDR:
+		return validateRemoteCIDRReportScope(scope)
+	case core.ReportInputKindTargetsFile:
+		return validateRemoteTargetsFileReportScope(scope)
+	case core.ReportInputKindInventoryFile:
+		return validateRemoteInventoryFileReportScope(scope)
+	default:
+		return fmt.Errorf("remote report scope must use input_kind cidr, targets_file or inventory_file")
+	}
+}
+
+func validateRemoteCIDRReportScope(scope *core.ReportScope) error {
+	if scope.CIDR == "" {
+		return fmt.Errorf("remote CIDR scope must include cidr")
+	}
+	if scope.TargetsFile != "" || scope.InventoryFile != "" || scope.Adapter != "" {
+		return fmt.Errorf("remote CIDR scope must not include targets_file, inventory_file or adapter")
+	}
+	if len(scope.Ports) == 0 {
+		return fmt.Errorf("remote CIDR scope must include ports")
+	}
+	return nil
+}
+
+func validateRemoteTargetsFileReportScope(scope *core.ReportScope) error {
+	if scope.TargetsFile == "" {
+		return fmt.Errorf("remote targets-file scope must include targets_file")
+	}
+	if scope.CIDR != "" || scope.InventoryFile != "" || scope.Adapter != "" {
+		return fmt.Errorf("remote targets-file scope must not include cidr, inventory_file or adapter")
+	}
+	if len(scope.Ports) == 0 {
+		return fmt.Errorf("remote targets-file scope must include ports")
+	}
+	return nil
+}
+
+func validateRemoteInventoryFileReportScope(scope *core.ReportScope) error {
+	if scope.InventoryFile == "" {
+		return fmt.Errorf("remote inventory-file scope must include inventory_file")
+	}
+	if scope.CIDR != "" || scope.TargetsFile != "" {
+		return fmt.Errorf("remote inventory-file scope must not include cidr or targets_file")
+	}
+	return nil
+}
+
+func hasRemoteScopeFields(scope *core.ReportScope) bool {
+	return scope.CIDR != "" || scope.TargetsFile != "" || scope.InventoryFile != "" || scope.Adapter != "" || len(scope.Ports) != 0
 }
 
 func isKnownReportKind(kind core.ReportKind) bool {
