@@ -8,6 +8,17 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.10.1
+
+### Added
+- a split CI workflow suite now covers tests, linting, builds, module hygiene, workflow validation, script quality, action drift, vulnerability checks, release verification, benchmarks and Go Report Card enforcement
+- Go Report Card helper scripts are now checked into `.github/scripts` with parser tests, so the external quality gate is reviewable and validated inside the repository
+
+### Changed
+- the release workflow and imported CI workflows now use hardened `step-security/harden-runner` block-mode policies with explicit allow-lists, including the GitHub-hosted runner DNS path needed for reliable execution
+- high-complexity runtime paths and oversized tests were refactored so the repository clears the current `gocyclo > 15` threshold without relaxing the quality gate
+- the README now includes a Discussions section
+
 ## v0.10.0
 
 ### Added
