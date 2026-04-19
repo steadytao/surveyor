@@ -33,6 +33,7 @@ type rawTarget struct {
 
 // Load reads a YAML config file from disk and returns its normalised form.
 func Load(path string) (Config, error) {
+	// #nosec G304 -- config paths are explicit operator-provided CLI inputs.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, fmt.Errorf("read config %q: %w", path, err)

@@ -1016,6 +1016,7 @@ func buildPrioritizationReportFromFile(path string, profile prioritizereport.Pro
 }
 
 func readReportInputFile(path string) (baseline.ReportHeader, []byte, error) {
+	// #nosec G304 -- report input paths are explicit operator-provided CLI inputs.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return baseline.ReportHeader{}, nil, fmt.Errorf("read report %q: %w", path, err)
@@ -1177,7 +1178,7 @@ func writeOutputFile(path string, data []byte) error {
 		return errors.New("output path must not be empty")
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func normalizeDiffArgs(args []string) ([]string, error) {
@@ -1546,7 +1547,7 @@ func renderRemoteExecutionPlanMarkdown(commandName string, scope config.RemoteSc
 
 	builder.WriteString("# Surveyor Execution Plan\n\n")
 	builder.WriteString(fmt.Sprintf("- Command: %s\n", commandName))
-	builder.WriteString(fmt.Sprintf("- Scope kind: remote\n"))
+	builder.WriteString("- Scope kind: remote\n")
 	builder.WriteString(fmt.Sprintf("- Input kind: %s\n", scope.InputKind))
 	if scope.CIDR.IsValid() {
 		builder.WriteString(fmt.Sprintf("- Scope: %s\n", scope.CIDR.String()))

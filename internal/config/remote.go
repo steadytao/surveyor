@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/steadytao/surveyor/internal/core"
+	"github.com/steadytao/surveyor/internal/debugassert"
 	"github.com/steadytao/surveyor/internal/inventory"
 )
 
@@ -126,7 +127,7 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 
 	if inventoryFileText != "" {
-		return parseInventoryRemoteScope(
+		scope, err := parseInventoryRemoteScope(
 			inventoryFileText,
 			adapterText,
 			adapterBinaryText,
@@ -138,6 +139,10 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 			timeout,
 			input.DryRun,
 		)
+		if err == nil {
+			assertValidRemoteScope(scope)
+		}
+		return scope, err
 	}
 
 	ports, err := requirePorts(input.Ports)
@@ -146,7 +151,7 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 	}
 
 	if targetsFileText != "" {
-		return parseTargetsFileRemoteScope(
+		scope, err := parseTargetsFileRemoteScope(
 			targetsFileText,
 			ports,
 			profile,
@@ -156,9 +161,13 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 			timeout,
 			input.DryRun,
 		)
+		if err == nil {
+			assertValidRemoteScope(scope)
+		}
+		return scope, err
 	}
 
-	return parseCIDRRemoteScope(
+	scope, err := parseCIDRRemoteScope(
 		cidrText,
 		ports,
 		profile,
@@ -168,6 +177,10 @@ func ParseRemoteScope(input RemoteScopeInput) (RemoteScope, error) {
 		timeout,
 		input.DryRun,
 	)
+	if err == nil {
+		assertValidRemoteScope(scope)
+	}
+	return scope, err
 }
 
 func normalizeRemoteScopeInput(input RemoteScopeInput) (string, string, string, string, string, error) {
@@ -579,6 +592,7 @@ func safeAddCount(current int, increment int, label string) (int, error) {
 }
 
 func parseRemoteTargetsFile(path string) ([]string, error) {
+	// #nosec G304 -- targets files are explicit operator-provided CLI inputs.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read --targets-file %q: %w", path, err)
@@ -662,4 +676,60 @@ func subnetHostCount(prefix netip.Prefix) (int, error) {
 	}
 
 	return int(count.Int64()), nil
+}
+
+func assertValidRemoteScope(scope RemoteScope) {
+	if !debugassert.Enabled {
+		return
+	}
+
+	debugassert.That(scope.MaxHosts >= 0, "remote scope MaxHosts must not be negative")
+	debugassert.That(scope.MaxAttempts >= 0, "remote scope MaxAttempts must not be negative")
+	debugassert.That(scope.MaxConcurrency >= 0, "remote scope MaxConcurrency must not be negative")
+	debugassert.That(scope.HostCount >= 0, "remote scope HostCount must not be negative")
+	debugassert.That(scope.AttemptCount >= 0, "remote scope AttemptCount must not be negative")
+	debugassert.That(scope.HostCount <= scope.MaxHosts, "remote scope HostCount exceeds MaxHosts")
+	debugassert.That(scope.AttemptCount <= scope.MaxAttempts, "remote scope AttemptCount exceeds MaxAttempts")
+	debugassert.That(scope.Timeout >= 0, "remote scope Timeout must not be negative")
+
+	switch scope.InputKind {
+	case RemoteScopeInputKindCIDR:
+		debugassert.That(scope.CIDR.IsValid(), "cidr scope must contain a valid prefix")
+		debugassert.That(len(scope.Ports) > 0, "cidr scope must contain ports")
+		debugassert.That(len(scope.Hosts) == 0, "cidr scope must not contain host list")
+		debugassert.That(len(scope.Targets) == 0, "cidr scope must not contain inventory targets")
+	case RemoteScopeInputKindTargetsFile:
+		debugassert.That(scope.TargetsFile != "", "targets-file scope must include targets file")
+		debugassert.That(len(scope.Ports) > 0, "targets-file scope must contain ports")
+		debugassert.That(len(scope.Hosts) > 0, "targets-file scope must contain hosts")
+		debugassert.That(len(scope.Targets) == 0, "targets-file scope must not contain inventory targets")
+	case RemoteScopeInputKindInventoryFile:
+		debugassert.That(scope.InventoryFile != "", "inventory-file scope must include inventory file")
+		debugassert.That(len(scope.Targets) > 0, "inventory-file scope must contain compiled targets")
+		debugassert.That(len(scope.Hosts) == 0, "inventory-file scope must not contain plain host list")
+	default:
+		debugassert.That(false, "unknown remote scope input kind %q", scope.InputKind)
+	}
+
+	for index, port := range scope.Ports {
+		debugassert.That(port >= 1 && port <= 65535, "remote scope port %d is invalid", port)
+		if index > 0 {
+			debugassert.That(scope.Ports[index-1] < port, "remote scope ports must be strictly increasing")
+		}
+	}
+
+	for _, host := range scope.Hosts {
+		debugassert.That(strings.TrimSpace(host) != "", "remote scope hosts must not contain blanks")
+	}
+
+	for _, target := range scope.Targets {
+		debugassert.That(strings.TrimSpace(target.Host) != "", "remote scope targets must not have blank hosts")
+		debugassert.That(len(target.Ports) > 0, "remote scope inventory target must have ports")
+		for index, port := range target.Ports {
+			debugassert.That(port >= 1 && port <= 65535, "remote scope inventory target port %d is invalid", port)
+			if index > 0 {
+				debugassert.That(target.Ports[index-1] < port, "remote scope inventory target ports must be strictly increasing")
+			}
+		}
+	}
 }

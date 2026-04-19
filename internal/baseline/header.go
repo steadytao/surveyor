@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/steadytao/surveyor/internal/core"
+	"github.com/steadytao/surveyor/internal/debugassert"
 )
 
 // ReportHeader is the minimum canonical report envelope needed for baseline
@@ -20,6 +21,7 @@ type ReportHeader struct {
 // ReadReportHeader reads and validates the baseline-compatible report envelope
 // from disk.
 func ReadReportHeader(path string) (ReportHeader, error) {
+	// #nosec G304 -- report header paths are explicit operator-provided CLI inputs.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ReportHeader{}, fmt.Errorf("read report %q: %w", path, err)
@@ -46,6 +48,7 @@ func ParseReportHeader(data []byte) (ReportHeader, error) {
 		return ReportHeader{}, err
 	}
 
+	assertValidReportHeader(header)
 	return header, nil
 }
 
@@ -214,4 +217,22 @@ func validateKnownScope(kind core.ReportScopeKind) error {
 	}
 
 	return nil
+}
+
+func assertValidReportHeader(header ReportHeader) {
+	if !debugassert.Enabled {
+		return
+	}
+
+	debugassert.That(header.SchemaVersion != "", "report header missing schema version")
+	debugassert.That(header.ToolVersion != "", "report header missing tool version")
+	debugassert.That(header.ReportKind != "", "report header missing report kind")
+	debugassert.That(header.ScopeKind != "", "report header missing scope kind")
+	debugassert.That(!header.GeneratedAt.IsZero(), "report header missing generated_at")
+
+	switch header.ReportKind {
+	case core.ReportKindTLSScan, core.ReportKindDiscovery, core.ReportKindAudit:
+		debugassert.That(header.Scope != nil, "report kind %q must include scope metadata", header.ReportKind)
+		debugassert.That(header.Scope.ScopeKind == header.ScopeKind, "report scope kind mismatch")
+	}
 }

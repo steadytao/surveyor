@@ -65,9 +65,14 @@ Before a release, confirm that:
 Before a release, confirm that:
 - `go build ./cmd/surveyor` passes
 - `go vet ./...` passes
+- `staticcheck ./...` passes
+- `gosec ./...` passes
+- `govulncheck ./...` passes
 - `go test ./...` passes
+- bounded fuzz targets pass under `go test -run=^$ -tags debugassert -fuzz=...`
 - example outputs remain representative
 - deterministic tests exist for audit, discovery, baseline compatibility, diffing, prioritisation, config validation, TLS collection, classification and outputs
+- dynamic analysis runs with debug assertions enabled so parser and normalisation invariants fail fast during fuzzing
 - CI is green across all runners
 
 If a release changes behaviour without updating tests or examples, it is not ready.

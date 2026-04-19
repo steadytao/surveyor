@@ -249,6 +249,8 @@ func adaptCaddyfileToJSON(data []byte, sourceName string, options AdapterOptions
 	ctx, cancel := context.WithTimeout(context.Background(), caddyAdaptTimeout)
 	defer cancel()
 
+	// #nosec G204 -- the adapter binary path is deliberate operator configuration,
+	// resolved through Surveyor's adapter contract rather than untrusted network input.
 	cmd := exec.CommandContext(ctx, binary, args...)
 	if !useFilePath {
 		cmd.Stdin = bytes.NewReader(data)

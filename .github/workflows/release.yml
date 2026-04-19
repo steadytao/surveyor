@@ -34,6 +34,9 @@ defaults:
 
 env:
   GOTOOLCHAIN: local
+  STATICCHECK_VERSION: 2025.1.1
+  GOSEC_VERSION: v2.22.11
+  GOVULNCHECK_VERSION: v1.2.0
 
 jobs:
   release:
@@ -78,6 +81,13 @@ jobs:
 
       - name: Print Go version
         run: go version
+
+      - name: Install Release Analysis Tools
+        run: |
+          set -euo pipefail
+          go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
+          go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
 
       - name: Trim and validate inputs
         id: inputs
@@ -215,8 +225,31 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
+      - name: Run staticcheck
+        run: |
+          set -euo pipefail
+          "$(go env GOPATH)/bin/staticcheck" ./...
+
+      - name: Run gosec
+        run: |
+          set -euo pipefail
+          "$(go env GOPATH)/bin/gosec" ./...
+
+      - name: Run govulncheck
+        run: |
+          set -euo pipefail
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
       - name: Run test suite
         run: go test -count=1 ./...
+
+      - name: Run Fuzz Smoke Checks
+        run: |
+          set -euo pipefail
+          go test -run=^$ -tags debugassert -fuzz=FuzzParseConfig -fuzztime=5s ./internal/config
+          go test -run=^$ -tags debugassert -fuzz=FuzzParseRemoteScopeCIDROnly -fuzztime=5s ./internal/config
+          go test -run=^$ -tags debugassert -fuzz=FuzzParseInventory -fuzztime=5s ./internal/inventory
+          go test -run=^$ -tags debugassert -fuzz=FuzzParseReportHeader -fuzztime=5s ./internal/baseline
 
       - name: Run deterministic CLI smoke checks
         run: |
