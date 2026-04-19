@@ -8,6 +8,18 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v0.10.2
+
+### Added
+- dedicated `CI / Static Analysis` and `CI / Fuzz` workflows now run `staticcheck`, `gosec` and bounded fuzz targets in the same split workflow style as the rest of the repository
+- parser-focused fuzz targets and debug-only internal assertions now cover config loading, remote scope parsing, inventory parsing and baseline report header parsing
+- the contributing and security guidance now explicitly document the project's test-addition policy and remediation expectations for confirmed exploitable analysis findings
+
+### Changed
+- the release gate now runs `staticcheck`, `gosec`, `govulncheck` and short fuzz smoke checks before tagging and publishing artefacts
+- the repository now pins the Go toolchain to `go1.26.2`, keeping the release analysis surface clear of the currently reported standard-library findings
+- output file permissions are now more restrictive, intentional operator-controlled file and adapter execution paths now carry explicit analysis rationale, and the public repository surface now includes the Surveyor logo and Go Report Card badge
+
 ## v0.10.1
 
 ### Added

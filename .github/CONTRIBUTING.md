@@ -34,6 +34,11 @@ Examples of work that usually do not need one:
 - tightly scoped bug fixes with an obvious cause
 - minor follow-up cleanups to an active PR
 
+If you are proposing major new functionality, the proposal should also explain:
+- what new behaviour is being added
+- which automated tests will be added or updated with it
+- what level of coverage is expected across unit, integration, golden, fuzz, or workflow tests
+
 ## Project principles
 
 Surveyor should stay:
@@ -64,6 +69,8 @@ If a change affects output or reporting, include a representative example where 
 
 If a change affects classification or interpretation, explain the reasoning. Surveyor is not just collecting raw data. It is also making judgement calls, so those need to be defensible.
 
+If a pull request adds major new functionality, it should not be treated as ready unless the corresponding automated tests are included in the same change or the pull request explains exactly why that is not yet possible.
+
 ## Code and tests
 
 Some strong defaults for code contributions:
@@ -73,6 +80,10 @@ Some strong defaults for code contributions:
 - avoid speculative extension points
 - preserve deterministic output where possible
 - add or update tests when behaviour changes
+
+Surveyor's general policy is that as major new functionality is added, automated tests for that functionality should be added to the repository as part of the same line of work. The exact mix can vary by change, but the expectation is that new functionality is covered by the strongest practical automated tests for that slice, for example unit tests, integration tests, golden tests, fuzz targets, workflow checks, or a combination of them.
+
+Adding major functionality without adding corresponding automated tests should be treated as an exception that needs explicit justification, not the default path.
 
 If you change public behaviour, examples or docs should usually move with it.
 
