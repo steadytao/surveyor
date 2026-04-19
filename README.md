@@ -1,10 +1,11 @@
-<div align="center">
-  <img src="./.github/banner.svg" alt="BANNER" width="720">
-</div>
-<div align="center">
-  <a href="https://goreportcard.com/report/github.com/steadytao/surveyor" target="_blank" rel="noopener noreferrer"><img src="https://goreportcard.com/badge/github.com/steadytao/surveyor" alt="Go Report Card"/></a>
-</div>
-
+<p align="center">
+  <img src="./.github/banner.svg" alt="Surveyor" width="720">
+</p>
+<p align="center">
+  <a href="https://goreportcard.com/report/github.com/steadytao/surveyor" rel="noopener noreferrer"><img src="https://goreportcard.com/badge/github.com/steadytao/surveyor" alt="Go Report Card"/></a>
+  &nbsp;
+  <a href="https://www.bestpractices.dev/projects/12587"><img src="https://www.bestpractices.dev/projects/12587/badge"></a> 
+</p>
 
 Surveyor is a TLS-first cryptographic inventory and migration-readiness tool.
 
