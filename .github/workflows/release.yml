@@ -42,10 +42,27 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Harden the runner (Audit outbound calls)
-        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+      - name: Harden Runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: |
+            168.63.129.16:53
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            *.actions.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            *.blob.core.windows.net:443
+            github-releases.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            objects-origin.githubusercontent.com:443
+            github-registry-files.githubusercontent.com:443
+            proxy.golang.org:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            storage.googleapis.com:443
+            sum.golang.org:443
 
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -70,15 +87,17 @@ jobs:
           RELEASE_NAME="$(echo "${{ inputs.release_name }}" | xargs)"
           RELEASE_NOTES_FILE="$(echo "${{ inputs.release_notes_file }}" | xargs)"
 
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
-          echo "release_notes_file=$RELEASE_NOTES_FILE" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$VERSION"
+            echo "commit_hash=$COMMIT_HASH"
+            echo "release_notes_file=$RELEASE_NOTES_FILE"
 
-          if [ -n "$RELEASE_NAME" ]; then
-            echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
-          else
-            echo "release_name=Surveyor $VERSION" >> "$GITHUB_OUTPUT"
-          fi
+            if [ -n "$RELEASE_NAME" ]; then
+              echo "release_name=$RELEASE_NAME"
+            else
+              echo "release_name=Surveyor $VERSION"
+            fi
+          } >> "$GITHUB_OUTPUT"
 
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
             echo "Error: version must follow semver form such as v0.1.0 or v0.1.0-rc.1"
