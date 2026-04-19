@@ -61,3 +61,20 @@ The less guesswork required to reproduce the issue, the easier it is to verify a
 Surveyor is a personal open-source project. There is currently no bug bounty programme.
 
 If a report is valid and results in a fix, I will not credit you publicly unless you ask me to. If you do want credit, please say so and include the name and handle to use.
+
+## Triage and remediation commitments
+
+Surveyor treats confirmed exploitable vulnerabilities found through static analysis, dynamic analysis, manual review or external reports as release-blocking issues when they affect a proposed production release.
+
+The project commits to the following minimum response standard once a vulnerability is confirmed:
+- critical and high severity issues are triaged immediately and fixed or mitigated as a priority
+- medium severity exploitable issues are fixed or mitigated within 60 days at the latest
+- low severity issues are still tracked and prioritised, but they do not carry the same remediation deadline
+
+For the purposes of this policy, severity should follow the latest available CVSS assessment, whether from a widely used public database or a project-published assessment with disclosed inputs.
+
+## Analysis-driven findings
+
+Surveyor runs static and dynamic analysis in CI and before release. Findings from tools such as `staticcheck`, `gosec`, `govulncheck`, race-enabled tests and fuzzing are treated as real engineering inputs, not advisory noise.
+
+Confirmed medium and higher severity exploitable findings from static or dynamic analysis must be fixed in a timely way under the remediation commitments above.

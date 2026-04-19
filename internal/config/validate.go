@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
+
+	"github.com/steadytao/surveyor/internal/debugassert"
 )
 
 func normalize(raw rawConfig) (Config, error) {
@@ -22,9 +24,11 @@ func normalize(raw rawConfig) (Config, error) {
 		targets = append(targets, normalizedTarget)
 	}
 
-	return Config{
+	config := Config{
 		Targets: targets,
-	}, nil
+	}
+	assertValidConfig(config)
+	return config, nil
 }
 
 func normalizeTarget(target rawTarget, index int) (Target, error) {
@@ -57,12 +61,14 @@ func normalizeTargetFields(name string, host string, port int, tags []string, pa
 
 	normalizedTags := normalizeTags(tags)
 
-	return Target{
+	normalizedTarget := Target{
 		Name: trimmedName,
 		Host: trimmedHost,
 		Port: port,
 		Tags: normalizedTags,
-	}, nil
+	}
+	assertValidTarget(normalizedTarget)
+	return normalizedTarget, nil
 }
 
 func normalizeExplicitTargetHost(raw string) string {
@@ -97,4 +103,37 @@ func normalizeTags(tags []string) []string {
 	}
 
 	return normalized
+}
+
+func assertValidConfig(config Config) {
+	if !debugassert.Enabled {
+		return
+	}
+
+	debugassert.That(len(config.Targets) > 0, "config must contain at least one target after normalisation")
+	for index, target := range config.Targets {
+		debugassert.That(target.Host != "", "target %d has empty host", index)
+		debugassert.That(target.Port >= 1 && target.Port <= 65535, "target %d has invalid port %d", index, target.Port)
+		assertNoBlankStrings(target.Tags, "target %d tag", index)
+	}
+}
+
+func assertValidTarget(target Target) {
+	if !debugassert.Enabled {
+		return
+	}
+
+	debugassert.That(target.Host != "", "normalised target has empty host")
+	debugassert.That(target.Port >= 1 && target.Port <= 65535, "normalised target has invalid port %d", target.Port)
+	assertNoBlankStrings(target.Tags, "normalised target tag")
+}
+
+func assertNoBlankStrings(values []string, format string, args ...any) {
+	if !debugassert.Enabled {
+		return
+	}
+
+	for _, value := range values {
+		debugassert.That(strings.TrimSpace(value) != "", format+" must not be blank", args...)
+	}
 }

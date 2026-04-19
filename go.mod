@@ -2,6 +2,8 @@ module github.com/steadytao/surveyor
 
 go 1.26
 
+toolchain go1.26.2
+
 require (
 	github.com/shirou/gopsutil/v4 v4.26.3
 	gopkg.in/yaml.v3 v3.0.1

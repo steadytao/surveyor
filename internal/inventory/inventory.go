@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/steadytao/surveyor/internal/core"
+	"github.com/steadytao/surveyor/internal/debugassert"
 	"gopkg.in/yaml.v3"
 )
 
@@ -116,6 +117,7 @@ func load(path string, adapterName core.InventoryAdapter, options AdapterOptions
 		return parse(nil, format, path, adapterName, options)
 	}
 
+	// #nosec G304 -- inventory paths are explicit operator-provided CLI inputs.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Document{}, fmt.Errorf("read inventory file %q: %w", path, err)
@@ -232,11 +234,13 @@ func normalizeManifest(raw rawManifest, format core.InventorySourceFormat, sourc
 		return Document{}, err
 	}
 
-	return Document{
+	document := Document{
 		Format:     format,
 		SourceName: sourceName,
 		Entries:    entries,
-	}, nil
+	}
+	assertValidDocument(document)
+	return document, nil
 }
 
 func parseCSV(data []byte, sourceName string) (Document, error) {
@@ -296,11 +300,13 @@ func parseCSV(data []byte, sourceName string) (Document, error) {
 		return Document{}, err
 	}
 
-	return Document{
+	document := Document{
 		Format:     core.InventorySourceFormatCSV,
 		SourceName: sourceName,
 		Entries:    entries,
-	}, nil
+	}
+	assertValidDocument(document)
+	return document, nil
 }
 
 func normalizeCSVHeader(header []string) (map[string]int, error) {
@@ -611,4 +617,37 @@ func slicesEqual(left []string, right []string) bool {
 		}
 	}
 	return true
+}
+
+func assertValidDocument(document Document) {
+	if !debugassert.Enabled {
+		return
+	}
+
+	debugassert.That(document.Format != "", "inventory document must have a format")
+	debugassert.That(document.SourceName != "", "inventory document must have a source name")
+	debugassert.That(len(document.Entries) > 0, "inventory document must contain entries")
+
+	seenHosts := make(map[string]struct{}, len(document.Entries))
+	for _, entry := range document.Entries {
+		debugassert.That(strings.TrimSpace(entry.Host) != "", "inventory entry host must not be blank")
+		debugassert.That(len(entry.Provenance) > 0, "inventory entry %q must retain provenance", entry.Host)
+		for index, port := range entry.Ports {
+			debugassert.That(port >= 1 && port <= 65535, "inventory entry %q contains invalid port %d", entry.Host, port)
+			if index > 0 {
+				debugassert.That(entry.Ports[index-1] < port, "inventory entry %q ports must be strictly increasing", entry.Host)
+			}
+		}
+		for index, tag := range entry.Tags {
+			debugassert.That(strings.TrimSpace(tag) != "", "inventory entry %q tag %d must not be blank", entry.Host, index)
+			if index > 0 {
+				debugassert.That(entry.Tags[index-1] < entry.Tags[index], "inventory entry %q tags must be strictly increasing", entry.Host)
+			}
+		}
+
+		if _, ok := seenHosts[entry.Host]; ok {
+			debugassert.That(false, "inventory document contains duplicate host %q after deduplication", entry.Host)
+		}
+		seenHosts[entry.Host] = struct{}{}
+	}
 }
