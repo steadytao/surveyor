@@ -42,10 +42,26 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Harden the runner (Audit outbound calls)
-        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+      - name: Harden the runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: |
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            *.actions.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            *.blob.core.windows.net:443
+            github-releases.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            objects-origin.githubusercontent.com:443
+            github-registry-files.githubusercontent.com:443
+            proxy.golang.org:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            storage.googleapis.com:443
+            sum.golang.org:443
 
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
