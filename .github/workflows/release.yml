@@ -87,15 +87,17 @@ jobs:
           RELEASE_NAME="$(echo "${{ inputs.release_name }}" | xargs)"
           RELEASE_NOTES_FILE="$(echo "${{ inputs.release_notes_file }}" | xargs)"
 
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
-          echo "release_notes_file=$RELEASE_NOTES_FILE" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$VERSION"
+            echo "commit_hash=$COMMIT_HASH"
+            echo "release_notes_file=$RELEASE_NOTES_FILE"
 
-          if [ -n "$RELEASE_NAME" ]; then
-            echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
-          else
-            echo "release_name=Surveyor $VERSION" >> "$GITHUB_OUTPUT"
-          fi
+            if [ -n "$RELEASE_NAME" ]; then
+              echo "release_name=$RELEASE_NAME"
+            else
+              echo "release_name=Surveyor $VERSION"
+            fi
+          } >> "$GITHUB_OUTPUT"
 
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
             echo "Error: version must follow semver form such as v0.1.0 or v0.1.0-rc.1"
