@@ -6,18 +6,19 @@ import subprocess
 import sys
 from pathlib import Path
 
-USES_RE = re.compile(r"^\s*uses:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([A-Za-z0-9._/-]+)(?:\s+#\s*(v[^\s]+))?\s*$")
+USES_RE = re.compile(r"^\s*uses:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)@([A-Za-z0-9._/-]+)(?:\s+#\s*(v[^\s]+))?\s*$")
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
-def iter_workflow_uses() -> list[tuple[Path, int, str, str, str | None]]:
-  results: list[tuple[Path, int, str, str, str | None]] = []
+def iter_workflow_uses() -> list[tuple[Path, int, str, str, str, str | None]]:
+  results: list[tuple[Path, int, str, str, str, str | None]] = []
   for workflow in sorted(Path(".github/workflows").glob("*.yml")):
     for line_number, line in enumerate(workflow.read_text(encoding="utf-8").splitlines(), start=1):
       match = USES_RE.match(line)
       if not match:
         continue
-      owner_repo, ref, tag = match.groups()
-      results.append((workflow, line_number, owner_repo, ref, tag))
+      action_path, ref, tag = match.groups()
+      owner_repo = "/".join(action_path.split("/")[:2])
+      results.append((workflow, line_number, action_path, owner_repo, ref, tag))
   return results
 
 def resolve_tag(owner_repo: str, tag: str) -> str:
@@ -52,18 +53,18 @@ def resolve_tag(owner_repo: str, tag: str) -> str:
 def main() -> int:
   failures: list[str] = []
 
-  for workflow, line_number, owner_repo, ref, tag in iter_workflow_uses():
-    if owner_repo.startswith("./"):
+  for workflow, line_number, action_path, owner_repo, ref, tag in iter_workflow_uses():
+    if action_path.startswith("./"):
       continue
 
     location = f"{workflow}:{line_number}"
 
     if not FULL_SHA_RE.match(ref):
-      failures.append(f"{location}: {owner_repo}@{ref} is not pinned to a full 40-character SHA")
+      failures.append(f"{location}: {action_path}@{ref} is not pinned to a full 40-character SHA")
       continue
 
     if not tag:
-      failures.append(f"{location}: {owner_repo}@{ref} is pinned but does not document an expected tag comment")
+      failures.append(f"{location}: {action_path}@{ref} is pinned but does not document an expected tag comment")
       continue
 
     try:
@@ -74,7 +75,7 @@ def main() -> int:
 
     if resolved != ref:
       failures.append(
-        f"{location}: {owner_repo} pinned to {ref} but {tag} currently resolves to {resolved}"
+        f"{location}: {action_path} pinned to {ref} but {tag} currently resolves to {resolved}"
       )
 
   if failures:

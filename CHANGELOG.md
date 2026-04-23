@@ -8,6 +8,18 @@ All notable changes to Surveyor will be documented in this file.
 
 The format is intentionally simple. Surveyor is still in early development so the goal is to keep release notes accurate and reviewable rather than decorative.
 
+## v1.0.0
+
+### Added
+- repo-root governance and contributor-facing documents now cover maintainers, support, DCO, code of conduct, governance and agent instructions as part of the checked-in project surface
+- the docs tree is now reorganised into command, contract, adapter, architecture, reference and release sections, with ADRs recording the durable scope and boundary decisions behind the current implementation
+- the repository now publishes stronger supply-chain integrity material for releases, including checksums, Sigstore bundles, per-archive SPDX SBOMs, GitHub attestations and a dedicated OpenSSF Scorecard workflow
+
+### Changed
+- the release path is now split deliberately between a manual preparation workflow that verifies the target commit and creates the annotated tag, and a tag-triggered publishing workflow that builds, signs and attests the final assets from the immutable release ref
+- `SECURITY.md` and `CONTRIBUTING.md` now live at the repository root, matching GitHub's normal policy surface and making contributor and vulnerability-reporting guidance easier to discover
+- the repository and release surface now focus on hardening, coherence and verification quality around the existing TLS-first inventory and migration-readiness scope rather than widening the product into a generic scanner, connector platform, dashboard or storage system
+
 ## v0.10.2
 
 ### Added
