@@ -26,16 +26,25 @@ def resolve_tag(owner_repo: str, tag: str) -> str:
     "ls-remote",
     f"https://github.com/{owner_repo}",
     f"refs/tags/{tag}",
+    f"refs/tags/{tag}^{{}}",
   ]
   result = subprocess.run(command, check=False, capture_output=True, text=True)
   if result.returncode != 0:
     raise RuntimeError(f"failed to resolve {owner_repo}@{tag}: {result.stderr.strip()}")
 
-  line = result.stdout.strip()
-  if not line:
+  lines = [line for line in result.stdout.splitlines() if line.strip()]
+  if not lines:
     raise RuntimeError(f"tag {tag} was not found for {owner_repo}")
 
-  sha = line.split()[0]
+  refs: dict[str, str] = {}
+  for line in lines:
+    sha, ref_name = line.split()
+    refs[ref_name] = sha
+
+  sha = refs.get(f"refs/tags/{tag}^{{}}", refs.get(f"refs/tags/{tag}"))
+  if not sha:
+    raise RuntimeError(f"tag {tag} was not found for {owner_repo}")
+
   if not FULL_SHA_RE.match(sha):
     raise RuntimeError(f"resolved ref for {owner_repo}@{tag} was not a full SHA: {sha}")
   return sha
