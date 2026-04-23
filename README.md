@@ -28,10 +28,13 @@ trying to produce a defensible inventory and a clear next-action surface.
 - [Command Surface](#command-surface)
 - [Remote Scope](#remote-scope)
 - [Import Adapters](#import-adapters)
-- [Reports And Analysis](#reports-and-analysis)
+- [Reports and Analysis](#reports-and-analysis)
 - [Documentation](#documentation)
 - [Development](#development)
 - [Contributing](#contributing)
+- [Governance](#governance)
+- [Support](#support)
+- [Code of Conduct](#code-of-conduct)
 - [Discussions](#discussions)
 - [Security](#security)
 - [Licence](#licence)
@@ -86,6 +89,11 @@ You may install our builds at:
 <https://github.com/steadytao/surveyor/releases>
 
 OR
+
+Published releases include `checksums.txt`, a Sigstore bundle for that checksum
+manifest, plus per-archive SPDX SBOMs and matching Sigstore bundles. See
+[docs/releases/README.md](docs/releases/README.md) for release verification
+guidance.
 
 You can build Surveyor from source:
 ```bash
@@ -214,7 +222,7 @@ Current limits remain deliberate:
 - no generic Kubernetes parser
 - no second import command family
 
-## Reports And Analysis
+## Reports and Analysis
 
 JSON is Surveyor’s canonical output. Markdown is derived from the same model.
 
@@ -245,16 +253,12 @@ Start here for the docs map:
 
 Key documents:
 
-- [docs/discovery.md](docs/discovery.md)
-- [docs/audit.md](docs/audit.md)
-- [docs/remote-scope.md](docs/remote-scope.md)
-- [docs/import-adapters.md](docs/import-adapters.md)
-- [docs/output-schema.md](docs/output-schema.md)
-- [docs/baselines.md](docs/baselines.md)
-- [docs/diffing.md](docs/diffing.md)
-- [docs/prioritisation.md](docs/prioritisation.md)
-- [docs/safety.md](docs/safety.md)
-- [docs/release-checklist.md](docs/release-checklist.md)
+- [docs/commands/README.md](docs/commands/README.md)
+- [docs/adapters/README.md](docs/adapters/README.md)
+- [docs/contracts/README.md](docs/contracts/README.md)
+- [docs/architecture/README.md](docs/architecture/README.md)
+- [docs/reference/README.md](docs/reference/README.md)
+- [docs/releases/README.md](docs/releases/README.md)
 
 ## Development
 
@@ -282,12 +286,30 @@ Representative local checks:
 
 Well-scoped contributions are welcome.
 
-Please start with [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md). For larger
+Please start with [CONTRIBUTING.md](CONTRIBUTING.md). For larger
 changes, open an issue first so scope and direction can be discussed before
 implementation starts.
 
 For questions, broader feedback, and open-ended design discussion, instead use
 [GitHub Discussions](https://github.com/steadytao/surveyor/discussions).
+
+All commits must be signed off under the DCO. See [DCO.md](DCO.md).
+Repository-side enforcement should come from the GitHub DCO app when that control is enabled.
+
+## Governance
+
+Surveyor is maintainer-led.
+
+See [GOVERNANCE.md](GOVERNANCE.md) for the current governance model and
+[MAINTAINERS.md](MAINTAINERS.md) for the current maintainer list.
+
+## Support
+
+See [SUPPORT.md](SUPPORT.md) for the support posture and support channels.
+
+## Code of Conduct
+
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Discussions
 
@@ -304,7 +326,7 @@ Use Issues for concrete bugs, release blockers and things that need tracked impl
 If you believe you have found a security issue in Surveyor itself, do not open a
 public issue.
 
-See [.github/SECURITY.md](.github/SECURITY.md) for reporting instructions.
+See [SECURITY.md](SECURITY.md) for reporting instructions.
 
 ## Licence
 

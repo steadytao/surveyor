@@ -1,0 +1,58 @@
+name: Feature Request
+description: Suggest an Improvement for Surveyor
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a feature request, please read `README.md` and `docs/README.md`.
+
+        Surveyor is intentionally scoped. Requests that conflict with the project's direction may be declined even if technically feasible.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem are you trying to solve
+      placeholder: Describe the current limitation or need
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Direction
+      description: Describe the change you want
+      placeholder: Describe the feature or improvement
+    validations:
+      required: true
+
+  - type: textarea
+    id: insufficient
+    attributes:
+      label: Why Current Behaviour is Insufficient
+      description: Explain why existing behaviour does not solve the problem
+    validations:
+      required: true
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Trade-offs or Risks
+      description: Describe any trade-offs, risks or edge cases you can identify
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I have checked for existing issues
+          required: true
+        - label: I have read the project documentation
+          required: true
+        - label: This request is intended to fit the documented scope of Surveyor
+          required: true

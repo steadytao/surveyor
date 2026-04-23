@@ -1,19 +1,7 @@
 name: CI / Action Drift
 
 on:
-  pull_request:
-    branches:
-      - master
-    paths:
-      - ".github/workflows/**"
-      - ".github/scripts/ci/**"
-  push:
-    branches:
-      - master
-    paths:
-      - ".github/workflows/**"
-      - ".github/scripts/ci/**"
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

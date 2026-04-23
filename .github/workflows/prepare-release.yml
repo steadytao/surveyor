@@ -1,0 +1,307 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to tag, for example v0.1.0"
+        required: true
+        type: string
+      commit_hash:
+        description: "Commit hash to release from"
+        required: true
+        type: string
+
+concurrency:
+  group: prepare-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GOTOOLCHAIN: local
+  STATICCHECK_VERSION: 2025.1.1
+  GOSEC_VERSION: v2.22.11
+  GOVULNCHECK_VERSION: v1.2.0
+
+jobs:
+  prepare:
+    name: Verify and Tag Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        with:
+          egress-policy: block
+          allowed-endpoints: |
+            168.63.129.16:53
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            *.actions.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            *.blob.core.windows.net:443
+            github-releases.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            objects-origin.githubusercontent.com:443
+            github-registry-files.githubusercontent.com:443
+            proxy.golang.org:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            storage.googleapis.com:443
+            sum.golang.org:443
+
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Print Go version
+        run: go version
+
+      - name: Install Release Analysis Tools
+        run: |
+          set -euo pipefail
+          go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
+          go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+
+      - name: Trim and validate inputs
+        id: inputs
+        run: |
+          VERSION="$(echo "${{ inputs.version }}" | xargs)"
+          COMMIT_HASH="$(echo "${{ inputs.commit_hash }}" | xargs)"
+          RELEASE_NOTES_FILE="docs/releases/${VERSION}.md"
+
+          {
+            echo "version=$VERSION"
+            echo "commit_hash=$COMMIT_HASH"
+            echo "release_notes_file=$RELEASE_NOTES_FILE"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "Error: version must follow semver form such as v0.1.0 or v0.1.0-rc.1"
+            exit 1
+          fi
+
+          if [[ ! "$COMMIT_HASH" =~ ^[a-f0-9]{7,40}$ ]]; then
+            echo "Error: commit_hash must be a valid SHA"
+            exit 1
+          fi
+
+          if ! git cat-file -e "$COMMIT_HASH^{commit}" 2>/dev/null; then
+            echo "Error: commit $COMMIT_HASH does not exist"
+            exit 1
+          fi
+
+      - name: Check release tag does not already exist
+        run: |
+          VERSION="${{ steps.inputs.outputs.version }}"
+
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Error: tag $VERSION already exists locally"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Error: tag $VERSION already exists on origin"
+            exit 1
+          fi
+
+      - name: Check out target commit
+        run: git checkout "${{ steps.inputs.outputs.commit_hash }}"
+
+      - name: Configure git identity for release tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check checked-in release notes file exists
+        run: |
+          RELEASE_NOTES_FILE="${{ steps.inputs.outputs.release_notes_file }}"
+
+          if [ ! -f "$RELEASE_NOTES_FILE" ]; then
+            echo "Error: checked-in release notes file '$RELEASE_NOTES_FILE' does not exist"
+            exit 1
+          fi
+
+      - name: Verify CONTRIBUTORS ledger
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/release/generate_contributors.py --check
+
+      - name: Check gofmt
+        run: |
+          mapfile -t go_files < <(git ls-files '*.go')
+          if [ "${#go_files[@]}" -eq 0 ]; then
+            echo "No Go files found for gofmt verification"
+            exit 1
+          fi
+
+          unformatted="$(gofmt -l "${go_files[@]}")"
+          if [ -n "$unformatted" ]; then
+            echo "Unformatted Go files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Check module tidiness
+        run: go mod tidy -diff
+
+      - name: Verify module definitions
+        run: go mod verify
+
+      - name: Resolve CLI binary path
+        run: |
+          # shellcheck disable=SC2153
+          runner_temp="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then
+            runner_temp="$(cygpath -u "$RUNNER_TEMP")"
+          fi
+
+          binary_name="surveyor"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            binary_name="${binary_name}.exe"
+          fi
+
+          printf 'SURVEYOR_BINARY=%s\n' "$runner_temp/$binary_name" >> "$GITHUB_ENV"
+
+      - name: Build CLI
+        run: go build -o "$SURVEYOR_BINARY" ./cmd/surveyor
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run staticcheck
+        run: |
+          set -euo pipefail
+          "$(go env GOPATH)/bin/staticcheck" ./...
+
+      - name: Run gosec
+        run: |
+          set -euo pipefail
+          "$(go env GOPATH)/bin/gosec" ./...
+
+      - name: Run govulncheck
+        run: |
+          set -euo pipefail
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
+      - name: Run test suite
+        run: go test -count=1 ./...
+
+      - name: Run Fuzz Smoke Checks
+        run: |
+          set -euo pipefail
+          go test -run=^$ -tags debugassert -fuzz=FuzzParseConfig -fuzztime=5s ./internal/config
+          go test -run=^$ -tags debugassert -fuzz=FuzzParseRemoteScopeCIDROnly -fuzztime=5s ./internal/config
+          go test -run=^$ -tags debugassert -fuzz=FuzzParseInventory -fuzztime=5s ./internal/inventory
+          go test -run=^$ -tags debugassert -fuzz=FuzzParseReportHeader -fuzztime=5s ./internal/baseline
+
+      - name: Run deterministic CLI smoke checks
+        run: |
+          set -euo pipefail
+
+          assert_contains() {
+            local text="$1"
+            local needle="$2"
+            local label="$3"
+            if ! grep -Fq -- "$needle" <<<"$text"; then
+              echo "$label did not contain expected text: $needle"
+              exit 1
+            fi
+          }
+
+          assert_file_exists() {
+            local path="$1"
+            local label="$2"
+            if [ ! -f "$path" ]; then
+              echo "$label was not created: $path"
+              exit 1
+            fi
+          }
+
+          repo_root="$PWD"
+          temp_root="$(mktemp -d)"
+          trap 'rm -rf "$temp_root"' EXIT
+
+          output="$("$SURVEYOR_BINARY" --help)"
+          assert_contains "$output" "surveyor scan tls" "CLI help output"
+          assert_contains "$output" "surveyor discover remote" "CLI help output"
+
+          output="$("$SURVEYOR_BINARY" discover remote --cidr 10.0.0.0/32 --ports 443 --dry-run)"
+          assert_contains "$output" "# Surveyor Execution Plan" "CIDR dry-run output"
+          assert_contains "$output" "- Input kind: cidr" "CIDR dry-run output"
+          assert_contains "$output" "- Attempt count: 1" "CIDR dry-run output"
+
+          targets_file="$repo_root/examples/approved-hosts.txt"
+          output="$("$SURVEYOR_BINARY" audit remote --targets-file "$targets_file" --ports 443 --dry-run)"
+          assert_contains "$output" "- Input kind: targets_file" "Targets-file dry-run output"
+          assert_contains "$output" "- Targets file: " "Targets-file dry-run output"
+
+          inventory_file="$repo_root/examples/inventory.yaml"
+          output="$("$SURVEYOR_BINARY" audit remote --inventory-file "$inventory_file" --dry-run)"
+          assert_contains "$output" "- Input kind: inventory_file" "Inventory dry-run output"
+          assert_contains "$output" "- Inventory file: " "Inventory dry-run output"
+
+          caddy_file="$repo_root/examples/caddy.json"
+          output="$("$SURVEYOR_BINARY" discover remote --inventory-file "$caddy_file" --adapter caddy --dry-run)"
+          assert_contains "$output" "- Adapter: caddy" "Caddy adapter dry-run output"
+
+          ingress_file="$repo_root/examples/ingress.yaml"
+          output="$("$SURVEYOR_BINARY" audit remote --inventory-file "$ingress_file" --adapter kubernetes-ingress-v1 --dry-run)"
+          assert_contains "$output" "- Adapter: kubernetes-ingress-v1" "Kubernetes adapter dry-run output"
+          assert_contains "$output" "- Attempt count: 2" "Kubernetes adapter dry-run output"
+
+          baseline="$repo_root/examples/audit.json"
+          current="$repo_root/examples/audit.json"
+          diff_markdown_path="$temp_root/diff.md"
+          diff_json_path="$temp_root/diff.json"
+          "$SURVEYOR_BINARY" diff "$baseline" "$current" -o "$diff_markdown_path" -j "$diff_json_path" >/dev/null
+          assert_file_exists "$diff_markdown_path" "Diff Markdown output"
+          assert_file_exists "$diff_json_path" "Diff JSON output"
+          diff_json="$(cat "$diff_json_path")"
+          assert_contains "$diff_json" '"report_kind": "diff"' "Diff JSON output"
+
+          priorities_markdown_path="$temp_root/priorities.md"
+          priorities_json_path="$temp_root/priorities.json"
+          "$SURVEYOR_BINARY" prioritize "$current" --profile migration-readiness -o "$priorities_markdown_path" -j "$priorities_json_path" >/dev/null
+          assert_file_exists "$priorities_markdown_path" "Prioritization Markdown output"
+          assert_file_exists "$priorities_json_path" "Prioritization JSON output"
+          priorities_json="$(cat "$priorities_json_path")"
+          assert_contains "$priorities_json" '"report_kind": "prioritization"' "Prioritization JSON output"
+          assert_contains "$priorities_json" '"profile": "migration-readiness"' "Prioritization JSON output"
+
+      - name: Check diff formatting
+        run: git diff --check
+
+      - name: Ensure working tree is unchanged
+        run: |
+          status="$(git status --porcelain=v1)"
+          if [ -n "$status" ]; then
+            echo "working tree changed during verification"
+            echo "$status"
+            exit 1
+          fi
+
+      - name: Create annotated release tag
+        run: |
+          VERSION="${{ steps.inputs.outputs.version }}"
+          git tag -a "$VERSION" -m "Release $VERSION"
+
+      - name: Push release tag
+        run: git push origin "${{ steps.inputs.outputs.version }}"

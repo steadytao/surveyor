@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2026 The Surveyor Authors
+# SPDX-License-Identifier: Apache-2.0
+
 set -euo pipefail
 
 # Record when this workflow requested a refresh so later checks can prove the report is fresh.

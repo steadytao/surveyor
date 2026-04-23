@@ -1,32 +1,18 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to release, for example v0.1.0"
-        required: true
-        type: string
-      commit_hash:
-        description: "Commit hash to release from"
-        required: true
-        type: string
-      release_name:
-        description: "Release name shown on GitHub"
-        required: false
-        default: ""
-        type: string
-      release_notes_file:
-        description: "Path to a checked-in Markdown file for the editorial release body; changelog is appended automatically"
-        required: true
-        type: string
+  push:
+    tags:
+      - "v*"
 
 concurrency:
-  group: release-${{ inputs.version }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 defaults:
   run:
@@ -34,13 +20,12 @@ defaults:
 
 env:
   GOTOOLCHAIN: local
-  STATICCHECK_VERSION: 2025.1.1
-  GOSEC_VERSION: v2.22.11
-  GOVULNCHECK_VERSION: v1.2.0
+  SYFT_VERSION: v1.42.4
+  COSIGN_VERSION: v3.0.6
 
 jobs:
   release:
-    name: Build and Publish Release
+    name: Build, Sign and Publish Release
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -57,15 +42,19 @@ jobs:
             *.actions.githubusercontent.com:443
             results-receiver.actions.githubusercontent.com:443
             *.blob.core.windows.net:443
+            fulcio.sigstore.dev:443
             github-releases.githubusercontent.com:443
             objects.githubusercontent.com:443
             objects-origin.githubusercontent.com:443
             github-registry-files.githubusercontent.com:443
             proxy.golang.org:443
             raw.githubusercontent.com:443
+            rekor.sigstore.dev:443
             release-assets.githubusercontent.com:443
             storage.googleapis.com:443
             sum.golang.org:443
+            timestamp.sigstore.dev:443
+            tuf-repo-cdn.sigstore.dev:443
 
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -79,92 +68,60 @@ jobs:
           check-latest: true
           cache: true
 
-      - name: Print Go version
-        run: go version
+      - name: Install Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          syft-version: ${{ env.SYFT_VERSION }}
 
-      - name: Install Release Analysis Tools
+      - name: Add Syft to PATH
         run: |
           set -euo pipefail
-          go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
-          go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"
-          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+          dirname "${{ steps.syft.outputs.cmd }}" >> "${GITHUB_PATH}"
 
-      - name: Trim and validate inputs
-        id: inputs
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+
+      - name: Print Tool Versions
         run: |
-          VERSION="$(echo "${{ inputs.version }}" | xargs)"
-          COMMIT_HASH="$(echo "${{ inputs.commit_hash }}" | xargs)"
-          RELEASE_NAME="$(echo "${{ inputs.release_name }}" | xargs)"
-          RELEASE_NOTES_FILE="$(echo "${{ inputs.release_notes_file }}" | xargs)"
+          set -euo pipefail
+          go version
+          "${{ steps.syft.outputs.cmd }}" version
+          cosign version
+
+      - name: Resolve release metadata
+        id: metadata
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          RELEASE_NOTES_FILE="docs/releases/${VERSION}.md"
 
           {
             echo "version=$VERSION"
-            echo "commit_hash=$COMMIT_HASH"
+            echo "release_name=Surveyor $VERSION"
             echo "release_notes_file=$RELEASE_NOTES_FILE"
-
-            if [ -n "$RELEASE_NAME" ]; then
-              echo "release_name=$RELEASE_NAME"
-            else
-              echo "release_name=Surveyor $VERSION"
-            fi
           } >> "$GITHUB_OUTPUT"
 
-          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
-            echo "Error: version must follow semver form such as v0.1.0 or v0.1.0-rc.1"
-            exit 1
-          fi
-
-          if [[ ! "$COMMIT_HASH" =~ ^[a-f0-9]{7,40}$ ]]; then
-            echo "Error: commit_hash must be a valid SHA"
-            exit 1
-          fi
-
-          if ! git cat-file -e "$COMMIT_HASH^{commit}" 2>/dev/null; then
-            echo "Error: commit $COMMIT_HASH does not exist"
-            exit 1
-          fi
-
-          if [ -z "$RELEASE_NOTES_FILE" ]; then
-            echo "Error: release_notes_file is required"
-            exit 1
-          fi
-
-      - name: Check release tag does not already exist
+      - name: Check checked-in release notes file exists
         run: |
-          VERSION="${{ steps.inputs.outputs.version }}"
-
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
-            echo "Error: tag $VERSION already exists locally"
-            exit 1
-          fi
-
-          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
-            echo "Error: tag $VERSION already exists on origin"
-            exit 1
-          fi
-
-      - name: Check out target commit
-        run: git checkout "${{ steps.inputs.outputs.commit_hash }}"
-
-      - name: Configure git identity for release tag
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Check release notes file exists
-        run: |
-          RELEASE_NOTES_FILE="${{ steps.inputs.outputs.release_notes_file }}"
+          RELEASE_NOTES_FILE="${{ steps.metadata.outputs.release_notes_file }}"
 
           if [ ! -f "$RELEASE_NOTES_FILE" ]; then
-            echo "Error: release notes file '$RELEASE_NOTES_FILE' does not exist"
+            echo "Error: checked-in release notes file '$RELEASE_NOTES_FILE' does not exist"
             exit 1
           fi
+
+      - name: Verify CONTRIBUTORS ledger
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/release/generate_contributors.py --check
 
       - name: Build release notes
         id: release_notes
         run: |
-          RELEASE_NOTES_FILE="${{ steps.inputs.outputs.release_notes_file }}"
-          COMMIT_HASH="${{ steps.inputs.outputs.commit_hash }}"
+          VERSION="${{ steps.metadata.outputs.version }}"
+          RELEASE_NOTES_FILE="${{ steps.metadata.outputs.release_notes_file }}"
           GENERATED_RELEASE_NOTES_FILE="$RUNNER_TEMP/release-notes.md"
 
           awk '
@@ -175,175 +132,14 @@ jobs:
 
           printf '\n## Changelog\n\n' >> "$GENERATED_RELEASE_NOTES_FILE"
 
-          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${COMMIT_HASH}^" 2>/dev/null || true)"
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${VERSION}^" 2>/dev/null || true)"
           if [ -n "$PREVIOUS_TAG" ]; then
-            git log --reverse --format='- %H %s' "${PREVIOUS_TAG}..${COMMIT_HASH}" >> "$GENERATED_RELEASE_NOTES_FILE"
+            git log --reverse --format='- %H %s' "${PREVIOUS_TAG}..${VERSION}" >> "$GENERATED_RELEASE_NOTES_FILE"
           else
-            git log --reverse --format='- %H %s' "$COMMIT_HASH" >> "$GENERATED_RELEASE_NOTES_FILE"
+            git log --reverse --format='- %H %s' "$VERSION" >> "$GENERATED_RELEASE_NOTES_FILE"
           fi
 
           echo "generated_release_notes_file=$GENERATED_RELEASE_NOTES_FILE" >> "$GITHUB_OUTPUT"
-
-      - name: Check gofmt
-        run: |
-          mapfile -t go_files < <(git ls-files '*.go')
-          if [ "${#go_files[@]}" -eq 0 ]; then
-            echo "No Go files found for gofmt verification"
-            exit 1
-          fi
-
-          unformatted="$(gofmt -l "${go_files[@]}")"
-          if [ -n "$unformatted" ]; then
-            echo "Unformatted Go files:"
-            echo "$unformatted"
-            exit 1
-          fi
-
-      - name: Check module tidiness
-        run: go mod tidy -diff
-
-      - name: Verify module definitions
-        run: go mod verify
-
-      - name: Resolve CLI binary path
-        run: |
-          runner_temp="$RUNNER_TEMP"
-          if command -v cygpath >/dev/null 2>&1; then
-            runner_temp="$(cygpath -u "$RUNNER_TEMP")"
-          fi
-
-          binary_name="surveyor"
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            binary_name="${binary_name}.exe"
-          fi
-
-          printf 'SURVEYOR_BINARY=%s\n' "$runner_temp/$binary_name" >> "$GITHUB_ENV"
-
-      - name: Build CLI
-        run: go build -o "$SURVEYOR_BINARY" ./cmd/surveyor
-
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Run staticcheck
-        run: |
-          set -euo pipefail
-          "$(go env GOPATH)/bin/staticcheck" ./...
-
-      - name: Run gosec
-        run: |
-          set -euo pipefail
-          "$(go env GOPATH)/bin/gosec" ./...
-
-      - name: Run govulncheck
-        run: |
-          set -euo pipefail
-          "$(go env GOPATH)/bin/govulncheck" ./...
-
-      - name: Run test suite
-        run: go test -count=1 ./...
-
-      - name: Run Fuzz Smoke Checks
-        run: |
-          set -euo pipefail
-          go test -run=^$ -tags debugassert -fuzz=FuzzParseConfig -fuzztime=5s ./internal/config
-          go test -run=^$ -tags debugassert -fuzz=FuzzParseRemoteScopeCIDROnly -fuzztime=5s ./internal/config
-          go test -run=^$ -tags debugassert -fuzz=FuzzParseInventory -fuzztime=5s ./internal/inventory
-          go test -run=^$ -tags debugassert -fuzz=FuzzParseReportHeader -fuzztime=5s ./internal/baseline
-
-      - name: Run deterministic CLI smoke checks
-        run: |
-          set -euo pipefail
-
-          assert_contains() {
-            local text="$1"
-            local needle="$2"
-            local label="$3"
-            if ! grep -Fq -- "$needle" <<<"$text"; then
-              echo "$label did not contain expected text: $needle"
-              exit 1
-            fi
-          }
-
-          assert_file_exists() {
-            local path="$1"
-            local label="$2"
-            if [ ! -f "$path" ]; then
-              echo "$label was not created: $path"
-              exit 1
-            fi
-          }
-
-          repo_root="$PWD"
-          temp_root="$(mktemp -d)"
-          trap 'rm -rf "$temp_root"' EXIT
-
-          output="$("$SURVEYOR_BINARY" --help)"
-          assert_contains "$output" "surveyor scan tls" "CLI help output"
-          assert_contains "$output" "surveyor discover remote" "CLI help output"
-
-          output="$("$SURVEYOR_BINARY" discover remote --cidr 10.0.0.0/32 --ports 443 --dry-run)"
-          assert_contains "$output" "# Surveyor Execution Plan" "CIDR dry-run output"
-          assert_contains "$output" "- Input kind: cidr" "CIDR dry-run output"
-          assert_contains "$output" "- Attempt count: 1" "CIDR dry-run output"
-
-          targets_file="$repo_root/examples/approved-hosts.txt"
-          output="$("$SURVEYOR_BINARY" audit remote --targets-file "$targets_file" --ports 443 --dry-run)"
-          assert_contains "$output" "- Input kind: targets_file" "Targets-file dry-run output"
-          assert_contains "$output" "- Targets file: " "Targets-file dry-run output"
-
-          inventory_file="$repo_root/examples/inventory.yaml"
-          output="$("$SURVEYOR_BINARY" audit remote --inventory-file "$inventory_file" --dry-run)"
-          assert_contains "$output" "- Input kind: inventory_file" "Inventory dry-run output"
-          assert_contains "$output" "- Inventory file: " "Inventory dry-run output"
-
-          caddy_file="$repo_root/examples/caddy.json"
-          output="$("$SURVEYOR_BINARY" discover remote --inventory-file "$caddy_file" --adapter caddy --dry-run)"
-          assert_contains "$output" "- Adapter: caddy" "Caddy adapter dry-run output"
-
-          ingress_file="$repo_root/examples/ingress.yaml"
-          output="$("$SURVEYOR_BINARY" audit remote --inventory-file "$ingress_file" --adapter kubernetes-ingress-v1 --dry-run)"
-          assert_contains "$output" "- Adapter: kubernetes-ingress-v1" "Kubernetes adapter dry-run output"
-          assert_contains "$output" "- Attempt count: 2" "Kubernetes adapter dry-run output"
-
-          baseline="$repo_root/examples/audit.json"
-          current="$repo_root/examples/audit.json"
-          diff_markdown_path="$temp_root/diff.md"
-          diff_json_path="$temp_root/diff.json"
-          "$SURVEYOR_BINARY" diff "$baseline" "$current" -o "$diff_markdown_path" -j "$diff_json_path" >/dev/null
-          assert_file_exists "$diff_markdown_path" "Diff Markdown output"
-          assert_file_exists "$diff_json_path" "Diff JSON output"
-          diff_json="$(cat "$diff_json_path")"
-          assert_contains "$diff_json" '"report_kind": "diff"' "Diff JSON output"
-
-          priorities_markdown_path="$temp_root/priorities.md"
-          priorities_json_path="$temp_root/priorities.json"
-          "$SURVEYOR_BINARY" prioritize "$current" --profile migration-readiness -o "$priorities_markdown_path" -j "$priorities_json_path" >/dev/null
-          assert_file_exists "$priorities_markdown_path" "Prioritization Markdown output"
-          assert_file_exists "$priorities_json_path" "Prioritization JSON output"
-          priorities_json="$(cat "$priorities_json_path")"
-          assert_contains "$priorities_json" '"report_kind": "prioritization"' "Prioritization JSON output"
-          assert_contains "$priorities_json" '"profile": "migration-readiness"' "Prioritization JSON output"
-
-      - name: Check diff formatting
-        run: git diff --check
-
-      - name: Ensure working tree is unchanged
-        run: |
-          status="$(git status --porcelain=v1)"
-          if [ -n "$status" ]; then
-            echo "working tree changed during verification"
-            echo "$status"
-            exit 1
-          fi
-
-      - name: Create annotated release tag
-        run: |
-          VERSION="${{ steps.inputs.outputs.version }}"
-          git tag -a "$VERSION" -m "Release $VERSION"
-
-      - name: Push release tag
-        run: git push origin "${{ steps.inputs.outputs.version }}"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
@@ -353,4 +149,50 @@ jobs:
           args: release --clean --release-notes "${{ steps.release_notes.outputs.generated_release_notes_file }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_NAME: ${{ steps.inputs.outputs.release_name }}
+          RELEASE_NAME: ${{ steps.metadata.outputs.release_name }}
+
+      - name: Verify release integrity assets
+        run: |
+          set -euo pipefail
+
+          if [ ! -f dist/checksums.txt ]; then
+            echo "Missing dist/checksums.txt"
+            exit 1
+          fi
+
+          if [ ! -f dist/checksums.txt.sigstore.json ]; then
+            echo "Missing dist/checksums.txt.sigstore.json"
+            exit 1
+          fi
+
+          mapfile -t sboms < <(find dist -maxdepth 1 -type f -name '*.spdx.json' | sort)
+          if [ "${#sboms[@]}" -eq 0 ]; then
+            echo "No archive SBOMs were generated"
+            exit 1
+          fi
+
+          for sbom in "${sboms[@]}"; do
+            if [ ! -f "${sbom}.sigstore.json" ]; then
+              echo "Missing Sigstore bundle for SBOM: ${sbom}"
+              exit 1
+            fi
+          done
+
+          sha256sum --ignore-missing -c dist/checksums.txt
+
+          cosign verify-blob \
+            --bundle dist/checksums.txt.sigstore.json \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            dist/checksums.txt
+
+          cosign verify-blob \
+            --bundle "${sboms[0]}.sigstore.json" \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${sboms[0]}"
+
+      - name: Attest released artifacts
+        uses: actions/attest@c32b4b8b198b65d0bd9d63490e847ff7b53989d4 # v4.0.0
+        with:
+          subject-checksums: ./dist/checksums.txt

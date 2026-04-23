@@ -1,3 +1,6 @@
+// Copyright 2026 The Surveyor Authors
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 // CloneTargetResult returns a deep copy of one target result so report

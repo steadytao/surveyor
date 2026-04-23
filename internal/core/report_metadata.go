@@ -1,3 +1,6 @@
+// Copyright 2026 The Surveyor Authors
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 // CurrentSchemaVersion is the current baseline-compatible report schema version.
