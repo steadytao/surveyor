@@ -178,7 +178,10 @@ jobs:
             fi
           done
 
-          sha256sum --ignore-missing -c dist/checksums.txt
+          (
+            cd dist
+            sha256sum -c checksums.txt
+          )
 
           cosign verify-blob \
             --bundle dist/checksums.txt.sigstore.json \
