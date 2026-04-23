@@ -1,0 +1,72 @@
+name: Bug Report
+description: Report a Defect in Surveyor
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a bug report, please read `README.md` and `docs/README.md`.
+
+        Do not use this form for security vulnerabilities. Follow `.github/SECURITY.md` instead.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Describe the problem clearly
+      placeholder: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behaviour
+      description: Describe what you expected to happen
+      placeholder: What should have happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction Steps
+      description: Provide clear steps to reproduce the problem
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide relevant environment details
+      placeholder: OS, version, configuration details, execution context
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or Output
+      description: Paste relevant logs or command output as plain text
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I have checked for existing issues
+          required: true
+        - label: This issue is about Surveyor itself
+          required: true
+        - label: This is not a security vulnerability report
+          required: true

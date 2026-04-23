@@ -11,7 +11,7 @@ One or two sentences summarising the release in plain English. Keep this editori
 - State `No known security fixes in this release.` if there are none.
 - If there are security fixes, summarise them directly and name reporters where appropriate.
 
-## In this release
+## In This Release
 
 - Call out any important behavioural changes, verification changes or release-process changes.
 - Mention dependency or toolchain changes only if they materially matter to users or operators.

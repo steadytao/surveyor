@@ -1,27 +1,7 @@
 name: CI / Release Verification
 
 on:
-  pull_request:
-    branches:
-      - master
-    paths:
-      - ".goreleaser.yml"
-      - ".goreleaser.yaml"
-      - "goreleaser.yml"
-      - "goreleaser.yaml"
-      - "go.mod"
-      - "go.sum"
-  push:
-    branches:
-      - master
-    paths:
-      - ".goreleaser.yml"
-      - ".goreleaser.yaml"
-      - "goreleaser.yml"
-      - "goreleaser.yaml"
-      - "go.mod"
-      - "go.sum"
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -36,6 +16,7 @@ defaults:
 
 env:
   GORELEASER_VERSION: v2.15.3
+  SYFT_VERSION: v1.42.4
 
 jobs:
   preflight:
@@ -101,7 +82,7 @@ jobs:
   release-verification:
     name: Release Verification
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs:
       - preflight
     if: ${{ needs.preflight.outputs.has_release_inputs == 'true' }}
@@ -141,6 +122,17 @@ jobs:
           check-latest: false
           cache: true
 
+      - name: Install Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          syft-version: ${{ env.SYFT_VERSION }}
+
+      - name: Add Syft to PATH
+        run: |
+          set -euo pipefail
+          dirname "${{ steps.syft.outputs.cmd }}" >> "${GITHUB_PATH}"
+
       - name: Install Goreleaser
         run: |
           set -euo pipefail
@@ -151,7 +143,29 @@ jobs:
           set -euo pipefail
           "$(go env GOPATH)/bin/goreleaser" check
 
-      - name: Build Snapshot Release
+      - name: Verify CONTRIBUTORS ledger
         run: |
           set -euo pipefail
-          "$(go env GOPATH)/bin/goreleaser" build --snapshot --clean
+          python3 .github/scripts/release/generate_contributors.py --check
+
+      - name: Build Snapshot Release Surface
+        env:
+          RELEASE_NAME: Surveyor snapshot
+        run: |
+          set -euo pipefail
+          "$(go env GOPATH)/bin/goreleaser" release --snapshot --clean --skip=sign
+
+      - name: Verify generated release integrity assets
+        run: |
+          set -euo pipefail
+
+          if [ ! -f dist/checksums.txt ]; then
+            echo "Missing dist/checksums.txt"
+            exit 1
+          fi
+
+          mapfile -t sboms < <(find dist -maxdepth 1 -type f -name '*.spdx.json' | sort)
+          if [ "${#sboms[@]}" -eq 0 ]; then
+            echo "No archive SBOMs were generated"
+            exit 1
+          fi

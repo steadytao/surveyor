@@ -37,6 +37,32 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+sboms:
+  - id: archive-spdx
+    artifacts: archive
+    documents:
+      - "${artifact}.spdx.json"
+
+signs:
+  - id: checksum-bundle
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - "sign-blob"
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+  - id: sbom-bundles
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - "sign-blob"
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: sbom
+
 release:
   name_template: '{{ envOrDefault "RELEASE_NAME" (printf "Surveyor %s" .Tag) }}'
   prerelease: auto

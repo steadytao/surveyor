@@ -1,0 +1,340 @@
+name: CI / Master
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: "17 3 * * *"
+    - cron: "47 3 * * *"
+  workflow_dispatch:
+    inputs:
+      run_benchmarks:
+        description: "Run the manual benchmark workflow"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-master-${{ github.event.pull_request.number || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  changes:
+    name: Detect CI Scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      workflows_changed: ${{ steps.detect.outputs.workflows_changed }}
+      scripts_changed: ${{ steps.detect.outputs.scripts_changed }}
+      action_drift_inputs_changed: ${{ steps.detect.outputs.action_drift_inputs_changed }}
+      release_inputs_changed: ${{ steps.detect.outputs.release_inputs_changed }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: block
+          allowed-endpoints: |
+            168.63.129.16:53
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            *.actions.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            *.blob.core.windows.net:443
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: detect
+        run: |
+          set -euo pipefail
+
+          event_name="${{ github.event_name }}"
+          base_sha="${{ github.event.pull_request.base.sha || github.event.before || '' }}"
+          head_sha="${{ github.event.pull_request.head.sha || github.sha }}"
+
+          if [ "${event_name}" = "workflow_dispatch" ]; then
+            {
+              echo "workflows_changed=true"
+              echo "scripts_changed=true"
+              echo "action_drift_inputs_changed=true"
+              echo "release_inputs_changed=true"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if [ "${event_name}" = "schedule" ]; then
+            {
+              echo "workflows_changed=false"
+              echo "scripts_changed=false"
+              echo "action_drift_inputs_changed=false"
+              echo "release_inputs_changed=false"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if [ -z "${base_sha}" ] || [ "${base_sha}" = "0000000000000000000000000000000000000000" ]; then
+            mapfile -t changed_files < <(git show --pretty='' --name-only "${head_sha}" | sed '/^$/d' | sort -u)
+          else
+            mapfile -t changed_files < <(git diff --name-only "${base_sha}" "${head_sha}" | sed '/^$/d' | sort -u)
+          fi
+
+          workflows_changed=false
+          scripts_changed=false
+          action_drift_inputs_changed=false
+          release_inputs_changed=false
+
+          for changed_file in "${changed_files[@]}"; do
+            case "${changed_file}" in
+              .github/workflows/*)
+                workflows_changed=true
+                action_drift_inputs_changed=true
+                ;;
+            esac
+
+            case "${changed_file}" in
+              .github/scripts/*)
+                scripts_changed=true
+                ;;
+            esac
+
+            case "${changed_file}" in
+              .github/scripts/ci/*)
+                action_drift_inputs_changed=true
+                ;;
+            esac
+
+            case "${changed_file}" in
+              .goreleaser.yml|.goreleaser.yaml|goreleaser.yml|goreleaser.yaml|go.mod|go.sum|CHANGELOG.md|AUTHORS|CONTRIBUTORS|docs/releases/*|.github/scripts/release/*|.github/workflows/prepare-release.yml|.github/workflows/release.yml)
+                release_inputs_changed=true
+                ;;
+            esac
+          done
+
+          {
+            echo "workflows_changed=${workflows_changed}"
+            echo "scripts_changed=${scripts_changed}"
+            echo "action_drift_inputs_changed=${action_drift_inputs_changed}"
+            echo "release_inputs_changed=${release_inputs_changed}"
+          } >> "${GITHUB_OUTPUT}"
+
+  action-drift:
+    name: CI / Action Drift
+    needs:
+      - changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.action_drift_inputs_changed == 'true' }}
+    uses: ./.github/workflows/ci-action-drift.yml
+
+  build:
+    name: CI / Build
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' }}
+    uses: ./.github/workflows/ci-build.yml
+
+  cross-platform-build:
+    name: CI / Cross-Platform Build
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' }}
+    uses: ./.github/workflows/ci-cross-platform-build.yml
+
+  file-headers:
+    name: CI / File Headers
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' }}
+    uses: ./.github/workflows/ci-file-headers.yml
+
+  fuzz:
+    name: CI / Fuzz
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '47 3 * * *' }}
+    uses: ./.github/workflows/ci-fuzz.yml
+
+  goreportcard:
+    name: CI / Go Report Card
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' }}
+    uses: ./.github/workflows/ci-goreportcard.yml
+
+  lint:
+    name: CI / Lint
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' }}
+    uses: ./.github/workflows/ci-lint.yml
+
+  module-hygiene:
+    name: CI / Module Hygiene
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' }}
+    uses: ./.github/workflows/ci-module-hygiene.yml
+
+  release-verification:
+    name: CI / Release Verification
+    needs:
+      - changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.release_inputs_changed == 'true' }}
+    uses: ./.github/workflows/ci-release-verification.yml
+
+  script-quality:
+    name: CI / Script Quality
+    needs:
+      - changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.scripts_changed == 'true' }}
+    uses: ./.github/workflows/ci-script-quality.yml
+
+  static-analysis:
+    name: CI / Static Analysis
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '17 3 * * *' }}
+    uses: ./.github/workflows/ci-static-analysis.yml
+
+  test:
+    name: CI / Test
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' }}
+    uses: ./.github/workflows/ci-test.yml
+
+  vulnerabilities:
+    name: CI / Vulnerabilities
+    needs:
+      - changes
+    if: ${{ github.event_name != 'schedule' }}
+    uses: ./.github/workflows/ci-vulnerabilities.yml
+
+  workflow-validation:
+    name: CI / Workflow Validation
+    needs:
+      - changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.workflows_changed == 'true' }}
+    uses: ./.github/workflows/ci-workflow-validation.yml
+
+  benchmarks:
+    name: CI / Benchmarks
+    needs:
+      - changes
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmarks }}
+    uses: ./.github/workflows/ci-benchmarks.yml
+
+  cleanup:
+    name: CI / Cleanup
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - changes
+      - action-drift
+      - build
+      - cross-platform-build
+      - file-headers
+      - fuzz
+      - goreportcard
+      - lint
+      - module-hygiene
+      - release-verification
+      - script-quality
+      - static-analysis
+      - test
+      - vulnerabilities
+      - workflow-validation
+      - benchmarks
+    steps:
+      - name: Evaluate master workflow result
+        env:
+          ACTION_DRIFT_RESULT: ${{ needs.action-drift.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          CROSS_PLATFORM_BUILD_RESULT: ${{ needs.cross-platform-build.result }}
+          FILE_HEADERS_RESULT: ${{ needs.file-headers.result }}
+          FUZZ_RESULT: ${{ needs.fuzz.result }}
+          GOREPORTCARD_RESULT: ${{ needs.goreportcard.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          MODULE_HYGIENE_RESULT: ${{ needs.module-hygiene.result }}
+          RELEASE_VERIFICATION_RESULT: ${{ needs.release-verification.result }}
+          SCRIPT_QUALITY_RESULT: ${{ needs.script-quality.result }}
+          STATIC_ANALYSIS_RESULT: ${{ needs.static-analysis.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          VULNERABILITIES_RESULT: ${{ needs.vulnerabilities.result }}
+          WORKFLOW_VALIDATION_RESULT: ${{ needs.workflow-validation.result }}
+          BENCHMARKS_RESULT: ${{ needs.benchmarks.result }}
+        run: |
+          set -euo pipefail
+
+          declare -A results=(
+            ["CI / Action Drift"]="${ACTION_DRIFT_RESULT}"
+            ["CI / Build"]="${BUILD_RESULT}"
+            ["CI / Cross-Platform Build"]="${CROSS_PLATFORM_BUILD_RESULT}"
+            ["CI / File Headers"]="${FILE_HEADERS_RESULT}"
+            ["CI / Fuzz"]="${FUZZ_RESULT}"
+            ["CI / Go Report Card"]="${GOREPORTCARD_RESULT}"
+            ["CI / Lint"]="${LINT_RESULT}"
+            ["CI / Module Hygiene"]="${MODULE_HYGIENE_RESULT}"
+            ["CI / Release Verification"]="${RELEASE_VERIFICATION_RESULT}"
+            ["CI / Script Quality"]="${SCRIPT_QUALITY_RESULT}"
+            ["CI / Static Analysis"]="${STATIC_ANALYSIS_RESULT}"
+            ["CI / Test"]="${TEST_RESULT}"
+            ["CI / Vulnerabilities"]="${VULNERABILITIES_RESULT}"
+            ["CI / Workflow Validation"]="${WORKFLOW_VALIDATION_RESULT}"
+            ["CI / Benchmarks"]="${BENCHMARKS_RESULT}"
+          )
+
+          failed=0
+
+          {
+            echo "# CI / Cleanup"
+            echo "- Result: evaluating"
+            echo
+            echo "## Upstream job results"
+            for job_name in "${!results[@]}"; do
+              echo "- ${job_name}: ${results[${job_name}]}"
+            done
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          for result in "${results[@]}"; do
+            case "${result}" in
+              success|skipped)
+                ;;
+              failure|cancelled)
+                failed=1
+                ;;
+              *)
+                echo "Unexpected upstream result: ${result}" >&2
+                failed=1
+                ;;
+            esac
+          done
+
+          if [ "${failed}" -ne 0 ]; then
+            {
+              echo
+              echo "## Outcome"
+              echo "- One or more upstream jobs failed or were cancelled."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+
+          {
+            echo
+            echo "## Outcome"
+            echo "- All upstream jobs either succeeded or were intentionally skipped."
+          } >> "${GITHUB_STEP_SUMMARY}"

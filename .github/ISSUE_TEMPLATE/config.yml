@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Issue
+    about: Report security vulnerabilities privately through GitHub Security Advisories.
+    url: https://github.com/steadytao/surveyor/security/advisories/new
+  - name: Security Policy
+    about: Read the project's security reporting policy.
+    url: https://github.com/steadytao/surveyor/blob/master/.github/SECURITY.md
+  - name: Project Documentation
+    about: Read the documentation before opening an issue.
+    url: https://github.com/steadytao/surveyor/blob/master/docs/README.md

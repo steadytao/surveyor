@@ -1,17 +1,28 @@
+# log files
 *.log
+
+# artifacts from pprof tooling
 *.prof
 *.test
-*.out
 
-# build artifacts
+# coverage artifacts
+coverage.out
+
+# build artifacts and helpers
 surveyor
 surveyor.exe
 cmd/surveyor/surveyor
 cmd/surveyor/surveyor.exe
-dist/
+bin/
 
-# MAC
+# mac specific
 .DS_Store
+
+# windows specific
+Thumbs.db
+
+# goreleaser artifacts
+dist/
 
 # IDE files
 .idea/

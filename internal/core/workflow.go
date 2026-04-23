@@ -1,3 +1,6 @@
+// Copyright 2026 The Surveyor Authors
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 // WorkflowGroupBy records a supported organisational grouping dimension for

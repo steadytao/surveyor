@@ -1,0 +1,8 @@
+# This file is generated from Surveyor's reachable non-bot commit history.
+# Do not edit it manually. Regenerate it with:
+#   python .github/scripts/release/generate_contributors.py --write
+#
+# CONTRIBUTORS is a recognition list. It is not the copyright-authority file.
+# See AUTHORS for the curated copyright-purpose author list.
+
+Zen Dodd <mail@steadytao.com>

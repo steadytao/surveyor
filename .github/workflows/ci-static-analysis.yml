@@ -1,15 +1,7 @@
 name: CI / Static Analysis
 
 on:
-  pull_request:
-    branches:
-      - master
-  push:
-    branches:
-      - master
-  schedule:
-    - cron: "17 3 * * *"
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
