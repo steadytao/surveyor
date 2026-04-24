@@ -104,8 +104,8 @@ The release should stay narrow and defensible.
 
 Before tagging:
 - review open milestone items
-- confirm branch protection and required CI checks on `master`
-- confirm `CI / Cleanup` is the required repository CI gate if the master workflow is in use
+- confirm branch protection and required CI checks on `main`
+- confirm `CI / Cleanup` is the required repository CI gate if the main workflow is in use
 - confirm GitHub DCO app enforcement is active if the repository relies on signed-off commits
 - regenerate `CONTRIBUTORS` and commit any real changes before tagging
 - update release notes
