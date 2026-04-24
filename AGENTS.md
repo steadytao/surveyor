@@ -93,7 +93,7 @@ When editing workflows:
 - preserve hardened runner settings unless there is a deliberate reason to change them
 - keep CI behaviour explicit and reviewable
 
-If a master CI workflow exists, child `ci-*` workflows should be reusable and called from it rather than auto-triggering independently.
+If a main CI workflow exists, child `ci-*` workflows should be reusable and called from it rather than auto-triggering independently.
 
 ## Verification Expectations
 

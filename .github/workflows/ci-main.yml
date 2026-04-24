@@ -1,12 +1,12 @@
-name: CI / Master
+name: CI / Main
 
 on:
   pull_request:
     branches:
-      - master
+      - main
   push:
     branches:
-      - master
+      - main
   schedule:
     - cron: "17 3 * * *"
     - cron: "47 3 * * *"
@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-master-${{ github.event.pull_request.number || github.ref || github.run_id }}
+  group: ci-main-${{ github.event.pull_request.number || github.ref || github.run_id }}
   cancel-in-progress: true
 
 defaults:
@@ -260,7 +260,7 @@ jobs:
       - workflow-validation
       - benchmarks
     steps:
-      - name: Evaluate master workflow result
+      - name: Evaluate main workflow result
         env:
           ACTION_DRIFT_RESULT: ${{ needs.action-drift.result }}
           BUILD_RESULT: ${{ needs.build.result }}
